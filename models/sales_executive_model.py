@@ -1,13 +1,21 @@
 from app import db
 from datetime import datetime
 
+
+# Association table for many-to-many relationship between sales executives and branches
+user_branches = db.Table('user_branches',
+    db.Column('sales_executive_id', db.Integer, db.ForeignKey('sales_executive.id'), primary_key=True),
+    db.Column('branch_id', db.Integer, db.ForeignKey('branch.id'), primary_key=True)
+)
+
+
 class SalesExecutive(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(150), nullable=False)
-    code = db.Column(db.String(50), unique=True, nullable=False)
-    manager_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    branch_id = db.Column(db.Integer, db.ForeignKey('branch.id'), nullable=False)
-    is_deleted = db.Column(db.Boolean, default=False)  # Soft delete
+    name = db.Column(db.String(150), nullable=False, index=True)
+    code = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    manager_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
+    branch_id = db.Column(db.Integer, db.ForeignKey('branch.id'), nullable=False, index=True)
+    is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 

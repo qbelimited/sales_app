@@ -3,9 +3,9 @@ from datetime import datetime
 
 class Paypoint(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
+    name = db.Column(db.String(100), nullable=False, index=True)
     location = db.Column(db.String(255), nullable=True)
-    is_deleted = db.Column(db.Boolean, default=False)  # Soft delete
+    is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 

@@ -1,8 +1,10 @@
 from flask_restful import Resource
 from flask import request, jsonify
 from models.branch_model import Branch
+from models.audit_model import AuditTrail
 from app import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from datetime import datetime
 
 class BranchResource(Resource):
     @jwt_required()
@@ -37,14 +39,30 @@ class BranchResource(Resource):
     def post(self):
         current_user = get_jwt_identity()
         data = request.json
+
+        # Validation of required fields
+        if not data.get('name') or not data.get('address') or not data.get('city') or not data.get('region'):
+            return {'message': 'Missing required fields'}, 400
+
         new_branch = Branch(
             name=data['name'],
             address=data['address'],
             city=data['city'],
             region=data['region'],
-            ghpost_gps=data['ghpost_gps']
+            ghpost_gps=data.get('ghpost_gps')
         )
         db.session.add(new_branch)
+        db.session.commit()
+
+        # Log creation to audit trail
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='CREATE',
+            resource_type='branch',
+            resource_id=new_branch.id,
+            details=f"Created branch with details: {data}"
+        )
+        db.session.add(audit)
         db.session.commit()
 
         return new_branch.serialize(), 201
@@ -66,6 +84,17 @@ class BranchResource(Resource):
 
         db.session.commit()
 
+        # Log update to audit trail
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='UPDATE',
+            resource_type='branch',
+            resource_id=branch.id,
+            details=f"Updated branch with details: {data}"
+        )
+        db.session.add(audit)
+        db.session.commit()
+
         return branch.serialize(), 200
 
     @jwt_required()
@@ -76,6 +105,17 @@ class BranchResource(Resource):
             return {'message': 'Branch not found'}, 404
 
         branch.is_deleted = True
+        db.session.commit()
+
+        # Log deletion to audit trail
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='DELETE',
+            resource_type='branch',
+            resource_id=branch.id,
+            details=f"Deleted branch with id: {branch_id}"
+        )
+        db.session.add(audit)
         db.session.commit()
 
         return {'message': 'Branch deleted successfully'}, 200

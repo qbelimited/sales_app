@@ -5,3 +5,4 @@ from .paypoint_model import Paypoint
 from .impact_product_model import ImpactProduct
 from .sales_executive_model import SalesExecutive
 from .audit_model import AuditTrail
+from .under_investigation_model import UnderInvestigation

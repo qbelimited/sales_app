@@ -3,9 +3,9 @@ from datetime import datetime
 
 class Bank(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False, unique=True)
+    name = db.Column(db.String(100), nullable=False, unique=True, index=True)
     branches = db.relationship('Branch', backref='bank', lazy=True)
-    is_deleted = db.Column(db.Boolean, default=False)  # Soft delete
+    is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
@@ -21,12 +21,12 @@ class Bank(db.Model):
 
 class Branch(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    bank_id = db.Column(db.Integer, db.ForeignKey('bank.id'), nullable=False)
+    name = db.Column(db.String(100), nullable=False, index=True)
+    bank_id = db.Column(db.Integer, db.ForeignKey('bank.id'), nullable=False, index=True)
     address = db.Column(db.String(255), nullable=True)
     city = db.Column(db.String(100), nullable=True)
     country = db.Column(db.String(100), nullable=True)
-    is_deleted = db.Column(db.Boolean, default=False)  # Soft delete
+    is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 

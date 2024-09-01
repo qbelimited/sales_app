@@ -51,7 +51,14 @@ class AdminResource(Resource):
             new_bank = Bank(name=data['name'])
             db.session.add(new_bank)
         elif data['type'] == 'branch':
-            new_branch = Branch(name=data['name'], bank_id=data.get('bank_id'))
+            new_branch = Branch(
+                name=data['name'],
+                bank_id=data.get('bank_id'),
+                address=data.get('address'),
+                city=data.get('city'),
+                region=data.get('region'),
+                ghpost_gps=data.get('ghpost_gps')
+            )
             db.session.add(new_branch)
         elif data['type'] == 'paypoint':
             new_paypoint = Paypoint(name=data['name'], location=data['location'])
@@ -103,6 +110,10 @@ class AdminResource(Resource):
                 return {'message': 'Branch not found'}, 404
             branch.name = data.get('name', branch.name)
             branch.bank_id = data.get('bank_id', branch.bank_id)
+            branch.address = data.get('address', branch.address)
+            branch.city = data.get('city', branch.city)
+            branch.region = data.get('region', branch.region)
+            branch.ghpost_gps = data.get('ghpost_gps', branch.ghpost_gps)
         elif data['type'] == 'paypoint':
             paypoint = Paypoint.query.filter_by(id=data['id'], is_deleted=False).first()
             if not paypoint:
@@ -176,4 +187,3 @@ class AdminResource(Resource):
         db.session.commit()
 
         return {'message': 'Resource deleted successfully'}, 200
-

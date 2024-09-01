@@ -3,13 +3,13 @@ from datetime import datetime
 
 class AuditTrail(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     action = db.Column(db.String(100), nullable=False)
     resource_type = db.Column(db.String(100), nullable=False)
     resource_id = db.Column(db.Integer, nullable=False)
     old_value = db.Column(db.Text, nullable=True)  # Store the old value before change
     new_value = db.Column(db.Text, nullable=True)  # Store the new value after change
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     details = db.Column(db.Text, nullable=True)
 
     user = db.relationship('User', backref='audit_trails')
