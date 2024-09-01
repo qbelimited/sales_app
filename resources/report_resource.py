@@ -2,24 +2,46 @@ from flask_restful import Resource
 from models.report_model import Report
 from flask import request, jsonify
 from app import db
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 class ReportResource(Resource):
+    @jwt_required()
     def get(self, report_id=None):
+        current_user = get_jwt_identity()
         if report_id:
-            report = Report.query.get(report_id)
+            report = Report.query.filter_by(id=report_id).first()
             if not report:
                 return {'message': 'Report not found'}, 404
             return report.serialize(), 200
         else:
-            reports = Report.query.all()
-            return jsonify([report.serialize() for report in reports])
+            page = request.args.get('page', 1, type=int)
+            per_page = request.args.get('per_page', 10, type=int)
+            filter_by = request.args.get('filter_by', None)
+            sort_by = request.args.get('sort_by', 'created_at')
 
+            reports_query = Report.query
+
+            if filter_by:
+                reports_query = reports_query.filter(Report.report_data.ilike(f'%{filter_by}%'))
+
+            reports = reports_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+
+            return {
+                'reports': [report.serialize() for report in reports.items],
+                'total': reports.total,
+                'pages': reports.pages,
+                'current_page': reports.page
+            }, 200
+
+    @jwt_required()
     def post(self):
+        current_user = get_jwt_identity()
         data = request.json
         new_report = Report(
-            user_id=data['user_id'],
+            user_id=current_user['id'],
             report_data=data['report_data']
         )
         db.session.add(new_report)
         db.session.commit()
+
         return new_report.serialize(), 201

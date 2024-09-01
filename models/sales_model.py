@@ -1,5 +1,6 @@
 from app import db
 from datetime import datetime
+from sqlalchemy.orm import validates
 
 class Sale(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -13,9 +14,16 @@ class Sale(db.Model):
     bank_acc_number = db.Column(db.String(100), nullable=False)
     amount = db.Column(db.Float, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, nullable=True)
+    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+    is_deleted = db.Column(db.Boolean, default=False)  # Soft delete
     geolocation = db.Column(db.String(255), nullable=True)
     status = db.Column(db.String(50), default='submitted')
+
+    @validates('bank_acc_number')
+    def validate_bank_acc_number(self, key, number):
+        if len(number) < 10:
+            raise ValueError("Bank account number must be at least 10 digits")
+        return number
 
     def serialize(self):
         return {
@@ -31,6 +39,7 @@ class Sale(db.Model):
             'amount': self.amount,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'is_deleted': self.is_deleted,
             'geolocation': self.geolocation,
             'status': self.status
         }

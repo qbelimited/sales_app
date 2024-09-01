@@ -10,17 +10,17 @@ class DropdownResource(Resource):
         response = []
 
         if dropdown_type == 'bank':
-            banks = Bank.query.all()
+            banks = Bank.query.filter_by(is_deleted=False).all()
             response = [bank.serialize() for bank in banks]
 
         elif dropdown_type == 'branch':
             bank_id = request.args.get('bank_id')
-            branches = Branch.query.filter_by(bank_id=bank_id).all()
+            branches = Branch.query.filter_by(bank_id=bank_id, is_deleted=False).all()
             response = [branch.serialize() for branch in branches]
 
         elif dropdown_type == 'sales_executive':
             manager_id = request.args.get('manager_id')
-            sales_executives = SalesExecutive.query.filter_by(manager_id=manager_id).all()
+            sales_executives = SalesExecutive.query.filter_by(manager_id=manager_id, is_deleted=False).all()
             response = [se.serialize() for se in sales_executives]
 
         return jsonify(response)

@@ -3,22 +3,32 @@ from flask import request, jsonify
 from models.sales_executive_model import SalesExecutive
 from models.sales_model import Sale
 from app import db
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 class ManagerResource(Resource):
+    @jwt_required()
     def get(self):
-        manager_id = request.args.get('manager_id')
-        sales_executives = SalesExecutive.query.filter_by(manager_id=manager_id).all()
-        sales_data = Sale.query.filter(Sale.user_id.in_([se.id for se in sales_executives])).all()
+        current_user = get_jwt_identity()
+        if current_user['role'] != 'manager':
+            return {'message': 'Unauthorized'}, 403
+
+        sales_executives = SalesExecutive.query.filter_by(manager_id=current_user['id'], is_deleted=False).all()
+        sales_data = Sale.query.filter(Sale.user_id.in_([se.id for se in sales_executives]), Sale.is_deleted == False).all()
 
         return jsonify({
             'sales_executives': [se.serialize() for se in sales_executives],
             'sales_data': [sale.serialize() for sale in sales_data]
         })
 
+    @jwt_required()
     def post(self):
+        current_user = get_jwt_identity()
+        if current_user['role'] != 'manager':
+            return {'message': 'Unauthorized'}, 403
+
         data = request.json
         new_sale = Sale(
-            user_id=data['user_id'],
+            user_id=current_user['id'],
             sale_manager=data['sale_manager'],
             sales_executive=data['sales_executive'],
             branch=data['branch'],
@@ -32,21 +42,15 @@ class ManagerResource(Resource):
         db.session.add(new_sale)
         db.session.commit()
 
-        # Log the action to audit trail
-        audit = AuditTrail(
-            user_id=request.json['user_id'],
-            action='CREATE_SALE',
-            resource_type='Sale',
-            resource_id=new_sale.id,
-            details=f"Created sale record for sales executive {data['sales_executive']} with details: {data}"
-        )
-        db.session.add(audit)
-        db.session.commit()
-
         return new_sale.serialize(), 201
 
+    @jwt_required()
     def put(self, sale_id):
-        sale = Sale.query.get(sale_id)
+        current_user = get_jwt_identity()
+        if current_user['role'] != 'manager':
+            return {'message': 'Unauthorized'}, 403
+
+        sale = Sale.query.filter_by(id=sale_id, is_deleted=False).first()
         if not sale:
             return {'message': 'Sale not found'}, 404
 
@@ -62,17 +66,6 @@ class ManagerResource(Resource):
         sale.updated_at = datetime.utcnow()
         sale.status = 'updated'
 
-        db.session.commit()
-
-        # Log the action to audit trail
-        audit = AuditTrail(
-            user_id=request.json['user_id'],
-            action='UPDATE_SALE',
-            resource_type='Sale',
-            resource_id=sale_id,
-            details=f"Updated sale record for sales executive {sale.sales_executive} with details: {data}"
-        )
-        db.session.add(audit)
         db.session.commit()
 
         return sale.serialize(), 200

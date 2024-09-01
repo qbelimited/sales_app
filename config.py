@@ -1,4 +1,3 @@
-import logging
 import os
 
 class Config:
@@ -6,9 +5,9 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'sqlite:///sales_recording_app.db')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'your_jwt_secret_key')
-
-    # Logging configuration
+    API_VERSION = os.getenv('API_VERSION', 'v1')  # Added API versioning
     LOG_FILE_PATH = os.getenv('LOG_FILE_PATH', 'logs/')
+
     if not os.path.exists(LOG_FILE_PATH):
         os.makedirs(LOG_FILE_PATH)
 

@@ -7,15 +7,21 @@ from models.paypoint_model import Paypoint
 from models.impact_product_model import ImpactProduct
 from models.audit_model import AuditTrail
 from app import db
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 class AdminResource(Resource):
+    @jwt_required()
     def get(self):
-        users = User.query.all()
-        sales_executives = SalesExecutive.query.all()
-        banks = Bank.query.all()
-        branches = Branch.query.all()
-        paypoints = Paypoint.query.all()
-        products = ImpactProduct.query.all()
+        current_user = get_jwt_identity()
+        if current_user['role'] != 'admin':
+            return {'message': 'Unauthorized'}, 403
+
+        users = User.query.filter_by(is_deleted=False).all()
+        sales_executives = SalesExecutive.query.filter_by(is_deleted=False).all()
+        banks = Bank.query.filter_by(is_deleted=False).all()
+        branches = Branch.query.filter_by(is_deleted=False).all()
+        paypoints = Paypoint.query.filter_by(is_deleted=False).all()
+        products = ImpactProduct.query.filter_by(is_deleted=False).all()
 
         return jsonify({
             'users': [user.serialize() for user in users],
@@ -26,7 +32,12 @@ class AdminResource(Resource):
             'products': [product.serialize() for product in products]
         })
 
+    @jwt_required()
     def post(self):
+        current_user = get_jwt_identity()
+        if current_user['role'] != 'admin':
+            return {'message': 'Unauthorized'}, 403
+
         data = request.json
         if data['type'] == 'sales_executive':
             new_sales_executive = SalesExecutive(
@@ -40,7 +51,7 @@ class AdminResource(Resource):
             new_bank = Bank(name=data['name'])
             db.session.add(new_bank)
         elif data['type'] == 'branch':
-            new_branch = Branch(name=data['name'], bank_id=data['bank_id'])
+            new_branch = Branch(name=data['name'], bank_id=data.get('bank_id'))
             db.session.add(new_branch)
         elif data['type'] == 'paypoint':
             new_paypoint = Paypoint(name=data['name'], location=data['location'])
@@ -52,10 +63,13 @@ class AdminResource(Resource):
 
         # Log the action to audit trail
         audit = AuditTrail(
-            user_id=request.json['user_id'],
+            user_id=current_user['id'],
             action='CREATE',
             resource_type=data['type'],
-            resource_id=db.session.identity_map.get(list(db.session.identity_map.keys())[-1]).id,
+             resource_id=new_sales_executive.id if data['type'] == 'sales_executive' else (
+                new_bank.id if data['type'] == 'bank' else (
+                    new_branch.id if data['type'] == 'branch' else (
+                        new_paypoint.id if data['type'] == 'paypoint' else new_product.id))),
             details=f"Created {data['type']} with details: {data}"
         )
         db.session.add(audit)
@@ -63,34 +77,49 @@ class AdminResource(Resource):
 
         return {'message': 'Resource added successfully'}, 201
 
+    @jwt_required()
     def put(self):
+        current_user = get_jwt_identity()
+        if current_user['role'] != 'admin':
+            return {'message': 'Unauthorized'}, 403
+
         data = request.json
         if data['type'] == 'sales_executive':
-            se = SalesExecutive.query.get(data['id'])
+            se = SalesExecutive.query.filter_by(id=data['id'], is_deleted=False).first()
+            if not se:
+                return {'message': 'Sales Executive not found'}, 404
             se.name = data.get('name', se.name)
             se.code = data.get('code', se.code)
             se.manager_id = data.get('manager_id', se.manager_id)
             se.branch_id = data.get('branch_id', se.branch_id)
         elif data['type'] == 'bank':
-            bank = Bank.query.get(data['id'])
+            bank = Bank.query.filter_by(id=data['id'], is_deleted=False).first()
+            if not bank:
+                return {'message': 'Bank not found'}, 404
             bank.name = data.get('name', bank.name)
         elif data['type'] == 'branch':
-            branch = Branch.query.get(data['id'])
+            branch = Branch.query.filter_by(id=data['id'], is_deleted=False).first()
+            if not branch:
+                return {'message': 'Branch not found'}, 404
             branch.name = data.get('name', branch.name)
             branch.bank_id = data.get('bank_id', branch.bank_id)
         elif data['type'] == 'paypoint':
-            paypoint = Paypoint.query.get(data['id'])
+            paypoint = Paypoint.query.filter_by(id=data['id'], is_deleted=False).first()
+            if not paypoint:
+                return {'message': 'Paypoint not found'}, 404
             paypoint.name = data.get('name', paypoint.name)
             paypoint.location = data.get('location', paypoint.location)
         elif data['type'] == 'product':
-            product = ImpactProduct.query.get(data['id'])
+            product = ImpactProduct.query.filter_by(id=data['id'], is_deleted=False).first()
+            if not product:
+                return {'message': 'Product not found'}, 404
             product.name = data.get('name', product.name)
             product.category = data.get('category', product.category)
         db.session.commit()
 
         # Log the action to audit trail
         audit = AuditTrail(
-            user_id=request.json['user_id'],
+            user_id=current_user['id'],
             action='UPDATE',
             resource_type=data['type'],
             resource_id=data['id'],
@@ -101,28 +130,43 @@ class AdminResource(Resource):
 
         return {'message': 'Resource updated successfully'}, 200
 
+    @jwt_required()
     def delete(self):
+        current_user = get_jwt_identity()
+        if current_user['role'] != 'admin':
+            return {'message': 'Unauthorized'}, 403
+
         data = request.json
         if data['type'] == 'sales_executive':
-            se = SalesExecutive.query.get(data['id'])
-            db.session.delete(se)
+            se = SalesExecutive.query.filter_by(id=data['id'], is_deleted=False).first()
+            if not se:
+                return {'message': 'Sales Executive not found'}, 404
+            se.is_deleted = True
         elif data['type'] == 'bank':
-            bank = Bank.query.get(data['id'])
-            db.session.delete(bank)
+            bank = Bank.query.filter_by(id=data['id'], is_deleted=False).first()
+            if not bank:
+                return {'message': 'Bank not found'}, 404
+            bank.is_deleted = True
         elif data['type'] == 'branch':
-            branch = Branch.query.get(data['id'])
-            db.session.delete(branch)
+            branch = Branch.query.filter_by(id=data['id'], is_deleted=False).first()
+            if not branch:
+                return {'message': 'Branch not found'}, 404
+            branch.is_deleted = True
         elif data['type'] == 'paypoint':
-            paypoint = Paypoint.query.get(data['id'])
-            db.session.delete(paypoint)
+            paypoint = Paypoint.query.filter_by(id=data['id'], is_deleted=False).first()
+            if not paypoint:
+                return {'message': 'Paypoint not found'}, 404
+            paypoint.is_deleted = True
         elif data['type'] == 'product':
-            product = ImpactProduct.query.get(data['id'])
-            db.session.delete(product)
+            product = ImpactProduct.query.filter_by(id=data['id'], is_deleted=False).first()
+            if not product:
+                return {'message': 'Product not found'}, 404
+            product.is_deleted = True
         db.session.commit()
 
         # Log the action to audit trail
         audit = AuditTrail(
-            user_id=request.json['user_id'],
+            user_id=current_user['id'],
             action='DELETE',
             resource_type=data['type'],
             resource_id=data['id'],
@@ -132,3 +176,4 @@ class AdminResource(Resource):
         db.session.commit()
 
         return {'message': 'Resource deleted successfully'}, 200
+

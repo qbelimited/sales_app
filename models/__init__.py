@@ -1,4 +1,4 @@
-from .user_model import User
+from .user_model import User, Role
 from .sales_model import Sale
 from .bank_model import Bank, Branch
 from .paypoint_model import Paypoint

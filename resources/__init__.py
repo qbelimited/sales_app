@@ -5,3 +5,4 @@ from .admin_resource import AdminResource
 from .manager_resource import ManagerResource
 from .dropdown_resource import DropdownResource
 from .log_resource import LogResource
+from .branch_resource import BranchResource  # Assuming a new BranchResource

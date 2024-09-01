@@ -1,6 +1,7 @@
-from flask_restful import Resource
 import os
+from flask_restful import Resource
 from config import Config
+from flask import request
 
 class LogResource(Resource):
     def get(self):
@@ -22,3 +23,4 @@ class LogResource(Resource):
         filtered_logs = [log for log in logs if f"{level}" in log]
 
         return {'logs': filtered_logs}, 200
+
