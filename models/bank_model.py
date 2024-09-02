@@ -27,9 +27,7 @@ class BankBranch(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, index=True)
     bank_id = db.Column(db.Integer, db.ForeignKey('bank.id'), nullable=False, index=True)
-    address = db.Column(db.String(255), nullable=True)
-    city = db.Column(db.String(100), nullable=True)
-    country = db.Column(db.String(100), nullable=True)
+    sort_code = db.Column(db.String(255), nullable=True)
     is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)

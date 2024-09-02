@@ -1,7 +1,9 @@
 from flask_restful import Resource
 from flask import request, jsonify
 from models.bank_model import Bank, BankBranch
+from models.branch_model import Branch
 from models.sales_executive_model import SalesExecutive
+from models.impact_product_model import ImpactProduct
 from models.audit_model import AuditTrail
 from app import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -37,6 +39,10 @@ class DropdownResource(Resource):
                 query = query.filter_by(branch_id=branch_id)
             sales_executives = query.all()
             response = [se.serialize() for se in sales_executives]
+
+        elif dropdown_type == 'impact_product':
+            impact_products = ImpactProduct.query.filter_by(is_deleted=False).all()
+            response = [product.serialize() for product in impact_products]
 
         else:
             return {"message": "Invalid dropdown type"}, 400

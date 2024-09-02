@@ -2,12 +2,14 @@ from app import db
 from datetime import datetime
 from sqlalchemy.orm import validates
 from models.under_investigation_model import UnderInvestigation
+from models.impact_product_model import ImpactProduct
 
 class Sale(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     sale_manager = db.Column(db.String(100), nullable=False, index=True)
     sales_executive_id = db.Column(db.Integer, db.ForeignKey('sales_executive.id'), nullable=False, index=True)
+    client_name = db.Column(db.String(150), nullable=False, index=True)  # Client name
     client_phone = db.Column(db.String(10), nullable=False, index=True)  # Client phone number, must be 10 digits
     serial_number = db.Column(db.String(100), nullable=False, index=True)  # Serial number field
     source_type = db.Column(db.String(50), nullable=False, index=True)  # 'momo', 'bank', or 'paypoint'
@@ -21,6 +23,7 @@ class Sale(db.Model):
     paypoint_name = db.Column(db.String(100), nullable=True, index=True)  # Paypoint name, required if source_type or subsequent_pay_source_type is 'paypoint'
     paypoint_branch = db.Column(db.String(100), nullable=True, index=True)  # Paypoint branch, if applicable
     staff_id = db.Column(db.String(100), nullable=True, index=True)  # Staff ID, required if source_type or subsequent_pay_source_type is 'bank' or 'paypoint'
+    policy_type_id = db.Column(db.Integer, db.ForeignKey('impact_product.id'), nullable=False, index=True)  # Foreign key to ImpactProduct
     amount = db.Column(db.Float, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
@@ -28,6 +31,9 @@ class Sale(db.Model):
     geolocation = db.Column(db.String(255), nullable=True)
     status = db.Column(db.String(50), default='submitted', index=True)  # Status, e.g., 'submitted', 'under investigation'
     customer_called = db.Column(db.Boolean, default=False)  # Checkbox to indicate if the customer was called
+
+    # Relationships
+    policy_type = db.relationship('ImpactProduct', backref=db.backref('sales', lazy=True))
 
     @validates('client_phone')
     def validate_client_phone(self, key, number):
@@ -43,8 +49,6 @@ class Sale(db.Model):
                 raise ValueError("UBA account number must be 14 digits")
             elif ('Zenith' in self.bank_name or 'Absa' in self.bank_name) and length != 10:
                 raise ValueError("Zenith or Absa account number must be 10 digits")
-            elif 'ADB' in self.bank_name and length != 16:
-                raise ValueError("ADB account number must be 16 digits")
             elif 'SG' in self.bank_name and length not in [12, 13]:
                 raise ValueError("SG account number must be 12 or 13 digits")
             elif length not in [13, 16]:
@@ -84,13 +88,13 @@ class Sale(db.Model):
             db.session.add(investigation)
         return self
 
-
     def serialize(self):
         return {
             'id': self.id,
             'user_id': self.user_id,
             'sale_manager': self.sale_manager,
             'sales_executive_id': self.sales_executive_id,
+            'client_name': self.client_name,
             'client_phone': self.client_phone,
             'serial_number': self.serial_number,
             'source_type': self.source_type,
@@ -104,6 +108,7 @@ class Sale(db.Model):
             'paypoint_name': self.paypoint_name,
             'paypoint_branch': self.paypoint_branch,
             'staff_id': self.staff_id,
+            'policy_type': self.policy_type.serialize(),  # Serialize the policy type (ImpactProduct)
             'amount': self.amount,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
