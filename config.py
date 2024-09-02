@@ -1,4 +1,6 @@
 import os
+import logging
+import logging.config
 
 class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'your_secret_key')

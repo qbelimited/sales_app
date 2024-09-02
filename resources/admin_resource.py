@@ -2,7 +2,7 @@ from flask_restful import Resource
 from flask import request, jsonify
 from models.user_model import User
 from models.sales_executive_model import SalesExecutive
-from models.bank_model import Bank, Branch
+from models.bank_model import Bank, BankBranch
 from models.paypoint_model import Paypoint
 from models.impact_product_model import ImpactProduct
 from models.audit_model import AuditTrail

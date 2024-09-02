@@ -1,6 +1,6 @@
 from flask_restful import Resource
 from flask import request, jsonify
-from models.bank_model import Bank, Branch
+from models.bank_model import Bank, BankBranch
 from models.sales_executive_model import SalesExecutive
 from models.audit_model import AuditTrail
 from app import db

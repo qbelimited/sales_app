@@ -2,9 +2,11 @@ from app import db
 from datetime import datetime
 
 class Bank(db.Model):
+    __tablename__ = 'bank'  # Explicitly set the table name
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True, index=True)
-    branches = db.relationship('Branch', backref='bank', lazy=True)
+    branches = db.relationship('BankBranch', backref='bank', lazy=True)  # Update to reflect the new class name
     is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
@@ -19,7 +21,9 @@ class Bank(db.Model):
             'branches': [branch.serialize() for branch in self.branches]
         }
 
-class Branch(db.Model):
+class BankBranch(db.Model):
+    __tablename__ = 'bank_branch'  # Explicitly set the table name
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, index=True)
     bank_id = db.Column(db.Integer, db.ForeignKey('bank.id'), nullable=False, index=True)

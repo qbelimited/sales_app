@@ -16,21 +16,29 @@ sales_app/
         report_model.py
         sales_executive_model.py
         sales_model.py
+        under_investigation_model.py
         user_model.py
         __init__.py
     resources/
         admin_resource.py
+        audit_trail_resource.py
         auth_resource.py
         branch_resource.py
         dropdown_resource.py
+        impact_product_resource.py
         log_resource.py
         manager_resource.py
+        paypoint_resource.py
         report_resource.py
+        sales_executive_resource.py
         sales_resource.py
+        user_resource.py
         __init__.py
     services/
         auth_service.py
         report_service.py
+        sales_service.py
+        user_service.py
         __init__.py
     templates/
     utils/

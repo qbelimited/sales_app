@@ -1,7 +1,10 @@
 from flask import Flask, redirect, url_for, session, request, jsonify
 from flask_session import Session
 from msal import ConfidentialClientApplication
+from models.user_model import User
+from models.audit_model import AuditTrail
 import uuid
+from app import db
 
 app = Flask(__name__)
 Session(app)
@@ -41,10 +44,39 @@ def auth_callback():
 
         session['user'] = result.get('id_token_claims')
         save_cache(cache)
+
+        # Log successful login to audit trail
+        user_email = session['user'].get('preferred_username')
+        user = User.query.filter_by(email=user_email).first()
+        if user:
+            audit = AuditTrail(
+                user_id=user.id,
+                action='LOGIN',
+                resource_type='user',
+                resource_id=user.id,
+                details=f"User {user_email} logged in."
+            )
+            db.session.add(audit)
+            db.session.commit()
+
         return redirect(url_for('authorized'))
 
 @app.route('/logout')
 def logout():
+    user_email = session.get('user', {}).get('preferred_username')
+    user = User.query.filter_by(email=user_email).first()
+    if user:
+        # Log successful logout to audit trail
+        audit = AuditTrail(
+            user_id=user.id,
+            action='LOGOUT',
+            resource_type='user',
+            resource_id=user.id,
+            details=f"User {user_email} logged out."
+        )
+        db.session.add(audit)
+        db.session.commit()
+
     session.clear()
     return redirect(url_for('index'))
 
@@ -62,7 +94,8 @@ def authorized():
         return redirect(url_for('login'))
     user_email = session['user'].get('preferred_username')
     # Check if the user email is in the approved list (in the database)
-    authorized_user = AuthorizedUser.query.filter_by(email=user_email).first()
-    if not authorized_user:
+    user = User.query.filter_by(email=user_email).first()
+    if not user:
         return "Access Denied", 403
+
     return "You are logged in as: " + user_email

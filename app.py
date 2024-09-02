@@ -18,19 +18,20 @@ app.config.from_object(Config)
 # Initialize database, JWT, migration, and API
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
-api = Api(app)
 migrate = Migrate(app, db)
+api = Api(app)
 
-# Importing models so that Flask-Migrate can detect changes
-from models.user_model import User
+from models.user_model import User, Role
 from models.sales_model import Sale
-from models.sales_executive_model import SalesExecutive
-from models.bank_model import Bank, Branch
+from models.bank_model import Bank, BankBranch
 from models.paypoint_model import Paypoint
 from models.impact_product_model import ImpactProduct
+from models.sales_executive_model import SalesExecutive
 from models.audit_model import AuditTrail
+from models.under_investigation_model import UnderInvestigation
+from models.branch_model import Branch
 
-# Importing resources and adding routes
+# Import resources and add routes
 from resources.auth_resource import AuthResource, AuthCallbackResource, LogoutResource
 from resources.sales_resource import SaleResource
 from resources.report_resource import ReportResource
@@ -38,6 +39,12 @@ from resources.admin_resource import AdminResource
 from resources.manager_resource import ManagerResource
 from resources.dropdown_resource import DropdownResource
 from resources.log_resource import LogResource
+from resources.branch_resource import BranchResource
+from resources.impact_product_resource import ImpactProductResource
+from resources.paypoint_resource import PaypointResource
+from resources.sales_executive_resource import SalesExecutiveResource
+from resources.user_resource import UserResource
+from resources.audit_trail_resource import AuditTrailResource
 
 # Setting up routes with versioning
 api_version = f"/api/{Config.API_VERSION}"
@@ -51,6 +58,12 @@ api.add_resource(AdminResource, f'{api_version}/admin')
 api.add_resource(ManagerResource, f'{api_version}/manager')
 api.add_resource(DropdownResource, f'{api_version}/dropdown')
 api.add_resource(LogResource, f'{api_version}/logs')
+api.add_resource(BranchResource, f'{api_version}/branches', f'{api_version}/branches/<int:branch_id>')
+api.add_resource(ImpactProductResource, f'{api_version}/impact_products')
+api.add_resource(PaypointResource, f'{api_version}/paypoints')
+api.add_resource(SalesExecutiveResource, f'{api_version}/sales_executives')
+api.add_resource(UserResource, f'{api_version}/users')
+api.add_resource(AuditTrailResource, f'{api_version}/audit_trails')
 
 # Swagger UI setup
 SWAGGER_URL = '/api/docs'

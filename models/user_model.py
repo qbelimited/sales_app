@@ -9,6 +9,8 @@ user_branches = db.Table('user_branches',
 )
 
 class Role(db.Model):
+    __tablename__ = 'role'  # Explicitly set the table name
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
     description = db.Column(db.String(255), nullable=True)
@@ -21,6 +23,8 @@ class Role(db.Model):
         }
 
 class User(db.Model):
+    __tablename__ = 'user'  # Explicitly set the table name
+
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(150), unique=True, nullable=False, index=True)
     name = db.Column(db.String(150), nullable=False)
