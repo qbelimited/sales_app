@@ -6,7 +6,7 @@ class Bank(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True, index=True)
-    branches = db.relationship('BankBranch', backref='bank', lazy=True)  # Update to reflect the new class name
+    bank_branches = db.relationship('BankBranch', backref='bank', lazy=True)  # Update to reflect the new class name
     is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
@@ -18,7 +18,7 @@ class Bank(db.Model):
             'is_deleted': self.is_deleted,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'branches': [branch.serialize() for branch in self.branches]
+            'bank_branches': [bank_branch.serialize() for bank_branch in self.bank_branches]
         }
 
 class BankBranch(db.Model):

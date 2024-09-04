@@ -1,53 +1,45 @@
 import csv
 from app import app, db
-from models.user_model import Role, User
 from models.bank_model import Bank, BankBranch
 from models.branch_model import Branch
 from models.impact_product_model import ImpactProduct
 from models.paypoint_model import Paypoint
+from models.user_model import Role, User
 from models.sales_executive_model import SalesExecutive
+
+# CSV file path for Sales Executives
+sales_exec_csv_file = './sales_executives.csv'
 
 # Replace 'your_csv_file.csv' with the path to your actual CSV file for banks
 csv_file_path = './banks.csv'
 
 with app.app_context():
-    # Seed Roles
-    admin_role = Role(name='admin', description='Administrator')
-    sales_manager_role = Role(name='manager', description='Sales Manager')
-    back_office_role = Role(name='back_office', description='Sales Officer back office')
-    user_role = Role(name='user', description='Normal user')
-    db.session.add(admin_role)
-    db.session.add(user_role)
-    db.session.add(back_office_role)
-    db.session.add(sales_manager_role)
-    db.session.commit()
-
-    # Seed Banks and BankBranches
     unique_banks = {}
-    with open(csv_file_path, newline='') as csvfile:
+    with open(csv_file_path, newline='', encoding='utf-8-sig') as csvfile:
         csv_reader = csv.DictReader(csvfile)
         for row in csv_reader:
-            bank_name = row['BANK NAME'].strip()
-            branch_name = row['BRANCH NAME'].strip()
-            branch_code = row['SORT CODE'].strip()
+            bank_name = row.get('BANK NAME', '').strip()
+            branch_name = row.get('BRANCH NAME', '').strip()
+            branch_code = row.get('SORT CODE', '').strip()
 
-            if bank_name not in unique_banks:
+            # Check if bank already exists in the database
+            existing_bank = db.session.query(Bank).filter_by(name=bank_name).first()
+            if not existing_bank:
                 bank = Bank(name=bank_name)
                 db.session.add(bank)
                 db.session.commit()  # Commit to get the bank ID
                 unique_banks[bank_name] = bank.id
             else:
-                bank_id = unique_banks[bank_name]
+                unique_banks[bank_name] = existing_bank.id
 
             # Create BankBranch entry
             branch = BankBranch(
                 name=branch_name,
-                bank_id=unique_banks[bank_name],
+                bank_id=unique_banks.get(bank_name),
                 sort_code=branch_code
             )
             db.session.add(branch)
 
-    # Commit all unique bank and branch entries to the database
     db.session.commit()
 
     # Seed Impact Products
@@ -56,11 +48,9 @@ with app.app_context():
         {'name': 'FAREWELL', 'category': 'Retail'},
         {'name': 'PENSION', 'category': 'Retail'}
     ]
-    unique_products = set()
-
     for product_data in products:
-        if product_data['name'] not in unique_products:
-            unique_products.add(product_data['name'])
+        product = db.session.query(ImpactProduct).filter_by(name=product_data['name']).first()
+        if not product:
             product = ImpactProduct(name=product_data['name'], category=product_data['category'])
             db.session.add(product)
 
@@ -73,7 +63,7 @@ with app.app_context():
         'Afram Community Bank - Nkawkaw',
         'Amansie Rural Bank',
         'Amenfiman Rural Bank',
-        'Atwima Kwanwoma Rurak Bank',
+        'Atwima Kwanwoma Rural Bank',
         'CAGD - GUA Life',
         'CAGD - Phoenix',
         'CHED',
@@ -93,7 +83,7 @@ with app.app_context():
         'Ghana Water Co.-Accra West',
         'Ghana Water Co.-Ashanti Drilling',
         'Ghana Water Co.-Ashanti North',
-        'Ghana Water Co.-Ashanti production',
+        'Ghana Water Co.-Ashanti Production',
         'Ghana Water Co.-Ashanti South',
         'Ghana Water Co.-Bolgatanga',
         'Ghana Water Co.-Ho',
@@ -106,7 +96,7 @@ with app.app_context():
         'MUMUADU RURAL BANK',
         'Nsoatreman Rural Bank',
         'Nwabiagya Rural Bank',
-        'odotobri Rural Bank',
+        'Odotobri Rural Bank',
         'Otuasekan Rural Bank',
         'Phoenix Ass. Co.-General',
         'Phyto-Riker Pharmaceuticals',
@@ -118,22 +108,20 @@ with app.app_context():
         'Dangbe Rural Bank',
         'Adonteng Rural Bank',
         'Kwahu Praso Rural Bank',
-        'Akim Bosome Rural Rank',
+        'Akim Bosome Rural Bank',
         'Charles Wesley Foundation International School',
         'Ghana Bauxite Company Limited'
     ]
 
-    unique_pay_points = set()
-
     for point in pay_points:
-        if point not in unique_pay_points:
-            unique_pay_points.add(point)
+        pay_point = db.session.query(Paypoint).filter_by(name=point).first()
+        if not pay_point:
             pay_point = Paypoint(name=point)
             db.session.add(pay_point)
 
     db.session.commit()
 
-    # Seed Branches (Used by Users and Sales Executives)
+    # Seed Branches
     branches = [
         'TAMALE',
         'TAKORADI',
@@ -152,66 +140,81 @@ with app.app_context():
         'OBUASI'
     ]
 
-    unique_branches = {}
     for branch_name in branches:
-        if branch_name not in unique_branches:
+        branch = db.session.query(Branch).filter_by(name=branch_name).first()
+        if not branch:
             branch = Branch(name=branch_name)
             db.session.add(branch)
-            db.session.commit()  # Commit to get branch ID
-            unique_branches[branch_name] = branch.id
-
-    # Seed Sales Managers and Sales Executives
-    # sales_data = [
-    #     {'agent_code': 'R00013271', 'manager_name': 'DEBORAH JOHNSON', 'executive_name': 'EVANS ADU BOATENG', 'branch_name': 'ASYLUM DOWN'},
-    #     {'agent_code': 'R00013269', 'manager_name': 'SETH OFORI AMANKWAH', 'executive_name': 'AARON AMIHERE', 'branch_name': 'ASYLUM DOWN'},
-    #     {'agent_code': 'R00013890', 'manager_name': 'EMMANUEL OBENG-MENSAH', 'executive_name': 'AARON BAY MORKEH', 'branch_name': 'SUNYANI'},
-    #     {'agent_code': 'R00013380', 'manager_name': 'LAWSON ATIDIGAH', 'executive_name': 'AARON DZANSI - BUATSI', 'branch_name': 'HOHOE'},
-    #     {'agent_code': 'R00013462', 'manager_name': 'GODFRED NII ARYEE HAYFORD', 'executive_name': 'ABA KOOMSON', 'branch_name': 'TAKORADI'},
-    #     {'agent_code': 'R00013744', 'manager_name': 'ABDUL AZIZ SALIFU', 'executive_name': 'ABDUL - RAZAK MULAIKA', 'branch_name': 'TAMALE'},
-    #     {'agent_code': 'R00013742', 'manager_name': 'ABDUL AZIZ SALIFU', 'executive_name': 'ABDUL - WADUD ALHASSAN', 'branch_name': 'TAMALE'},
-    #     {'agent_code': 'R00013730', 'manager_name': 'ABDUL AZIZ SALIFU', 'executive_name': 'ABDUL - WAHID DRAMUNDU SALIFU', 'branch_name': 'TAMALE'},
-    #     {'agent_code': 'R00013305', 'manager_name': 'RANSFORD DANIEL SARPONG', 'executive_name': 'ABDUL KADIR MAJID DWOMOH', 'branch_name': 'ASYLUM DOWN'},
-    #     {'agent_code': 'R00013433', 'manager_name': 'ABDUL AZIZ SALIFU', 'executive_name': 'ABDULAI ABDUL- RAHMAN', 'branch_name': 'TAMALE'},
-    #     {'agent_code': 'R00013915', 'manager_name': 'SUMAILA ABDUL - RAZAK', 'executive_name': 'ABDUL-RAUF ISSAHAKU', 'branch_name': 'TAMALE'},
-    #     {'agent_code': 'R00013797', 'manager_name': 'RANSFORD DANIEL SARPONG', 'executive_name': 'ABENA ASABERE AFRIYIE', 'branch_name': 'ASYLUM DOWN'},
-    #     {'agent_code': 'R00013496', 'manager_name': 'HAYFORD OSAE', 'executive_name': 'ABIGAIL ABA FOWA AMOO', 'branch_name': 'KASOA'},
-    # ]
-
-    # unique_sales_managers = {}
-
-    # for data in sales_data:
-    #     # Handle the Sales Manager
-    #     if data['manager_name'] not in unique_sales_managers:
-    #         sales_manager = User(
-    #             email=f"{data['manager_name'].replace(' ', '.').lower()}@example.com",  # Generate a unique email
-    #             name=data['manager_name'],
-    #             role_id=sales_manager_role.id,
-    #             is_active=True
-    #         )
-    #         db.session.add(sales_manager)
-    #         db.session.commit()
-    #         unique_sales_managers[data['manager_name']] = sales_manager.id
-    #     else:
-    #         sales_manager_id = unique_sales_managers[data['manager_name']]
-
-    #     # Handle the Sales Executive
-    #     sales_executive = SalesExecutive(
-    #         name=data['executive_name'],
-    #         code=data['agent_code'],
-    #         manager_id=unique_sales_managers[data['manager_name']],
-    #     )
-
-    #     # Associate the executive with the branch
-    #     branch_id = unique_branches[data['branch_name']]
-    #     sales_executive.branches.append(db.session.get(Branch, branch_id))
-
-    #     db.session.add(sales_executive)
 
     db.session.commit()
 
-    # Seed Admin User
-    admin_user = User(email='admin@example.com', name='Admin User', role_id=admin_role.id, is_active=True)
-    db.session.add(admin_user)
+    # Seed Roles
+    roles_data = {
+        'Super admin': ['ekbotchway@impactlife.com.gh', 'hdogli@impactlife.com.gh', 'ryeboah@impactlife.com.gh'],
+        'Back_office': ['enartey@impactlife.com.gh'],
+        'Manager': ['fappau@impactlife.com.gh']
+    }
+
+    for role_name, emails in roles_data.items():
+        role = db.session.query(Role).filter_by(name=role_name).first()
+        if not role:
+            role = Role(name=role_name, description=f'{role_name} role')
+            db.session.add(role)
+            db.session.commit()
+
+        for email in emails:
+            user = db.session.query(User).filter_by(email=email).first()
+            if not user:
+                user = User(email=email, name=email.split('@')[0], role_id=role.id, is_active=True)
+                db.session.add(user)
+
     db.session.commit()
 
-    print("Database seeded successfully!")
+    # Define the sales_manager_role here before using it
+    sales_manager_role = db.session.query(Role).filter_by(name='Sales manager').first()
+    if not sales_manager_role:
+        sales_manager_role = Role(name='Sales manager', description='Sales Executive Manager')
+        db.session.add(sales_manager_role)
+        db.session.commit()
+
+    # Seed Sales Executives from CSV file
+    unique_sales_managers = {}
+
+    with open(sales_exec_csv_file, newline='', encoding='utf-8') as csvfile:
+        csv_reader = csv.DictReader(csvfile)
+        for row in csv_reader:
+            agent_code = row.get('AGENTCODE', '').strip()
+            manager_name = row.get('SALE MANAGER', '').strip()
+            executive_name = row.get('SALES EXECUTIVE', '').strip()
+            branch_name = row.get('BRANCH', '').strip()
+            phone_number = row.get('TELEPHONE', '').strip()
+
+            # Handle the Sales Manager
+            if manager_name not in unique_sales_managers:
+                sales_manager = User(
+                    email=f"{manager_name.replace(' ', '.').lower()}@example.com",
+                    name=manager_name,
+                    role_id=sales_manager_role.id,
+                    is_active=True
+                )
+                db.session.add(sales_manager)
+                db.session.commit()
+                unique_sales_managers[manager_name] = sales_manager.id
+
+            # Handle the Sales Executive
+            branch = db.session.query(Branch).filter_by(name=branch_name).first()
+            if branch:
+                sales_executive = SalesExecutive(
+                    name=executive_name,
+                    code=agent_code,
+                    phone_number=phone_number,
+                    manager_id=unique_sales_managers[manager_name]
+                )
+                sales_executive.branches.append(branch)
+                db.session.add(sales_executive)
+            else:
+                print(f"Branch {branch_name} not found, skipping sales executive {executive_name}.")
+
+    db.session.commit()
+
+    print("Roles, users, and sales executives seeded successfully!")

@@ -13,9 +13,6 @@ class Branch(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
-    users = db.relationship('User', backref='branch', lazy=True)
-    sales_executives = db.relationship('SalesExecutive', backref='branch', lazy=True)
-
     def serialize(self):
         return {
             'id': self.id,
