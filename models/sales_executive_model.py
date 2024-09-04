@@ -7,15 +7,14 @@ sales_executive_branches = db.Table('sales_executive_branches',
     db.Column('branch_id', db.Integer, db.ForeignKey('branch.id'), primary_key=True)
 )
 
-
 class SalesExecutive(db.Model):
     __tablename__ = 'sales_executive'  # Explicitly set the table name
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), nullable=False, index=True)
-    code = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    code = db.Column(db.String(100), unique=True, nullable=False, index=True)
     manager_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
-    phone_number = db.Column(db.String(10), nullable=False, index=True)
+    phone_number = db.Column(db.String(10), nullable=True, index=True)
     is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)

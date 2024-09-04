@@ -8,12 +8,13 @@ from models.user_model import Role, User
 from models.sales_executive_model import SalesExecutive
 
 # CSV file path for Sales Executives
-sales_exec_csv_file = './sales_executives.csv'
+sales_exec_csv_file = './sales_exec.csv'
 
 # Replace 'your_csv_file.csv' with the path to your actual CSV file for banks
 csv_file_path = './banks.csv'
 
 with app.app_context():
+    # Seed Banks and BankBranches
     unique_banks = {}
     with open(csv_file_path, newline='', encoding='utf-8-sig') as csvfile:
         csv_reader = csv.DictReader(csvfile)
@@ -33,12 +34,14 @@ with app.app_context():
                 unique_banks[bank_name] = existing_bank.id
 
             # Create BankBranch entry
-            branch = BankBranch(
-                name=branch_name,
-                bank_id=unique_banks.get(bank_name),
-                sort_code=branch_code
-            )
-            db.session.add(branch)
+            existing_branch = db.session.query(BankBranch).filter_by(name=branch_name, bank_id=unique_banks.get(bank_name)).first()
+            if not existing_branch:
+                branch = BankBranch(
+                    name=branch_name,
+                    bank_id=unique_banks.get(bank_name),
+                    sort_code=branch_code
+                )
+                db.session.add(branch)
 
     db.session.commit()
 
@@ -180,7 +183,7 @@ with app.app_context():
     # Seed Sales Executives from CSV file
     unique_sales_managers = {}
 
-    with open(sales_exec_csv_file, newline='', encoding='utf-8') as csvfile:
+    with open(sales_exec_csv_file, newline='', encoding='utf-8-sig') as csvfile:
         csv_reader = csv.DictReader(csvfile)
         for row in csv_reader:
             agent_code = row.get('AGENTCODE', '').strip()
@@ -189,29 +192,41 @@ with app.app_context():
             branch_name = row.get('BRANCH', '').strip()
             phone_number = row.get('TELEPHONE', '').strip()
 
+            # Ensure agent_code is not empty
+            if not agent_code:
+                print(f"Skipping {executive_name} due to missing agent code.")
+                continue
+
             # Handle the Sales Manager
             if manager_name not in unique_sales_managers:
-                sales_manager = User(
-                    email=f"{manager_name.replace(' ', '.').lower()}@example.com",
-                    name=manager_name,
-                    role_id=sales_manager_role.id,
-                    is_active=True
-                )
-                db.session.add(sales_manager)
-                db.session.commit()
+                email = f"{manager_name.replace(' ', '.').lower()}@example.com"
+                sales_manager = db.session.query(User).filter_by(email=email).first()
+
+                if not sales_manager:
+                    sales_manager = User(
+                        email=email,
+                        name=manager_name,
+                        role_id=sales_manager_role.id,
+                        is_active=True
+                    )
+                    db.session.add(sales_manager)
+                    db.session.commit()
+
                 unique_sales_managers[manager_name] = sales_manager.id
 
             # Handle the Sales Executive
             branch = db.session.query(Branch).filter_by(name=branch_name).first()
             if branch:
-                sales_executive = SalesExecutive(
-                    name=executive_name,
-                    code=agent_code,
-                    phone_number=phone_number,
-                    manager_id=unique_sales_managers[manager_name]
-                )
-                sales_executive.branches.append(branch)
-                db.session.add(sales_executive)
+                sales_executive = db.session.query(SalesExecutive).filter_by(name=executive_name).first()
+                if not sales_executive:
+                    sales_executive = SalesExecutive(
+                        name=executive_name,
+                        code=agent_code,
+                        phone_number=phone_number,
+                        manager_id=unique_sales_managers[manager_name]
+                    )
+                    sales_executive.branches.append(branch)
+                    db.session.add(sales_executive)
             else:
                 print(f"Branch {branch_name} not found, skipping sales executive {executive_name}.")
 

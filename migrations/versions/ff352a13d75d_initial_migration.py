@@ -1,8 +1,8 @@
 """Initial migration
 
-Revision ID: c5753dddf4fe
+Revision ID: ff352a13d75d
 Revises: 
-Create Date: 2024-09-04 16:05:01.822944
+Create Date: 2024-09-04 23:20:18.153322
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'c5753dddf4fe'
+revision = 'ff352a13d75d'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -150,8 +150,9 @@ def upgrade():
     op.create_table('sales_executive',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=150), nullable=False),
-    sa.Column('code', sa.String(length=50), nullable=False),
+    sa.Column('code', sa.String(length=100), nullable=False),
     sa.Column('manager_id', sa.Integer(), nullable=False),
+    sa.Column('phone_number', sa.String(length=10), nullable=True),
     sa.Column('is_deleted', sa.Boolean(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
@@ -163,6 +164,7 @@ def upgrade():
         batch_op.create_index(batch_op.f('ix_sales_executive_is_deleted'), ['is_deleted'], unique=False)
         batch_op.create_index(batch_op.f('ix_sales_executive_manager_id'), ['manager_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_sales_executive_name'), ['name'], unique=False)
+        batch_op.create_index(batch_op.f('ix_sales_executive_phone_number'), ['phone_number'], unique=False)
 
     op.create_table('user_branches',
     sa.Column('user_id', sa.Integer(), nullable=False),
@@ -284,6 +286,7 @@ def downgrade():
     op.drop_table('sale')
     op.drop_table('user_branches')
     with op.batch_alter_table('sales_executive', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_sales_executive_phone_number'))
         batch_op.drop_index(batch_op.f('ix_sales_executive_name'))
         batch_op.drop_index(batch_op.f('ix_sales_executive_manager_id'))
         batch_op.drop_index(batch_op.f('ix_sales_executive_is_deleted'))
