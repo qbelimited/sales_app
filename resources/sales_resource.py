@@ -1,4 +1,4 @@
-from flask_restful import Resource
+from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
 from models.sales_model import Sale
 from models.audit_model import AuditTrail
@@ -7,97 +7,99 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import or_, and_
 from datetime import datetime
 
-class SaleResource(Resource):
+# Define a namespace for the sales operations
+sales_ns = Namespace('sales', description='Sales operations')
+
+# Define models for Swagger documentation
+sale_model = sales_ns.model('Sale', {
+    'id': fields.Integer(description='Sale ID'),
+    'sale_manager': fields.String(required=True, description='Sale Manager'),
+    'sales_executive_id': fields.Integer(required=True, description='Sales Executive ID'),
+    'branch_id': fields.Integer(required=True, description='Branch ID'),
+    'client_phone': fields.String(required=True, description='Client Phone Number'),
+    'bank_name': fields.String(description='Bank Name'),
+    'bank_branch': fields.String(description='Bank Branch'),
+    'bank_acc_number': fields.String(description='Bank Account Number'),
+    'amount': fields.Float(required=True, description='Sale Amount'),
+    'geolocation': fields.String(description='Geolocation Coordinates')
+})
+
+@sales_ns.route('/')
+class SaleListResource(Resource):
+    @sales_ns.doc(security='Bearer Auth')
     @jwt_required()
-    def get(self, sale_id=None):
-        """Retrieve a single sale by ID or list of sales with extended filters."""
+    @sales_ns.marshal_with(sale_model)
+    def get(self):
+        """Retrieve a list of sales with extended filters."""
         current_user = get_jwt_identity()
 
-        if sale_id:
-            # Fetch a specific sale
-            sale = Sale.query.filter_by(id=sale_id, is_deleted=False).first()
-            if not sale:
-                return {'message': 'Sale not found'}, 404
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        filter_by = request.args.get('filter_by', None)
+        sort_by = request.args.get('sort_by', 'created_at')
 
-            # Log the access to audit trail
-            audit = AuditTrail(
-                user_id=current_user['id'],
-                action='ACCESS',
-                resource_type='sale',
-                resource_id=sale_id,
-                details=f"User accessed sale with ID {sale_id}"
-            )
-            db.session.add(audit)
-            db.session.commit()
+        # Extended filters
+        start_date = request.args.get('start_date', None)
+        end_date = request.args.get('end_date', None)
+        sales_executive_id = request.args.get('sales_executive_id', None, type=int)
+        branch_id = request.args.get('branch_id', None, type=int)
+        min_amount = request.args.get('min_amount', None, type=float)
+        max_amount = request.args.get('max_amount', None, type=float)
+        status = request.args.get('status', None)
 
-            return sale.serialize(), 200
-        else:
-            # Retrieve a list of sales with optional filters
-            page = request.args.get('page', 1, type=int)
-            per_page = request.args.get('per_page', 10, type=int)
-            filter_by = request.args.get('filter_by', None)
-            sort_by = request.args.get('sort_by', 'created_at')
+        sales_query = Sale.query.filter_by(is_deleted=False)
 
-            # Extended filters
-            start_date = request.args.get('start_date', None)
-            end_date = request.args.get('end_date', None)
-            sales_executive_id = request.args.get('sales_executive_id', None, type=int)
-            branch_id = request.args.get('branch_id', None, type=int)
-            min_amount = request.args.get('min_amount', None, type=float)
-            max_amount = request.args.get('max_amount', None, type=float)
-            status = request.args.get('status', None)
+        if filter_by:
+            sales_query = sales_query.filter(or_(
+                Sale.sale_manager.ilike(f'%{filter_by}%'),
+                Sale.client_phone.ilike(f'%{filter_by}%')
+            ))
 
-            sales_query = Sale.query.filter_by(is_deleted=False)
+        if start_date and end_date:
+            sales_query = sales_query.filter(and_(
+                Sale.created_at >= datetime.strptime(start_date, '%Y-%m-%d'),
+                Sale.created_at <= datetime.strptime(end_date, '%Y-%m-%d')
+            ))
 
-            if filter_by:
-                sales_query = sales_query.filter(or_(
-                    Sale.sale_manager.ilike(f'%{filter_by}%'),
-                    Sale.client_phone.ilike(f'%{filter_by}%')
-                ))
+        if sales_executive_id:
+            sales_query = sales_query.filter(Sale.sales_executive_id == sales_executive_id)
 
-            if start_date and end_date:
-                sales_query = sales_query.filter(and_(
-                    Sale.created_at >= datetime.strptime(start_date, '%Y-%m-%d'),
-                    Sale.created_at <= datetime.strptime(end_date, '%Y-%m-%d')
-                ))
+        if branch_id:
+            sales_query = sales_query.filter(Sale.branch_id == branch_id)
 
-            if sales_executive_id:
-                sales_query = sales_query.filter(Sale.sales_executive_id == sales_executive_id)
+        if min_amount:
+            sales_query = sales_query.filter(Sale.amount >= min_amount)
 
-            if branch_id:
-                sales_query = sales_query.filter(Sale.branch_id == branch_id)
+        if max_amount:
+            sales_query = sales_query.filter(Sale.amount <= max_amount)
 
-            if min_amount:
-                sales_query = sales_query.filter(Sale.amount >= min_amount)
+        if status:
+            sales_query = sales_query.filter(Sale.status == status)
 
-            if max_amount:
-                sales_query = sales_query.filter(Sale.amount <= max_amount)
+        # Apply sorting and pagination
+        sales = sales_query.order_by(sort_by).paginate(page, per_page, error_out=False)
 
-            if status:
-                sales_query = sales_query.filter(Sale.status == status)
+        # Log the access to audit trail
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='ACCESS',
+            resource_type='sales_list',
+            resource_id=None,
+            details=f"User accessed list of sales"
+        )
+        db.session.add(audit)
+        db.session.commit()
 
-            # Apply sorting and pagination
-            sales = sales_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+        return {
+            'sales': [sale.serialize() for sale in sales.items],
+            'total': sales.total,
+            'pages': sales.pages,
+            'current_page': sales.page
+        }, 200
 
-            # Log the access to audit trail
-            audit = AuditTrail(
-                user_id=current_user['id'],
-                action='ACCESS',
-                resource_type='sales_list',
-                resource_id=None,
-                details=f"User accessed list of sales"
-            )
-            db.session.add(audit)
-            db.session.commit()
-
-            return {
-                'sales': [sale.serialize() for sale in sales.items],
-                'total': sales.total,
-                'pages': sales.pages,
-                'current_page': sales.page
-            }, 200
-
+    @sales_ns.doc(security='Bearer Auth', responses={201: 'Created', 400: 'Invalid Input'})
     @jwt_required()
+    @sales_ns.expect(sale_model, validate=True)
     def post(self):
         """Create a new sale."""
         current_user = get_jwt_identity()
@@ -137,7 +139,36 @@ class SaleResource(Resource):
 
         return new_sale.serialize(), 201
 
+
+@sales_ns.route('/<int:sale_id>')
+class SaleDetailResource(Resource):
+    @sales_ns.doc(security='Bearer Auth', responses={200: 'OK', 404: 'Sale Not Found'})
     @jwt_required()
+    @sales_ns.marshal_with(sale_model)
+    def get(self, sale_id):
+        """Retrieve a single sale by ID."""
+        current_user = get_jwt_identity()
+
+        sale = Sale.query.filter_by(id=sale_id, is_deleted=False).first()
+        if not sale:
+            return {'message': 'Sale not found'}, 404
+
+        # Log the access to audit trail
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='ACCESS',
+            resource_type='sale',
+            resource_id=sale_id,
+            details=f"User accessed sale with ID {sale_id}"
+        )
+        db.session.add(audit)
+        db.session.commit()
+
+        return sale.serialize(), 200
+
+    @sales_ns.doc(security='Bearer Auth', responses={200: 'Updated', 404: 'Sale Not Found'})
+    @jwt_required()
+    @sales_ns.expect(sale_model, validate=True)
     def put(self, sale_id):
         """Update an existing sale by ID."""
         current_user = get_jwt_identity()
@@ -172,6 +203,7 @@ class SaleResource(Resource):
 
         return sale.serialize(), 200
 
+    @sales_ns.doc(security='Bearer Auth', responses={200: 'Deleted', 404: 'Sale Not Found'})
     @jwt_required()
     def delete(self, sale_id):
         """Soft delete a sale by marking it as deleted."""

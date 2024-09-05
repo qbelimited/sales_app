@@ -1,4 +1,4 @@
-from flask_restful import Resource
+from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
 from models.query_model import Query
 from models.audit_model import AuditTrail
@@ -7,61 +7,61 @@ from app import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
-class QueryResource(Resource):
+# Define a namespace for the queries
+query_ns = Namespace('queries', description='Operations related to queries and feedback')
+
+# Define models for Swagger documentation
+query_model = query_ns.model('Query', {
+    'id': fields.Integer(description='Query ID'),
+    'content': fields.String(required=True, description='Query/Feedback content'),
+    'subject': fields.String(description='Query/Feedback subject'),
+    'user_id': fields.Integer(description='User ID'),
+    'created_at': fields.String(description='Created At'),
+    'updated_at': fields.String(description='Updated At'),
+})
+
+@query_ns.route('/')
+class QueryListResource(Resource):
+    @query_ns.doc(security='Bearer Auth')
     @jwt_required()
-    def get(self, query_id=None):
-        """Retrieve a query/feedback or list of all queries/feedback."""
+    @query_ns.marshal_with(query_model)
+    def get(self):
+        """Retrieve a list of all queries/feedback."""
         current_user = get_jwt_identity()
 
-        if query_id:
-            query = Query.query.filter_by(id=query_id).first()
-            if not query:
-                return {'message': 'Query/Feedback not found'}, 404
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        filter_by = request.args.get('filter_by', None)
+        sort_by = request.args.get('sort_by', 'created_at')
 
-            # Log the access to audit trail
-            audit = AuditTrail(
-                user_id=current_user['id'],
-                action='ACCESS',
-                resource_type='query',
-                resource_id=query_id,
-                details=f"User accessed query/feedback with ID {query_id}"
-            )
-            db.session.add(audit)
-            db.session.commit()
+        query_query = Query.query.filter_by(is_deleted=False)
 
-            return query.serialize(), 200
-        else:
-            page = request.args.get('page', 1, type=int)
-            per_page = request.args.get('per_page', 10, type=int)
-            filter_by = request.args.get('filter_by', None)
-            sort_by = request.args.get('sort_by', 'created_at')
+        if filter_by:
+            query_query = query_query.filter(Query.content.ilike(f'%{filter_by}%'))
 
-            query_query = Query.query
+        queries = query_query.order_by(sort_by).paginate(page, per_page, error_out=False)
 
-            if filter_by:
-                query_query = query_query.filter(Query.content.ilike(f'%{filter_by}%'))
+        # Log the access to audit trail
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='ACCESS',
+            resource_type='query_list',
+            resource_id=None,
+            details=f"User accessed list of queries/feedback"
+        )
+        db.session.add(audit)
+        db.session.commit()
 
-            queries = query_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+        return {
+            'queries': [query.serialize() for query in queries.items],
+            'total': queries.total,
+            'pages': queries.pages,
+            'current_page': queries.page
+        }, 200
 
-            # Log the access to audit trail
-            audit = AuditTrail(
-                user_id=current_user['id'],
-                action='ACCESS',
-                resource_type='query_list',
-                resource_id=None,
-                details=f"User accessed list of queries/feedback"
-            )
-            db.session.add(audit)
-            db.session.commit()
-
-            return {
-                'queries': [query.serialize() for query in queries.items],
-                'total': queries.total,
-                'pages': queries.pages,
-                'current_page': queries.page
-            }, 200
-
+    @query_ns.doc(security='Bearer Auth', responses={201: 'Created', 400: 'Invalid Input'})
     @jwt_required()
+    @query_ns.expect(query_model, validate=True)
     def post(self):
         """Submit a new query/feedback."""
         current_user = get_jwt_identity()
@@ -93,11 +93,39 @@ class QueryResource(Resource):
 
         return new_query.serialize(), 201
 
+@query_ns.route('/<int:query_id>')
+class QueryResource(Resource):
+    @query_ns.doc(security='Bearer Auth', responses={200: 'OK', 404: 'Query Not Found'})
     @jwt_required()
+    @query_ns.marshal_with(query_model)
+    def get(self, query_id):
+        """Retrieve a single query/feedback by ID."""
+        current_user = get_jwt_identity()
+
+        query = Query.query.filter_by(id=query_id, is_deleted=False).first()
+        if not query:
+            return {'message': 'Query/Feedback not found'}, 404
+
+        # Log the access to audit trail
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='ACCESS',
+            resource_type='query',
+            resource_id=query_id,
+            details=f"User accessed query/feedback with ID {query_id}"
+        )
+        db.session.add(audit)
+        db.session.commit()
+
+        return query.serialize(), 200
+
+    @query_ns.doc(security='Bearer Auth', responses={200: 'Updated', 404: 'Query Not Found', 403: 'Unauthorized'})
+    @jwt_required()
+    @query_ns.expect(query_model, validate=True)
     def put(self, query_id):
         """Update an existing query/feedback."""
         current_user = get_jwt_identity()
-        query = Query.query.filter_by(id=query_id).first()
+        query = Query.query.filter_by(id=query_id, is_deleted=False).first()
         if not query:
             return {'message': 'Query/Feedback not found'}, 404
 
@@ -124,11 +152,12 @@ class QueryResource(Resource):
 
         return query.serialize(), 200
 
+    @query_ns.doc(security='Bearer Auth', responses={200: 'Deleted', 404: 'Query Not Found', 403: 'Unauthorized'})
     @jwt_required()
     def delete(self, query_id):
         """Soft delete a query/feedback."""
         current_user = get_jwt_identity()
-        query = Query.query.filter_by(id=query_id).first()
+        query = Query.query.filter_by(id=query_id, is_deleted=False).first()
         if not query:
             return {'message': 'Query/Feedback not found'}, 404
 

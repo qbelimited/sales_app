@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from io import BytesIO
-from flask_restful import Resource
+from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify, send_file
 from models.sales_model import Sale
 from models.sales_executive_model import SalesExecutive
@@ -21,10 +21,20 @@ from app import db
 from joblib import Parallel, delayed
 from sqlalchemy import or_
 
+# Define namespace for report-related operations
+report_ns = Namespace('reports', description='Sales and Performance Report Generation')
+
+# Define the model for Swagger documentation
+report_model = report_ns.model('Report', {
+    'report_type': fields.String(required=True, description='Type of the report to generate')
+})
+
 class ReportResource(Resource):
     MIN_DATA_DAYS = 60  # Minimum number of days of data required for meaningful analysis
 
+    @report_ns.doc(security='Bearer Auth')
     @jwt_required()
+    @report_ns.param('report_type', 'The type of report to generate')
     def get(self, report_type):
         """Generate and return a report with visualizations if requested."""
         current_user = get_jwt_identity()
@@ -51,9 +61,7 @@ class ReportResource(Resource):
 
     def check_data_sufficiency(self, df):
         """Check if the dataset has enough data for analysis."""
-        # Check the number of unique dates in the dataset
         unique_dates = df['created_at'].nunique()
-
         if unique_dates < self.MIN_DATA_DAYS:
             return False, self.MIN_DATA_DAYS - unique_dates
         return True, 0
@@ -287,6 +295,7 @@ class ReportResource(Resource):
         return send_file(output, attachment_filename=f"{filename}.pdf", as_attachment=True)
 
 
+# Register ParallelReportResource if needed
 class ParallelReportResource(Resource):
     @jwt_required()
     def get(self):

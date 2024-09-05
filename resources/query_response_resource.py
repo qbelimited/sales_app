@@ -1,4 +1,4 @@
-from flask_restful import Resource
+from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
 from models.query_model import QueryResponse, Query
 from models.audit_model import AuditTrail
@@ -6,7 +6,23 @@ from app import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
+# Define namespace
+query_response_ns = Namespace('query_responses', description='Query responses management')
+
+# Define models for Swagger documentation
+query_response_model = query_response_ns.model('QueryResponse', {
+    'id': fields.Integer(description='Response ID'),
+    'query_id': fields.Integer(description='Query ID'),
+    'user_id': fields.Integer(description='User ID'),
+    'response': fields.String(required=True, description='Response content'),
+    'created_at': fields.DateTime(description='Created at'),
+    'updated_at': fields.DateTime(description='Updated at'),
+})
+
+@query_response_ns.route('/<int:query_id>')
 class QueryResponseResource(Resource):
+    @query_response_ns.doc(security='Bearer Auth')
+    @query_response_ns.marshal_list_with(query_response_model)
     @jwt_required()
     def get(self, query_id):
         """Retrieve all responses to a specific query/feedback."""
@@ -29,11 +45,10 @@ class QueryResponseResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
-        return {
-            'query_id': query_id,
-            'responses': [response.serialize() for response in responses]
-        }, 200
+        return responses, 200
 
+    @query_response_ns.expect(query_response_model)
+    @query_response_ns.doc(security='Bearer Auth', responses={201: 'Created', 400: 'Bad Request'})
     @jwt_required()
     def post(self, query_id):
         """Submit a response to a specific query/feedback."""
@@ -69,6 +84,10 @@ class QueryResponseResource(Resource):
 
         return new_response.serialize(), 201
 
+@query_response_ns.route('/<int:query_id>/<int:response_id>')
+class QueryResponseByIdResource(Resource):
+    @query_response_ns.doc(security='Bearer Auth')
+    @query_response_ns.marshal_with(query_response_model)
     @jwt_required()
     def put(self, query_id, response_id):
         """Update a specific response to a query/feedback."""
@@ -98,8 +117,9 @@ class QueryResponseResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
-        return response.serialize(), 200
+        return response, 200
 
+    @query_response_ns.doc(security='Bearer Auth', responses={200: 'Deleted', 404: 'Response not found', 403: 'Unauthorized'})
     @jwt_required()
     def delete(self, query_id, response_id):
         """Soft delete a response to a query/feedback."""

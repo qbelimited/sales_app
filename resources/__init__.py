@@ -1,5 +1,5 @@
 from .auth_resource import AuthResource, AuthCallbackResource, LogoutResource
-from .sales_resource import SaleResource
+from .sales_resource import SaleListResource, SaleDetailResource
 from .report_resource import ReportResource
 from .admin_resource import AdminResource
 from .manager_resource import ManagerSalesExecutiveResource, ManagerSalesExecutiveUpdateResource

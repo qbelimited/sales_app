@@ -1,28 +1,36 @@
-from flask_restful import Resource
+from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
-from models.user_model import Role, User
+from models.user_model import Role
 from models.audit_model import AuditTrail
 from app import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
+# Define namespace for roles
+role_ns = Namespace('roles', description='Role management operations')
+
+# Define model for Swagger documentation
+role_model = role_ns.model('Role', {
+    'id': fields.Integer(description='Role ID'),
+    'name': fields.String(required=True, description='Role Name'),
+    'description': fields.String(description='Role Description')
+})
+
+@role_ns.route('/')
 class RolesResource(Resource):
+    @role_ns.doc(security='Bearer Auth')
     @jwt_required()
-    def get(self, role_id=None):
+    @role_ns.marshal_list_with(role_model)
+    def get(self):
         """Get role or list of roles."""
         current_user = get_jwt_identity()
         if current_user['role'] != 'admin':  # Only admin can manage roles
             return {'message': 'Unauthorized'}, 403
 
-        if role_id:
-            role = Role.query.filter_by(id=role_id).first()
-            if not role:
-                return {'message': 'Role not found'}, 404
-            return role.serialize(), 200
-        else:
-            roles = Role.query.all()
-            return {'roles': [role.serialize() for role in roles]}, 200
+        roles = Role.query.all()
+        return roles, 200
 
+    @role_ns.expect(role_model)
     @jwt_required()
     def post(self):
         """Create a new role."""
@@ -48,7 +56,11 @@ class RolesResource(Resource):
 
         return new_role.serialize(), 201
 
+@role_ns.route('/<int:role_id>')
+class RoleByIdResource(Resource):
+    @role_ns.doc(security='Bearer Auth')
     @jwt_required()
+    @role_ns.marshal_with(role_model)
     def put(self, role_id):
         """Update an existing role."""
         current_user = get_jwt_identity()
@@ -79,6 +91,7 @@ class RolesResource(Resource):
 
         return role.serialize(), 200
 
+    @role_ns.doc(security='Bearer Auth')
     @jwt_required()
     def delete(self, role_id):
         """Delete an existing role."""

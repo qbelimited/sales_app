@@ -36,6 +36,7 @@ class AuditTrailResource(Resource):
     @audit_ns.param('per_page', 'Number of items per page', type='integer', default=10)
     @audit_ns.param('filter_by', 'Filter by action details', type='string')
     @audit_ns.param('sort_by', 'Sort by field (e.g., timestamp, action)', type='string', default='timestamp')
+    @audit_ns.marshal_with(audit_model, as_list=True)
     def get(self):
         """Retrieve paginated audit trail logs (admin only)."""
         current_user = get_jwt_identity()
