@@ -4,25 +4,12 @@ from authlib.integrations.flask_client import OAuth
 from models.user_model import User
 from models.audit_model import AuditTrail
 from app import db
-
-# Initialize OAuth
-oauth = OAuth()
-oauth.register(
-    name='microsoft',
-    client_id='your_client_id',
-    client_secret='your_client_secret',
-    authorize_url='https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
-    authorize_params=None,
-    access_token_url='https://login.microsoftonline.com/common/oauth2/v2.0/token',
-    access_token_params=None,
-    refresh_token_url=None,
-    client_kwargs={'scope': 'openid email profile'},
-)
+import os
 
 # Define a namespace for auth-related operations
 auth_ns = Namespace('auth', description='Authentication operations')
 
-# Define models for documentation
+# Define models for Swagger documentation
 login_model = auth_ns.model('LoginResponse', {
     'message': fields.String(description='Login message'),
     'user': fields.Nested(auth_ns.model('User', {
@@ -53,8 +40,12 @@ class AuthCallbackResource(Resource):
     @auth_ns.response(403, 'Unauthorized')
     def get(self):
         """Handle Microsoft OAuth callback and login the user."""
-        token = oauth.microsoft.authorize_access_token()
-        user_info = oauth.microsoft.parse_id_token(token)
+        try:
+            # Retrieve the token from the callback
+            token = oauth.microsoft.authorize_access_token()
+            user_info = oauth.microsoft.parse_id_token(token)
+        except Exception as e:
+            return {"message": "OAuth error: Could not retrieve user information", "error": str(e)}, 400
 
         # Check if user exists in the database
         user = User.query.filter_by(email=user_info['email']).first()
@@ -77,7 +68,7 @@ class AuthCallbackResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
-        return {"message": "Logged in successfully", "user": user.serialize()}
+        return {"message": "Logged in successfully", "user": user.serialize()}, 200
 
 @auth_ns.route('/logout')
 class LogoutResource(Resource):
@@ -101,4 +92,5 @@ class LogoutResource(Resource):
             db.session.commit()
 
         session.clear()
-        return {"message": "Logged out successfully"}
+        return {"message": "Logged out successfully"}, 200
+

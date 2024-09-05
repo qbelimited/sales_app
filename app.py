@@ -1,10 +1,11 @@
+import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 from dotenv import load_dotenv
 from flask_restx import Api
-import os
+from authlib.integrations.flask_client import OAuth
 
 # Disable OneDNN
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
@@ -20,6 +21,20 @@ app.config.from_object('config.Config')
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 migrate = Migrate(app, db)
+
+# Initialize OAuth after Flask app is created
+oauth = OAuth(app)
+oauth.register(
+    name='microsoft',
+    client_id=os.getenv('MICROSOFT_CLIENT_ID'),
+    client_secret=os.getenv('MICROSOFT_CLIENT_SECRET'),
+    authorize_url='https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
+    authorize_params=None,
+    access_token_url='https://login.microsoftonline.com/common/oauth2/v2.0/token',
+    access_token_params=None,
+    refresh_token_url=None,
+    client_kwargs={'scope': 'openid email profile'},
+)
 
 # Initialize Flask-RESTX API with version prefix
 api_version = 'v1'  # Define the API version
