@@ -28,7 +28,8 @@ class Sale(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
     is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete
-    geolocation = db.Column(db.String(255), nullable=True)
+    geolocation_latitude = db.Column(db.Float, nullable=True)
+    geolocation_longitude = db.Column(db.Float, nullable=True)
     status = db.Column(db.String(50), default='submitted', index=True)  # Status, e.g., 'submitted', 'under investigation'
     customer_called = db.Column(db.Boolean, default=False)  # Checkbox to indicate if the customer was called
 
@@ -113,7 +114,8 @@ class Sale(db.Model):
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'is_deleted': self.is_deleted,
-            'geolocation': self.geolocation,
+            'geolocation_latitude': self.geolocation_latitude,
+            'geolocation_longitude': self.geolocation_longitude,
             'status': self.status,
             'customer_called': self.customer_called
         }

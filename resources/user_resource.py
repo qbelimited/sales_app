@@ -1,4 +1,4 @@
-from flask_restful import Resource
+from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
 from models.user_model import User
 from models.audit_model import AuditTrail
@@ -6,60 +6,65 @@ from app import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
-class UserResource(Resource):
+# Define a namespace for User-related operations
+user_ns = Namespace('user', description='User operations')
+
+# Define models for Swagger documentation
+user_model = user_ns.model('User', {
+    'id': fields.Integer(description='User ID'),
+    'email': fields.String(required=True, description='User Email'),
+    'name': fields.String(required=True, description='User Name'),
+    'role_id': fields.Integer(required=True, description='Role ID'),
+    'microsoft_id': fields.String(description='Microsoft ID')
+})
+
+@user_ns.route('/')
+class UserListResource(Resource):
+    @user_ns.doc(security='Bearer Auth')
     @jwt_required()
-    def get(self, user_id=None):
+    @user_ns.param('page', 'Page number for pagination', type='integer', default=1)
+    @user_ns.param('per_page', 'Number of items per page', type='integer', default=10)
+    @user_ns.param('filter_by', 'Filter by User name', type='string')
+    @user_ns.param('sort_by', 'Sort by field (e.g., created_at, name)', type='string', default='created_at')
+    def get(self):
+        """Retrieve a paginated list of Users."""
         current_user = get_jwt_identity()
-        if user_id:
-            user = User.query.filter_by(id=user_id, is_deleted=False).first()
-            if not user:
-                return {'message': 'User not found'}, 404
 
-            # Log the access to audit trail
-            audit = AuditTrail(
-                user_id=current_user['id'],
-                action='ACCESS',
-                resource_type='user',
-                resource_id=user_id,
-                details=f"User accessed details of User with ID {user_id}"
-            )
-            db.session.add(audit)
-            db.session.commit()
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        filter_by = request.args.get('filter_by', None)
+        sort_by = request.args.get('sort_by', 'created_at')
 
-            return user.serialize(), 200
-        else:
-            page = request.args.get('page', 1, type=int)
-            per_page = request.args.get('per_page', 10, type=int)
-            filter_by = request.args.get('filter_by', None)
-            sort_by = request.args.get('sort_by', 'created_at')
+        user_query = User.query.filter_by(is_deleted=False)
 
-            user_query = User.query.filter_by(is_deleted=False)
+        if filter_by:
+            user_query = user_query.filter(User.name.ilike(f'%{filter_by}%'))
 
-            if filter_by:
-                user_query = user_query.filter(User.name.ilike(f'%{filter_by}%'))
+        users = user_query.order_by(sort_by).paginate(page, per_page, error_out=False)
 
-            users = user_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+        # Log the access to audit trail
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='ACCESS',
+            resource_type='user_list',
+            resource_id=None,
+            details=f"User accessed list of Users"
+        )
+        db.session.add(audit)
+        db.session.commit()
 
-            # Log the access to audit trail
-            audit = AuditTrail(
-                user_id=current_user['id'],
-                action='ACCESS',
-                resource_type='user_list',
-                resource_id=None,
-                details=f"User accessed list of Users"
-            )
-            db.session.add(audit)
-            db.session.commit()
+        return {
+            'users': [user.serialize() for user in users.items],
+            'total': users.total,
+            'pages': users.pages,
+            'current_page': users.page
+        }, 200
 
-            return {
-                'users': [user.serialize() for user in users.items],
-                'total': users.total,
-                'pages': users.pages,
-                'current_page': users.page
-            }, 200
-
+    @user_ns.doc(security='Bearer Auth', responses={201: 'Created', 400: 'Bad Request', 403: 'Unauthorized'})
     @jwt_required()
+    @user_ns.expect(user_model, validate=True)
     def post(self):
+        """Create a new User (admin only)."""
         current_user = get_jwt_identity()
         data = request.json
 
@@ -67,7 +72,7 @@ class UserResource(Resource):
             email=data['email'],
             name=data['name'],
             role_id=data['role_id'],
-            microsoft_id=data['microsoft_id']
+            microsoft_id=data.get('microsoft_id')
         )
         db.session.add(new_user)
         db.session.commit()
@@ -85,8 +90,36 @@ class UserResource(Resource):
 
         return new_user.serialize(), 201
 
+
+@user_ns.route('/<int:user_id>')
+class UserResource(Resource):
+    @user_ns.doc(security='Bearer Auth', responses={200: 'Success', 404: 'User not found', 403: 'Unauthorized'})
     @jwt_required()
+    def get(self, user_id):
+        """Retrieve a specific User by ID."""
+        current_user = get_jwt_identity()
+        user = User.query.filter_by(id=user_id, is_deleted=False).first()
+        if not user:
+            return {'message': 'User not found'}, 404
+
+        # Log the access to audit trail
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='ACCESS',
+            resource_type='user',
+            resource_id=user_id,
+            details=f"User accessed details of User with ID {user_id}"
+        )
+        db.session.add(audit)
+        db.session.commit()
+
+        return user.serialize(), 200
+
+    @user_ns.doc(security='Bearer Auth', responses={200: 'Updated', 404: 'User not found', 403: 'Unauthorized'})
+    @jwt_required()
+    @user_ns.expect(user_model, validate=True)
     def put(self, user_id):
+        """Update an existing User (admin only)."""
         current_user = get_jwt_identity()
         user = User.query.filter_by(id=user_id, is_deleted=False).first()
         if not user:
@@ -113,8 +146,10 @@ class UserResource(Resource):
 
         return user.serialize(), 200
 
+    @user_ns.doc(security='Bearer Auth', responses={200: 'Deleted', 404: 'User not found', 403: 'Unauthorized'})
     @jwt_required()
     def delete(self, user_id):
+        """Soft-delete a User (admin only)."""
         current_user = get_jwt_identity()
         user = User.query.filter_by(id=user_id, is_deleted=False).first()
         if not user:

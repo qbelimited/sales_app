@@ -1,19 +1,72 @@
-from flask_restful import Resource
+from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
 from models.user_model import User
 from models.sales_executive_model import SalesExecutive
-from models.bank_model import Bank, BankBranch
+from models.bank_model import Bank
+from models.branch_model import Branch
 from models.paypoint_model import Paypoint
 from models.impact_product_model import ImpactProduct
 from models.audit_model import AuditTrail
+from models.under_investigation_model import UnderInvestigation
 from app import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
+# Define a namespace for admin-related operations
+admin_ns = Namespace('admin', description='Admin operations')
+
+# Define models for Swagger documentation
+sales_executive_model = admin_ns.model('SalesExecutive', {
+    'id': fields.Integer(description='Sales Executive ID'),
+    'name': fields.String(required=True, description='Sales Executive Name'),
+    'code': fields.String(required=True, description='Sales Executive Code'),
+    'manager_id': fields.Integer(description='Manager ID'),
+    'branch_id': fields.Integer(description='Branch ID'),
+})
+
+bank_model = admin_ns.model('Bank', {
+    'id': fields.Integer(description='Bank ID'),
+    'name': fields.String(required=True, description='Bank Name'),
+})
+
+branch_model = admin_ns.model('Branch', {
+    'id': fields.Integer(description='Branch ID'),
+    'name': fields.String(required=True, description='Branch Name'),
+    'bank_id': fields.Integer(description='Bank ID'),
+    'sort_code': fields.String(description='Sort Code'),
+})
+
+paypoint_model = admin_ns.model('Paypoint', {
+    'id': fields.Integer(description='Paypoint ID'),
+    'name': fields.String(required=True, description='Paypoint Name'),
+    'location': fields.String(description='Paypoint Location'),
+})
+
+product_model = admin_ns.model('ImpactProduct', {
+    'id': fields.Integer(description='Product ID'),
+    'name': fields.String(required=True, description='Product Name'),
+    'category': fields.String(description='Product Category'),
+})
+
+# Helper function to check permissions
+def check_role_permission(current_user, required_role):
+    roles = {
+        'admin': ['admin'],
+        'manager': ['admin', 'manager'],
+        'back_office': ['admin', 'manager', 'back_office'],
+        'sales_manager': ['admin', 'manager', 'sales_manager']
+    }
+    return current_user['role'] in roles.get(required_role, [])
+
+# Admin resource class
+@admin_ns.route('/')
 class AdminResource(Resource):
+    @admin_ns.doc(security='Bearer Auth')
     @jwt_required()
     def get(self):
+        """Retrieve all data based on the user's role."""
         current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':
+
+        if not check_role_permission(current_user, 'back_office'):
             return {'message': 'Unauthorized'}, 403
 
         users = User.query.filter_by(is_deleted=False).all()
@@ -32,10 +85,14 @@ class AdminResource(Resource):
             'products': [product.serialize() for product in products]
         })
 
+    @admin_ns.doc(security='Bearer Auth', responses={201: 'Created', 403: 'Unauthorized'})
     @jwt_required()
+    @admin_ns.expect(sales_executive_model, validate=True)
     def post(self):
+        """Create new resources (sales_executive, bank, branch, paypoint, or product)."""
         current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':
+
+        if not check_role_permission(current_user, 'admin'):
             return {'message': 'Unauthorized'}, 403
 
         data = request.json
@@ -54,10 +111,7 @@ class AdminResource(Resource):
             new_branch = Branch(
                 name=data['name'],
                 bank_id=data.get('bank_id'),
-                address=data.get('address'),
-                city=data.get('city'),
-                region=data.get('region'),
-                ghpost_gps=data.get('ghpost_gps')
+                sort_code=data.get('sort_code')
             )
             db.session.add(new_branch)
         elif data['type'] == 'paypoint':
@@ -73,7 +127,7 @@ class AdminResource(Resource):
             user_id=current_user['id'],
             action='CREATE',
             resource_type=data['type'],
-             resource_id=new_sales_executive.id if data['type'] == 'sales_executive' else (
+            resource_id=new_sales_executive.id if data['type'] == 'sales_executive' else (
                 new_bank.id if data['type'] == 'bank' else (
                     new_branch.id if data['type'] == 'branch' else (
                         new_paypoint.id if data['type'] == 'paypoint' else new_product.id))),
@@ -84,13 +138,16 @@ class AdminResource(Resource):
 
         return {'message': 'Resource added successfully'}, 201
 
+    @admin_ns.doc(security='Bearer Auth', responses={200: 'Updated', 403: 'Unauthorized'})
     @jwt_required()
     def put(self):
+        """Update existing resources based on role permissions."""
         current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':
+        data = request.json
+
+        if not check_role_permission(current_user, 'manager'):
             return {'message': 'Unauthorized'}, 403
 
-        data = request.json
         if data['type'] == 'sales_executive':
             se = SalesExecutive.query.filter_by(id=data['id'], is_deleted=False).first()
             if not se:
@@ -110,10 +167,7 @@ class AdminResource(Resource):
                 return {'message': 'Branch not found'}, 404
             branch.name = data.get('name', branch.name)
             branch.bank_id = data.get('bank_id', branch.bank_id)
-            branch.address = data.get('address', branch.address)
-            branch.city = data.get('city', branch.city)
-            branch.region = data.get('region', branch.region)
-            branch.ghpost_gps = data.get('ghpost_gps', branch.ghpost_gps)
+            branch.sort_code = data.get('sort_code', branch.sort_code)
         elif data['type'] == 'paypoint':
             paypoint = Paypoint.query.filter_by(id=data['id'], is_deleted=False).first()
             if not paypoint:
@@ -141,13 +195,16 @@ class AdminResource(Resource):
 
         return {'message': 'Resource updated successfully'}, 200
 
+    @admin_ns.doc(security='Bearer Auth', responses={200: 'Deleted', 403: 'Unauthorized'})
     @jwt_required()
     def delete(self):
+        """Delete resources (Admin only)."""
         current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':
+        data = request.json
+
+        if not check_role_permission(current_user, 'admin'):
             return {'message': 'Unauthorized'}, 403
 
-        data = request.json
         if data['type'] == 'sales_executive':
             se = SalesExecutive.query.filter_by(id=data['id'], is_deleted=False).first()
             if not se:

@@ -4,14 +4,17 @@ from models.sales_model import Sale
 from models.audit_model import AuditTrail
 from app import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 from datetime import datetime
 
 class SaleResource(Resource):
     @jwt_required()
     def get(self, sale_id=None):
+        """Retrieve a single sale by ID or list of sales with extended filters."""
         current_user = get_jwt_identity()
+
         if sale_id:
+            # Fetch a specific sale
             sale = Sale.query.filter_by(id=sale_id, is_deleted=False).first()
             if not sale:
                 return {'message': 'Sale not found'}, 404
@@ -29,19 +32,51 @@ class SaleResource(Resource):
 
             return sale.serialize(), 200
         else:
+            # Retrieve a list of sales with optional filters
             page = request.args.get('page', 1, type=int)
             per_page = request.args.get('per_page', 10, type=int)
             filter_by = request.args.get('filter_by', None)
             sort_by = request.args.get('sort_by', 'created_at')
+
+            # Extended filters
+            start_date = request.args.get('start_date', None)
+            end_date = request.args.get('end_date', None)
+            sales_executive_id = request.args.get('sales_executive_id', None, type=int)
+            branch_id = request.args.get('branch_id', None, type=int)
+            min_amount = request.args.get('min_amount', None, type=float)
+            max_amount = request.args.get('max_amount', None, type=float)
+            status = request.args.get('status', None)
 
             sales_query = Sale.query.filter_by(is_deleted=False)
 
             if filter_by:
                 sales_query = sales_query.filter(or_(
                     Sale.sale_manager.ilike(f'%{filter_by}%'),
-                    Sale.sales_executive_id.ilike(f'%{filter_by}%')
+                    Sale.client_phone.ilike(f'%{filter_by}%')
                 ))
 
+            if start_date and end_date:
+                sales_query = sales_query.filter(and_(
+                    Sale.created_at >= datetime.strptime(start_date, '%Y-%m-%d'),
+                    Sale.created_at <= datetime.strptime(end_date, '%Y-%m-%d')
+                ))
+
+            if sales_executive_id:
+                sales_query = sales_query.filter(Sale.sales_executive_id == sales_executive_id)
+
+            if branch_id:
+                sales_query = sales_query.filter(Sale.branch_id == branch_id)
+
+            if min_amount:
+                sales_query = sales_query.filter(Sale.amount >= min_amount)
+
+            if max_amount:
+                sales_query = sales_query.filter(Sale.amount <= max_amount)
+
+            if status:
+                sales_query = sales_query.filter(Sale.status == status)
+
+            # Apply sorting and pagination
             sales = sales_query.order_by(sort_by).paginate(page, per_page, error_out=False)
 
             # Log the access to audit trail
@@ -64,6 +99,7 @@ class SaleResource(Resource):
 
     @jwt_required()
     def post(self):
+        """Create a new sale."""
         current_user = get_jwt_identity()
         data = request.json
 
@@ -103,6 +139,7 @@ class SaleResource(Resource):
 
     @jwt_required()
     def put(self, sale_id):
+        """Update an existing sale by ID."""
         current_user = get_jwt_identity()
         sale = Sale.query.filter_by(id=sale_id, is_deleted=False).first()
         if not sale:
@@ -137,6 +174,7 @@ class SaleResource(Resource):
 
     @jwt_required()
     def delete(self, sale_id):
+        """Soft delete a sale by marking it as deleted."""
         current_user = get_jwt_identity()
         sale = Sale.query.filter_by(id=sale_id, is_deleted=False).first()
         if not sale:
@@ -151,7 +189,7 @@ class SaleResource(Resource):
             action='DELETE',
             resource_type='sale',
             resource_id=sale.id,
-            details=f"User deleted sale with ID {sale.id}"
+            details=f"User soft-deleted sale with ID {sale.id}"
         )
         db.session.add(audit)
         db.session.commit()

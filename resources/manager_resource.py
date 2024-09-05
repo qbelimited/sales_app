@@ -1,94 +1,104 @@
-from flask_restful import Resource
+from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
 from models.sales_executive_model import SalesExecutive
-from models.sales_model import Sale
 from models.audit_model import AuditTrail
 from app import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
-class ManagerResource(Resource):
+# Define a namespace for manager-related operations
+manager_ns = Namespace('manager', description='Manager operations')
+
+# Define models for Swagger documentation
+sales_executive_model = manager_ns.model('SalesExecutive', {
+    'id': fields.Integer(description='Sales Executive ID'),
+    'name': fields.String(required=True, description='Sales Executive Name'),
+    'code': fields.String(required=True, description='Sales Executive Code'),
+    'manager_id': fields.Integer(description='Manager ID'),
+    'phone_number': fields.String(description='Sales Executive Phone Number'),
+})
+
+@manager_ns.route('/sales_executives')
+class ManagerSalesExecutiveResource(Resource):
+    @manager_ns.doc(security='Bearer Auth')
     @jwt_required()
     def get(self):
+        """Retrieve all sales executives managed by the current manager."""
         current_user = get_jwt_identity()
         if current_user['role'] != 'manager':
             return {'message': 'Unauthorized'}, 403
 
+        # Get sales executives under this manager
         sales_executives = SalesExecutive.query.filter_by(manager_id=current_user['id'], is_deleted=False).all()
-        sales_data = Sale.query.filter(Sale.user_id.in_([se.id for se in sales_executives]), Sale.is_deleted == False).all()
 
         # Log the access to audit trail
         audit = AuditTrail(
             user_id=current_user['id'],
             action='ACCESS',
-            resource_type='sales_data',
+            resource_type='sales_executive_list',
             resource_id=None,
-            details=f"Manager accessed sales data"
+            details="Manager accessed list of sales executives"
         )
         db.session.add(audit)
         db.session.commit()
 
         return jsonify({
-            'sales_executives': [se.serialize() for se in sales_executives],
-            'sales_data': [sale.serialize() for sale in sales_data]
+            'sales_executives': [se.serialize() for se in sales_executives]
         })
 
+    @manager_ns.doc(security='Bearer Auth', responses={201: 'Created', 403: 'Unauthorized'})
     @jwt_required()
+    @manager_ns.expect(sales_executive_model, validate=True)
     def post(self):
+        """Create a new sales executive under the current manager."""
         current_user = get_jwt_identity()
         if current_user['role'] != 'manager':
             return {'message': 'Unauthorized'}, 403
 
         data = request.json
-        new_sale = Sale(
-            user_id=current_user['id'],
-            sale_manager=data['sale_manager'],
-            sales_executive_id=data['sales_executive_id'],
-            branch_id=data['branch_id'],
-            client_phone=data['client_phone'],
-            bank_name=data.get('bank_name'),
-            bank_branch=data.get('bank_branch'),
-            bank_acc_number=data.get('bank_acc_number'),
-            amount=data['amount'],
-            geolocation=data.get('geolocation')
+        new_sales_executive = SalesExecutive(
+            name=data['name'],
+            code=data['code'],
+            manager_id=current_user['id'],
+            phone_number=data.get('phone_number')
         )
-        db.session.add(new_sale)
+        db.session.add(new_sales_executive)
         db.session.commit()
 
         # Log the creation to audit trail
         audit = AuditTrail(
             user_id=current_user['id'],
             action='CREATE',
-            resource_type='sale',
-            resource_id=new_sale.id,
-            details=f"Manager created a new sale with ID {new_sale.id}"
+            resource_type='sales_executive',
+            resource_id=new_sales_executive.id,
+            details=f"Manager created a new sales executive with ID {new_sales_executive.id}"
         )
         db.session.add(audit)
         db.session.commit()
 
-        return new_sale.serialize(), 201
+        return new_sales_executive.serialize(), 201
 
+@manager_ns.route('/sales_executives/<int:executive_id>')
+class ManagerSalesExecutiveUpdateResource(Resource):
+    @manager_ns.doc(security='Bearer Auth', responses={200: 'Updated', 404: 'Sales Executive not found', 403: 'Unauthorized'})
     @jwt_required()
-    def put(self, sale_id):
+    @manager_ns.expect(sales_executive_model, validate=True)
+    def put(self, executive_id):
+        """Update an existing sales executive's details (only self-updates or updates to subordinates)."""
         current_user = get_jwt_identity()
         if current_user['role'] != 'manager':
             return {'message': 'Unauthorized'}, 403
 
-        sale = Sale.query.filter_by(id=sale_id, is_deleted=False).first()
-        if not sale:
-            return {'message': 'Sale not found'}, 404
+        # Allow manager to update only their own details or sales executives they manage
+        sales_executive = SalesExecutive.query.filter_by(id=executive_id, is_deleted=False).first()
+        if not sales_executive or (sales_executive.manager_id != current_user['id'] and sales_executive.id != current_user['id']):
+            return {'message': 'Sales Executive not found or unauthorized'}, 404
 
         data = request.json
-        sale.sale_manager = data.get('sale_manager', sale.sale_manager)
-        sale.sales_executive_id = data.get('sales_executive_id', sale.sales_executive_id)
-        sale.branch_id = data.get('branch_id', sale.branch_id)
-        sale.client_phone = data.get('client_phone', sale.client_phone)
-        sale.bank_name = data.get('bank_name', sale.bank_name)
-        sale.bank_branch = data.get('bank_branch', sale.bank_branch)
-        sale.bank_acc_number = data.get('bank_acc_number', sale.bank_acc_number)
-        sale.amount = data.get('amount', sale.amount)
-        sale.updated_at = datetime.utcnow()
-        sale.status = 'updated'
+        sales_executive.name = data.get('name', sales_executive.name)
+        sales_executive.code = data.get('code', sales_executive.code)
+        sales_executive.phone_number = data.get('phone_number', sales_executive.phone_number)
+        sales_executive.updated_at = datetime.utcnow()
 
         db.session.commit()
 
@@ -96,11 +106,17 @@ class ManagerResource(Resource):
         audit = AuditTrail(
             user_id=current_user['id'],
             action='UPDATE',
-            resource_type='sale',
-            resource_id=sale.id,
-            details=f"Manager updated sale with ID {sale.id}"
+            resource_type='sales_executive',
+            resource_id=sales_executive.id,
+            details=f"Manager updated sales executive with ID {sales_executive.id}"
         )
         db.session.add(audit)
         db.session.commit()
 
-        return sale.serialize(), 200
+        return sales_executive.serialize(), 200
+
+    @manager_ns.doc(security='Bearer Auth', responses={403: 'Unauthorized'})
+    @jwt_required()
+    def delete(self, executive_id):
+        """Soft-deletes are not allowed for sales executives."""
+        return {'message': 'Managers are not authorized to delete sales executives'}, 403

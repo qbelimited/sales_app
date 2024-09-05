@@ -7,3 +7,6 @@ from .sales_executive_model import SalesExecutive
 from .audit_model import AuditTrail
 from .under_investigation_model import UnderInvestigation
 from .branch_model import Branch
+from .query_model import Query, QueryResponse
+from .report_model import Report
+from .user_session_model import UserSession

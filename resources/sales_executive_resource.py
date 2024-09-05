@@ -1,4 +1,4 @@
-from flask_restful import Resource
+from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
 from models.sales_executive_model import SalesExecutive
 from models.audit_model import AuditTrail
@@ -6,60 +6,65 @@ from app import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
-class SalesExecutiveResource(Resource):
+# Define a namespace for Sales Executive operations
+sales_executive_ns = Namespace('sales_executive', description='Sales Executive operations')
+
+# Define models for Swagger documentation
+sales_executive_model = sales_executive_ns.model('SalesExecutive', {
+    'id': fields.Integer(description='Sales Executive ID'),
+    'name': fields.String(required=True, description='Sales Executive Name'),
+    'code': fields.String(required=True, description='Sales Executive Code'),
+    'manager_id': fields.Integer(required=True, description='Manager ID'),
+    'branch_id': fields.Integer(required=True, description='Branch ID')
+})
+
+@sales_executive_ns.route('/')
+class SalesExecutiveListResource(Resource):
+    @sales_executive_ns.doc(security='Bearer Auth')
     @jwt_required()
-    def get(self, sales_executive_id=None):
+    @sales_executive_ns.param('page', 'Page number for pagination', type='integer', default=1)
+    @sales_executive_ns.param('per_page', 'Number of items per page', type='integer', default=10)
+    @sales_executive_ns.param('filter_by', 'Filter by Sales Executive name', type='string')
+    @sales_executive_ns.param('sort_by', 'Sort by field (e.g., created_at, name)', type='string', default='created_at')
+    def get(self):
+        """Retrieve a paginated list of Sales Executives."""
         current_user = get_jwt_identity()
-        if sales_executive_id:
-            sales_executive = SalesExecutive.query.filter_by(id=sales_executive_id, is_deleted=False).first()
-            if not sales_executive:
-                return {'message': 'Sales Executive not found'}, 404
 
-            # Log the access to audit trail
-            audit = AuditTrail(
-                user_id=current_user['id'],
-                action='ACCESS',
-                resource_type='sales_executive',
-                resource_id=sales_executive_id,
-                details=f"User accessed Sales Executive with ID {sales_executive_id}"
-            )
-            db.session.add(audit)
-            db.session.commit()
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        filter_by = request.args.get('filter_by', None)
+        sort_by = request.args.get('sort_by', 'created_at')
 
-            return sales_executive.serialize(), 200
-        else:
-            page = request.args.get('page', 1, type=int)
-            per_page = request.args.get('per_page', 10, type=int)
-            filter_by = request.args.get('filter_by', None)
-            sort_by = request.args.get('sort_by', 'created_at')
+        sales_executive_query = SalesExecutive.query.filter_by(is_deleted=False)
 
-            sales_executive_query = SalesExecutive.query.filter_by(is_deleted=False)
+        if filter_by:
+            sales_executive_query = sales_executive_query.filter(SalesExecutive.name.ilike(f'%{filter_by}%'))
 
-            if filter_by:
-                sales_executive_query = sales_executive_query.filter(SalesExecutive.name.ilike(f'%{filter_by}%'))
+        sales_executives = sales_executive_query.order_by(sort_by).paginate(page, per_page, error_out=False)
 
-            sales_executives = sales_executive_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+        # Log the access to audit trail
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='ACCESS',
+            resource_type='sales_executive_list',
+            resource_id=None,
+            details=f"User accessed list of Sales Executives"
+        )
+        db.session.add(audit)
+        db.session.commit()
 
-            # Log the access to audit trail
-            audit = AuditTrail(
-                user_id=current_user['id'],
-                action='ACCESS',
-                resource_type='sales_executive_list',
-                resource_id=None,
-                details=f"User accessed list of Sales Executives"
-            )
-            db.session.add(audit)
-            db.session.commit()
+        return {
+            'sales_executives': [se.serialize() for se in sales_executives.items],
+            'total': sales_executives.total,
+            'pages': sales_executives.pages,
+            'current_page': sales_executives.page
+        }, 200
 
-            return {
-                'sales_executives': [se.serialize() for se in sales_executives.items],
-                'total': sales_executives.total,
-                'pages': sales_executives.pages,
-                'current_page': sales_executives.page
-            }, 200
-
+    @sales_executive_ns.doc(security='Bearer Auth', responses={201: 'Created', 400: 'Bad Request', 403: 'Unauthorized'})
     @jwt_required()
+    @sales_executive_ns.expect(sales_executive_model, validate=True)
     def post(self):
+        """Create a new Sales Executive (admin and manager only)."""
         current_user = get_jwt_identity()
         data = request.json
 
@@ -85,8 +90,36 @@ class SalesExecutiveResource(Resource):
 
         return new_sales_executive.serialize(), 201
 
+
+@sales_executive_ns.route('/<int:sales_executive_id>')
+class SalesExecutiveResource(Resource):
+    @sales_executive_ns.doc(security='Bearer Auth', responses={200: 'Success', 404: 'Sales Executive not found', 403: 'Unauthorized'})
     @jwt_required()
+    def get(self, sales_executive_id):
+        """Retrieve a specific Sales Executive by ID."""
+        current_user = get_jwt_identity()
+        sales_executive = SalesExecutive.query.filter_by(id=sales_executive_id, is_deleted=False).first()
+        if not sales_executive:
+            return {'message': 'Sales Executive not found'}, 404
+
+        # Log the access to audit trail
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='ACCESS',
+            resource_type='sales_executive',
+            resource_id=sales_executive_id,
+            details=f"User accessed Sales Executive with ID {sales_executive_id}"
+        )
+        db.session.add(audit)
+        db.session.commit()
+
+        return sales_executive.serialize(), 200
+
+    @sales_executive_ns.doc(security='Bearer Auth', responses={200: 'Updated', 404: 'Sales Executive not found', 403: 'Unauthorized'})
+    @jwt_required()
+    @sales_executive_ns.expect(sales_executive_model, validate=True)
     def put(self, sales_executive_id):
+        """Update an existing Sales Executive (admin and manager only)."""
         current_user = get_jwt_identity()
         sales_executive = SalesExecutive.query.filter_by(id=sales_executive_id, is_deleted=False).first()
         if not sales_executive:
@@ -114,8 +147,10 @@ class SalesExecutiveResource(Resource):
 
         return sales_executive.serialize(), 200
 
+    @sales_executive_ns.doc(security='Bearer Auth', responses={200: 'Deleted', 404: 'Sales Executive not found', 403: 'Unauthorized'})
     @jwt_required()
     def delete(self, sales_executive_id):
+        """Soft-delete a Sales Executive (admin and manager only)."""
         current_user = get_jwt_identity()
         sales_executive = SalesExecutive.query.filter_by(id=sales_executive_id, is_deleted=False).first()
         if not sales_executive:

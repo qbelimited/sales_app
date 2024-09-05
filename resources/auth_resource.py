@@ -1,4 +1,4 @@
-from flask_restful import Resource
+from flask_restx import Namespace, Resource, fields
 from flask import request, session, redirect, url_for
 from authlib.integrations.flask_client import OAuth
 from models.user_model import User
@@ -19,13 +19,40 @@ oauth.register(
     client_kwargs={'scope': 'openid email profile'},
 )
 
+# Define a namespace for auth-related operations
+auth_ns = Namespace('auth', description='Authentication operations')
+
+# Define models for documentation
+login_model = auth_ns.model('LoginResponse', {
+    'message': fields.String(description='Login message'),
+    'user': fields.Nested(auth_ns.model('User', {
+        'id': fields.Integer(description='User ID'),
+        'email': fields.String(description='User email'),
+        'name': fields.String(description='User name'),
+        'role_id': fields.Integer(description='Role ID'),
+    }))
+})
+
+logout_model = auth_ns.model('LogoutResponse', {
+    'message': fields.String(description='Logout message')
+})
+
+# Authentication resource class
+@auth_ns.route('/login')
 class AuthResource(Resource):
+    @auth_ns.doc(description='Initiates Microsoft OAuth login.')
     def get(self):
+        """Initiate OAuth login with Microsoft."""
         redirect_uri = url_for('authcallbackresource', _external=True)
         return oauth.microsoft.authorize_redirect(redirect_uri)
 
+@auth_ns.route('/callback')
 class AuthCallbackResource(Resource):
+    @auth_ns.doc(description='Handles the OAuth callback from Microsoft and logs the user in.')
+    @auth_ns.response(200, 'Success', model=login_model)
+    @auth_ns.response(403, 'Unauthorized')
     def get(self):
+        """Handle Microsoft OAuth callback and login the user."""
         token = oauth.microsoft.authorize_access_token()
         user_info = oauth.microsoft.parse_id_token(token)
 
@@ -52,8 +79,12 @@ class AuthCallbackResource(Resource):
 
         return {"message": "Logged in successfully", "user": user.serialize()}
 
+@auth_ns.route('/logout')
 class LogoutResource(Resource):
+    @auth_ns.doc(description='Logs the user out and clears the session.')
+    @auth_ns.response(200, 'Success', model=logout_model)
     def get(self):
+        """Logs out the user and clears the session."""
         user_id = session.get('user_id')
         user_email = session.get('user_email')
 

@@ -1,4 +1,4 @@
-from flask_restful import Resource
+from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
 from models.branch_model import Branch
 from models.audit_model import AuditTrail
@@ -6,50 +6,82 @@ from app import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
-class BranchResource(Resource):
+# Define a namespace for branch-related operations
+branch_ns = Namespace('branch', description='Branch operations')
+
+# Define a model for the branch in Swagger documentation
+branch_model = branch_ns.model('Branch', {
+    'id': fields.Integer(description='Branch ID'),
+    'name': fields.String(required=True, description='Branch Name'),
+    'sort_code': fields.String(description='Sort Code'),
+    'ghpost_gps': fields.String(description='GPS Address')
+})
+
+# Helper function to check role permissions
+def check_role_permission(current_user, required_role):
+    roles = {
+        'admin': ['admin'],
+        'manager': ['admin', 'manager'],
+        'back_office': ['admin', 'manager', 'back_office'],
+        'sales_manager': ['admin', 'manager', 'sales_manager']
+    }
+    return current_user['role'] in roles.get(required_role, [])
+
+@branch_ns.route('/')
+class BranchListResource(Resource):
+    @branch_ns.doc(security='Bearer Auth')
     @jwt_required()
-    def get(self, branch_id=None):
+    @branch_ns.param('page', 'Page number for pagination', type='integer', default=1)
+    @branch_ns.param('per_page', 'Number of items per page', type='integer', default=10)
+    @branch_ns.param('filter_by', 'Filter by branch name', type='string')
+    @branch_ns.param('sort_by', 'Sort by field (e.g., created_at, name)', type='string', default='created_at')
+    def get(self):
+        """Retrieve a paginated list of branches (view rights for all roles)."""
         current_user = get_jwt_identity()
-        if branch_id:
-            branch = Branch.query.filter_by(id=branch_id, is_deleted=False).first()
-            if not branch:
-                return {'message': 'Branch not found'}, 404
-            return branch.serialize(), 200
-        else:
-            page = request.args.get('page', 1, type=int)
-            per_page = request.args.get('per_page', 10, type=int)
-            filter_by = request.args.get('filter_by', None)
-            sort_by = request.args.get('sort_by', 'created_at')
 
-            branch_query = Branch.query.filter_by(is_deleted=False)
+        # Check if the user has permission to view branches
+        if not check_role_permission(current_user, 'back_office'):
+            return {'message': 'Unauthorized'}, 403
 
-            if filter_by:
-                branch_query = branch_query.filter(Branch.name.ilike(f'%{filter_by}%'))
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        filter_by = request.args.get('filter_by', None)
+        sort_by = request.args.get('sort_by', 'created_at')
 
-            branches = branch_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+        branch_query = Branch.query.filter_by(is_deleted=False)
 
-            return {
-                'branches': [branch.serialize() for branch in branches.items],
-                'total': branches.total,
-                'pages': branches.pages,
-                'current_page': branches.page
-            }, 200
+        if filter_by:
+            branch_query = branch_query.filter(Branch.name.ilike(f'%{filter_by}%'))
 
+        branches = branch_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+
+        return {
+            'branches': [branch.serialize() for branch in branches.items],
+            'total': branches.total,
+            'pages': branches.pages,
+            'current_page': branches.page
+        }, 200
+
+    @branch_ns.doc(security='Bearer Auth', responses={201: 'Created', 400: 'Missing required fields', 403: 'Unauthorized'})
     @jwt_required()
+    @branch_ns.expect(branch_model, validate=True)
     def post(self):
+        """Create a new branch (admin and manager only)."""
         current_user = get_jwt_identity()
+
+        if not check_role_permission(current_user, 'manager'):
+            return {'message': 'Unauthorized'}, 403
+
         data = request.json
 
         # Validation of required fields
-        if not data.get('name') or not data.get('address') or not data.get('city') or not data.get('region'):
+        if not data.get('name'):
             return {'message': 'Missing required fields'}, 400
 
         new_branch = Branch(
             name=data['name'],
-            address=data['address'],
-            city=data['city'],
-            region=data['region'],
-            ghpost_gps=data.get('ghpost_gps')
+            ghpost_gps=data.get('ghpost_gps'),
+            sort_code=data.get('sort_code')
         )
         db.session.add(new_branch)
         db.session.commit()
@@ -67,19 +99,42 @@ class BranchResource(Resource):
 
         return new_branch.serialize(), 201
 
+@branch_ns.route('/<int:branch_id>')
+class BranchResource(Resource):
+    @branch_ns.doc(security='Bearer Auth', responses={200: 'Success', 404: 'Branch not found', 403: 'Unauthorized'})
     @jwt_required()
-    def put(self, branch_id):
+    def get(self, branch_id):
+        """Retrieve a specific branch by ID (view rights for all roles)."""
         current_user = get_jwt_identity()
+
+        # Check if the user has permission to view the branch
+        if not check_role_permission(current_user, 'back_office'):
+            return {'message': 'Unauthorized'}, 403
+
+        branch = Branch.query.filter_by(id=branch_id, is_deleted=False).first()
+        if not branch:
+            return {'message': 'Branch not found'}, 404
+
+        return branch.serialize(), 200
+
+    @branch_ns.doc(security='Bearer Auth', responses={200: 'Updated', 404: 'Branch not found', 403: 'Unauthorized'})
+    @jwt_required()
+    @branch_ns.expect(branch_model, validate=True)
+    def put(self, branch_id):
+        """Update an existing branch (admin and manager only)."""
+        current_user = get_jwt_identity()
+
+        if not check_role_permission(current_user, 'manager'):
+            return {'message': 'Unauthorized'}, 403
+
         branch = Branch.query.filter_by(id=branch_id, is_deleted=False).first()
         if not branch:
             return {'message': 'Branch not found'}, 404
 
         data = request.json
         branch.name = data.get('name', branch.name)
-        branch.address = data.get('address', branch.address)
-        branch.city = data.get('city', branch.city)
-        branch.region = data.get('region', branch.region)
         branch.ghpost_gps = data.get('ghpost_gps', branch.ghpost_gps)
+        branch.sort_code = data.get('sort_code', branch.sort_code)
         branch.updated_at = datetime.utcnow()
 
         db.session.commit()
@@ -97,9 +152,15 @@ class BranchResource(Resource):
 
         return branch.serialize(), 200
 
+    @branch_ns.doc(security='Bearer Auth', responses={200: 'Deleted', 404: 'Branch not found', 403: 'Unauthorized'})
     @jwt_required()
     def delete(self, branch_id):
+        """Soft-delete a branch (admin only)."""
         current_user = get_jwt_identity()
+
+        if not check_role_permission(current_user, 'admin'):
+            return {'message': 'Unauthorized'}, 403
+
         branch = Branch.query.filter_by(id=branch_id, is_deleted=False).first()
         if not branch:
             return {'message': 'Branch not found'}, 404

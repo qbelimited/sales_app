@@ -31,6 +31,6 @@ def generate_folder_structure(path, exclusions, output_file):
 if __name__ == "__main__":
     # Get the directory of the script as the base path
     base_path = os.path.dirname(os.path.abspath(__file__))
-    exclusions = ['venv', '__pycache__', 'instance', '.git', 'static', '.mypy_cache', 'logs']
+    exclusions = ['venv', '__pycache__', 'instance', '.git', 'static', '.mypy_cache', 'logs', 'node_modules']
     output_file = 'docs/app_structure.txt'
     generate_folder_structure(base_path, exclusions, output_file)

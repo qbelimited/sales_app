@@ -1,4 +1,4 @@
-from flask_restful import Resource
+from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
 from models.impact_product_model import ImpactProduct
 from models.audit_model import AuditTrail
@@ -6,60 +6,63 @@ from app import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
-class ImpactProductResource(Resource):
+# Define a namespace for Impact Product operations
+impact_product_ns = Namespace('impact_product', description='Impact Product operations')
+
+# Define a model for Swagger documentation
+impact_product_model = impact_product_ns.model('ImpactProduct', {
+    'id': fields.Integer(description='Product ID'),
+    'name': fields.String(required=True, description='Product Name'),
+    'category': fields.String(required=True, description='Product Category')
+})
+
+@impact_product_ns.route('/')
+class ImpactProductListResource(Resource):
+    @impact_product_ns.doc(security='Bearer Auth')
     @jwt_required()
-    def get(self, product_id=None):
+    @impact_product_ns.param('page', 'Page number for pagination', type='integer', default=1)
+    @impact_product_ns.param('per_page', 'Number of items per page', type='integer', default=10)
+    @impact_product_ns.param('filter_by', 'Filter by product name', type='string')
+    @impact_product_ns.param('sort_by', 'Sort by field (e.g., created_at, name)', type='string', default='created_at')
+    def get(self):
+        """Retrieve a paginated list of Impact Products."""
         current_user = get_jwt_identity()
-        if product_id:
-            product = ImpactProduct.query.filter_by(id=product_id, is_deleted=False).first()
-            if not product:
-                return {'message': 'Impact Product not found'}, 404
 
-            # Log the access to audit trail
-            audit = AuditTrail(
-                user_id=current_user['id'],
-                action='ACCESS',
-                resource_type='impact_product',
-                resource_id=product_id,
-                details=f"User accessed Impact Product with ID {product_id}"
-            )
-            db.session.add(audit)
-            db.session.commit()
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        filter_by = request.args.get('filter_by', None)
+        sort_by = request.args.get('sort_by', 'created_at')
 
-            return product.serialize(), 200
-        else:
-            page = request.args.get('page', 1, type=int)
-            per_page = request.args.get('per_page', 10, type=int)
-            filter_by = request.args.get('filter_by', None)
-            sort_by = request.args.get('sort_by', 'created_at')
+        product_query = ImpactProduct.query.filter_by(is_deleted=False)
 
-            product_query = ImpactProduct.query.filter_by(is_deleted=False)
+        if filter_by:
+            product_query = product_query.filter(ImpactProduct.name.ilike(f'%{filter_by}%'))
 
-            if filter_by:
-                product_query = product_query.filter(ImpactProduct.name.ilike(f'%{filter_by}%'))
+        products = product_query.order_by(sort_by).paginate(page, per_page, error_out=False)
 
-            products = product_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+        # Log the access to audit trail
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='ACCESS',
+            resource_type='impact_product_list',
+            resource_id=None,
+            details="User accessed list of Impact Products"
+        )
+        db.session.add(audit)
+        db.session.commit()
 
-            # Log the access to audit trail
-            audit = AuditTrail(
-                user_id=current_user['id'],
-                action='ACCESS',
-                resource_type='impact_product_list',
-                resource_id=None,
-                details=f"User accessed list of Impact Products"
-            )
-            db.session.add(audit)
-            db.session.commit()
+        return {
+            'products': [product.serialize() for product in products.items],
+            'total': products.total,
+            'pages': products.pages,
+            'current_page': products.page
+        }, 200
 
-            return {
-                'products': [product.serialize() for product in products.items],
-                'total': products.total,
-                'pages': products.pages,
-                'current_page': products.page
-            }, 200
-
+    @impact_product_ns.doc(security='Bearer Auth', responses={201: 'Created', 400: 'Missing required fields', 403: 'Unauthorized'})
     @jwt_required()
+    @impact_product_ns.expect(impact_product_model, validate=True)
     def post(self):
+        """Create a new Impact Product (admin and manager only)."""
         current_user = get_jwt_identity()
         data = request.json
 
@@ -83,8 +86,36 @@ class ImpactProductResource(Resource):
 
         return new_product.serialize(), 201
 
+
+@impact_product_ns.route('/<int:product_id>')
+class ImpactProductResource(Resource):
+    @impact_product_ns.doc(security='Bearer Auth', responses={200: 'Success', 404: 'Impact Product not found', 403: 'Unauthorized'})
     @jwt_required()
+    def get(self, product_id):
+        """Retrieve a specific Impact Product by ID."""
+        current_user = get_jwt_identity()
+        product = ImpactProduct.query.filter_by(id=product_id, is_deleted=False).first()
+        if not product:
+            return {'message': 'Impact Product not found'}, 404
+
+        # Log the access to audit trail
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='ACCESS',
+            resource_type='impact_product',
+            resource_id=product_id,
+            details=f"User accessed Impact Product with ID {product_id}"
+        )
+        db.session.add(audit)
+        db.session.commit()
+
+        return product.serialize(), 200
+
+    @impact_product_ns.doc(security='Bearer Auth', responses={200: 'Updated', 404: 'Impact Product not found', 403: 'Unauthorized'})
+    @jwt_required()
+    @impact_product_ns.expect(impact_product_model, validate=True)
     def put(self, product_id):
+        """Update an existing Impact Product (admin and manager only)."""
         current_user = get_jwt_identity()
         product = ImpactProduct.query.filter_by(id=product_id, is_deleted=False).first()
         if not product:
@@ -110,8 +141,10 @@ class ImpactProductResource(Resource):
 
         return product.serialize(), 200
 
+    @impact_product_ns.doc(security='Bearer Auth', responses={200: 'Deleted', 404: 'Impact Product not found', 403: 'Unauthorized'})
     @jwt_required()
     def delete(self, product_id):
+        """Soft-delete an Impact Product (admin only)."""
         current_user = get_jwt_identity()
         product = ImpactProduct.query.filter_by(id=product_id, is_deleted=False).first()
         if not product:
