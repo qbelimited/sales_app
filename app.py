@@ -3,6 +3,7 @@ from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
+from flask_cors import CORS
 from dotenv import load_dotenv
 from flask_restx import Api
 from authlib.integrations.flask_client import OAuth
@@ -16,6 +17,12 @@ load_dotenv()
 # Initialize Flask application
 app = Flask(__name__)
 app.config.from_object('config.Config')
+
+# Enable CORS for the app
+CORS(app)
+
+# Enable CORS with custom settings
+CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
 
 # Initialize database, JWT, migration, and API
 db = SQLAlchemy(app)
