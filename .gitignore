@@ -82,6 +82,10 @@ coverage.xml
 .vscode/
 .idea/
 *.iml
+.mypy_cache
+migrations/
+instance/
+logs/
 
 # PyInstaller
 *.spec
