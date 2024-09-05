@@ -34,7 +34,7 @@ class AuthResource(Resource):
         return oauth.microsoft.authorize_redirect(redirect_uri)
 
 # Authentication callback resource class
-@auth_ns.route('/callback')
+@auth_ns.route('/microsoft/callback')
 class AuthCallbackResource(Resource):
     @auth_ns.doc(description='Handles the OAuth callback from Microsoft and logs the user in.')
     @auth_ns.response(200, 'Success', model=login_model)
