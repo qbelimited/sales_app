@@ -19,6 +19,7 @@ class SalesExecutive(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
+    # Relationships
     manager = db.relationship('User', backref='sales_executives')
     branches = db.relationship('Branch', secondary=sales_executive_branches, backref=db.backref('sales_executives', lazy='dynamic'))
 
@@ -34,3 +35,9 @@ class SalesExecutive(db.Model):
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
             'branches': [branch.id for branch in self.branches]  # Serialize branch IDs associated with this sales executive
         }
+
+    @staticmethod
+    def get_active_sales_executives():
+        """Static method to get non-deleted sales executives."""
+        return SalesExecutive.query.filter_by(is_deleted=False).all()
+

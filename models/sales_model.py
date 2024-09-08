@@ -2,27 +2,29 @@ from app import db
 from datetime import datetime
 from sqlalchemy.orm import validates
 from models.under_investigation_model import UnderInvestigation
-from models.impact_product_model import ImpactProduct
+
 
 class Sale(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
-    sale_manager = db.Column(db.String(100), nullable=False, index=True)
+    sale_manager_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)  # Reference to sales manager from User table
     sales_executive_id = db.Column(db.Integer, db.ForeignKey('sales_executive.id'), nullable=False, index=True)
     client_name = db.Column(db.String(150), nullable=False, index=True)  # Client name
+    client_id_no = db.Column(db.String(150), nullable=True, index=True)  # Client ID card number
     client_phone = db.Column(db.String(10), nullable=False, index=True)  # Client phone number, must be 10 digits
-    serial_number = db.Column(db.String(100), nullable=False, index=True)  # Serial number field
+    serial_number = db.Column(db.String(100), nullable=False, index=True)  # Serial number
     source_type = db.Column(db.String(50), nullable=False, index=True)  # 'momo', 'bank', or 'paypoint'
-    momo_reference_number = db.Column(db.String(100), nullable=True, index=True)  # Momo reference number, required if source_type is 'momo'
-    momo_transaction_id = db.Column(db.String(100), nullable=True, index=True)  # Momo transaction ID, required if source_type is 'momo'
-    first_pay_with_momo = db.Column(db.Boolean, nullable=True, index=True)  # Yes or No, required if first payment with Momo
-    subsequent_pay_source_type = db.Column(db.String(50), nullable=True, index=True)  # 'bank' or 'paypoint', required if first_pay_with_momo is Yes
-    bank_name = db.Column(db.String(100), nullable=True, index=True)  # Bank name, required if source_type or subsequent_pay_source_type is 'bank'
-    bank_branch = db.Column(db.String(100), nullable=True, index=True)  # Bank branch, required if source_type or subsequent_pay_source_type is 'bank'
-    bank_acc_number = db.Column(db.String(100), nullable=True, index=True)  # Bank account number, required if source_type or subsequent_pay_source_type is 'bank'
-    paypoint_name = db.Column(db.String(100), nullable=True, index=True)  # Paypoint name, required if source_type or subsequent_pay_source_type is 'paypoint'
-    paypoint_branch = db.Column(db.String(100), nullable=True, index=True)  # Paypoint branch, if applicable
-    staff_id = db.Column(db.String(100), nullable=True, index=True)  # Staff ID, required if source_type or subsequent_pay_source_type is 'bank' or 'paypoint'
+    momo_reference_number = db.Column(db.String(100), nullable=True, index=True)  # Momo reference number, if source_type is 'momo'
+    collection_platform = db.Column(db.String(100), nullable=True, index=True)  # Dropdown: Transflow, Hubtel, or company Momo number
+    momo_transaction_id = db.Column(db.String(100), nullable=True, index=True)  # Momo transaction ID, if source_type is 'momo'
+    first_pay_with_momo = db.Column(db.Boolean, nullable=True, index=True)  # Required if the first payment is with Momo
+    subsequent_pay_source_type = db.Column(db.String(50), nullable=True, index=True)  # 'bank' or 'paypoint', if first payment was with Momo
+    bank_name = db.Column(db.String(100), nullable=True, index=True)  # Bank name, if source_type or subsequent_pay_source_type is 'bank'
+    bank_branch = db.Column(db.String(100), nullable=True, index=True)  # Bank branch, if source_type or subsequent_pay_source_type is 'bank'
+    bank_acc_number = db.Column(db.String(100), nullable=True, index=True)  # Bank account number, if source_type or subsequent_pay_source_type is 'bank'
+    paypoint_name = db.Column(db.String(100), nullable=True, index=True)  # Paypoint name, if source_type or subsequent_pay_source_type is 'paypoint'
+    paypoint_branch = db.Column(db.String(100), nullable=True, index=True)  # Paypoint branch
+    staff_id = db.Column(db.String(100), nullable=True, index=True)  # Staff ID, if source_type or subsequent_pay_source_type is 'bank' or 'paypoint'
     policy_type_id = db.Column(db.Integer, db.ForeignKey('impact_product.id'), nullable=False, index=True)  # Foreign key to ImpactProduct
     amount = db.Column(db.Float, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -30,14 +32,17 @@ class Sale(db.Model):
     is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete
     geolocation_latitude = db.Column(db.Float, nullable=True)
     geolocation_longitude = db.Column(db.Float, nullable=True)
-    status = db.Column(db.String(50), default='submitted', index=True)  # Status, e.g., 'submitted', 'under investigation'
+    status = db.Column(db.String(50), default='submitted', index=True)  # 'submitted', 'under investigation', etc.
     customer_called = db.Column(db.Boolean, default=False)  # Checkbox to indicate if the customer was called
+    momo_first_premium = db.Column(db.Boolean, default=False)  # Checkbox for Momo first premium and bank after
 
     # Relationships
     policy_type = db.relationship('ImpactProduct', backref=db.backref('sales', lazy=True))
+    sale_manager = db.relationship('User', foreign_keys=[sale_manager_id])  # Reference sales manager from User table
 
+    # Validators
     @validates('client_phone')
-    def validate_client_phone(self, key, number):
+    def validate_client_phone(self, _, number):
         if len(number) != 10 or not number.isdigit():
             raise ValueError("Client phone number must be exactly 10 digits")
         return number
@@ -56,10 +61,18 @@ class Sale(db.Model):
                 raise ValueError("Account number must be 13 or 16 digits")
         return value
 
+    @validates('collection_platform')
+    def validate_collection_platform(self, _, value):
+        allowed_platforms = ['Transflow', 'Hubtel', 'company Momo number']
+        if value not in allowed_platforms:
+            raise ValueError(f"Invalid collection platform. Must be one of {allowed_platforms}.")
+        return value
+
+    # Duplicate check
     def check_duplicate(self):
-        # Flagging duplicates
         duplicate_conditions = (
             (Sale.client_phone == self.client_phone),
+            (Sale.client_name == self.client_name),  # Check for duplicate client name
             (Sale.serial_number == self.serial_number),
             (Sale.source_type == self.source_type),
             (Sale.momo_reference_number == self.momo_reference_number),
@@ -74,16 +87,24 @@ class Sale(db.Model):
             (Sale.is_deleted == False)
         )
 
+        # Check if any sale matches the duplicate conditions
         duplicate_sale = Sale.query.filter(*duplicate_conditions).first()
 
-        # Flag duplicates
-        if duplicate_sale or Sale.query.filter_by(staff_id=self.staff_id).count() > 1:
-            self.status = 'under investigation'
+        # Also check if the same phone number or client name is used in another sale
+        phone_duplicate = Sale.query.filter(Sale.client_phone == self.client_phone, Sale.is_deleted == False).first()
+        name_duplicate = Sale.query.filter(Sale.client_name == self.client_name, Sale.is_deleted == False).first()
 
-        if self.status == 'under investigation':
+        if duplicate_sale or phone_duplicate or name_duplicate:
+            self.status = 'under investigation'
+            reason = 'Duplicate detected'
+            if phone_duplicate:
+                reason += ' (Duplicate phone number)'
+            if name_duplicate:
+                reason += ' (Duplicate client name)'
+
             investigation = UnderInvestigation(
                 sale_id=self.id,
-                reason='Duplicate detected',  # Customize based on specific reason
+                reason=reason,
                 notes='Auto-flagged by system'
             )
             db.session.add(investigation)
@@ -93,13 +114,15 @@ class Sale(db.Model):
         return {
             'id': self.id,
             'user_id': self.user_id,
-            'sale_manager': self.sale_manager,
+            'sale_manager': self.sale_manager.serialize(),  # Serialize the sales manager from User
             'sales_executive_id': self.sales_executive_id,
             'client_name': self.client_name,
+            'client_id_no': self.client_id_no,
             'client_phone': self.client_phone,
             'serial_number': self.serial_number,
             'source_type': self.source_type,
             'momo_reference_number': self.momo_reference_number,
+            'collection_platform': self.collection_platform,  # Ensure collection platform is serialized
             'momo_transaction_id': self.momo_transaction_id,
             'first_pay_with_momo': self.first_pay_with_momo,
             'subsequent_pay_source_type': self.subsequent_pay_source_type,
@@ -109,7 +132,7 @@ class Sale(db.Model):
             'paypoint_name': self.paypoint_name,
             'paypoint_branch': self.paypoint_branch,
             'staff_id': self.staff_id,
-            'policy_type': self.policy_type.serialize(),  # Serialize the policy type (ImpactProduct)
+            'policy_type': self.policy_type.serialize(),  # Serialize the policy type
             'amount': self.amount,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
@@ -117,5 +140,6 @@ class Sale(db.Model):
             'geolocation_latitude': self.geolocation_latitude,
             'geolocation_longitude': self.geolocation_longitude,
             'status': self.status,
-            'customer_called': self.customer_called
+            'customer_called': self.customer_called,
+            'momo_first_premium': self.momo_first_premium
         }

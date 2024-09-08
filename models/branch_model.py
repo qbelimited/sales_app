@@ -1,8 +1,10 @@
 from app import db
 from datetime import datetime
 
+
 class Branch(db.Model):
     __tablename__ = 'branch'  # Explicitly set the table name to avoid conflicts
+
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True, index=True)
     address = db.Column(db.String(255), nullable=True)
@@ -12,6 +14,10 @@ class Branch(db.Model):
     is_deleted = db.Column(db.Boolean, default=False, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+
+    # Define relationships with User and SalesExecutive models
+    users = db.relationship('User', backref='branch', lazy=True)
+    sales_executives = db.relationship('SalesExecutive', backref='branch', lazy=True)
 
     def serialize(self):
         return {
@@ -24,6 +30,12 @@ class Branch(db.Model):
             'is_deleted': self.is_deleted,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            # Serialize related users and sales_executives (returning only their IDs)
             'users': [user.id for user in self.users],
             'sales_executives': [sales_executive.id for sales_executive in self.sales_executives]
         }
+
+    @staticmethod
+    def get_active_branches():
+        """Static method to get non-deleted branches."""
+        return Branch.query.filter_by(is_deleted=False).all()

@@ -12,10 +12,12 @@ class UnderInvestigation(db.Model):
     notes_history = db.Column(db.Text, nullable=True)  # History of old notes
     updated_by_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # User who last updated the record
 
+    # Relationships
     sale = db.relationship('Sale', backref='under_investigations')
     updated_by = db.relationship('User', backref='investigation_updates')
 
     def add_note_with_history(self, new_note, user_id):
+        """Updates the notes, keeps track of note history, and logs who updated it."""
         if self.notes:
             # Append old note to the history
             if self.notes_history:
@@ -28,6 +30,7 @@ class UnderInvestigation(db.Model):
         db.session.commit()
 
     def serialize(self):
+        """Serializes the data for use in API responses or frontend display."""
         return {
             'id': self.id,
             'sale_id': self.sale_id,
