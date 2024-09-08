@@ -1,5 +1,5 @@
 sales_app/
-    .devdbrc
+    .env
     .gitignore
     app.py
     banks.csv
@@ -54,7 +54,7 @@ sales_app/
         README
         script.py.mako
         versions/
-            ff352a13d75d_initial_migration.py
+            f975db2be0b3_initial_migration.py
     models/
         audit_model.py
         bank_model.py
@@ -81,6 +81,7 @@ sales_app/
         manager_resource.py
         paypoint_resource.py
         query_resource.py
+        query_response_resource.py
         report_resource.py
         role_resource.py
         sales_executive_resource.py
