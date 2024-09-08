@@ -102,3 +102,7 @@ keys/
 certificates/
 *.pem
 *.key
+
+# project specific
+docs/
+logs/
