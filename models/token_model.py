@@ -24,9 +24,15 @@ class TokenBlacklist(db.Model):
         }
 
     def revoke(self):
-        """Mark the token as revoked."""
-        self.revoked = True
-        db.session.commit()
+        """Mark the token as revoked if not already revoked."""
+        if not self.revoked:
+            self.revoked = True
+            db.session.commit()
+
+    def is_revoked(self):
+        """Check if the token is revoked."""
+        return self.revoked
+
 
 # RefreshToken model for managing long-lived refresh tokens
 class RefreshToken(db.Model):
@@ -51,11 +57,12 @@ class RefreshToken(db.Model):
         }
 
     def revoke(self):
-        """Mark the token as revoked."""
-        self.revoked_at = datetime.utcnow()
-        self.revoked = True
-        db.session.commit()
+        """Mark the refresh token as revoked if not already revoked."""
+        if not self.revoked:
+            self.revoked_at = datetime.utcnow()
+            self.revoked = True
+            db.session.commit()
 
     def is_revoked(self):
         """Check if the token is revoked."""
-        return self.revoked_at is not None
+        return self.revoked

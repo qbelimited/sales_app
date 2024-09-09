@@ -1,7 +1,7 @@
-import axios from 'axios';
 import React, { useState } from 'react';
 import { Button, Spinner, Card, Form, Container, Row, Col } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import Toaster from '../components/Toaster';
 
 function LoginPage({ onLogin }) {
@@ -30,17 +30,24 @@ function LoginPage({ onLogin }) {
       const response = await axios.post('http://127.0.0.1:5000/api/v1/auth/login', {
         email,
         password,
-      }, {
-        headers: {
-          'Content-Type': 'application/json',
-        },
       });
 
       if (response.status === 200) {
-        const { token, role } = response.data;
-        localStorage.setItem('authToken', token);
-        onLogin(role);  // Notify parent about login
-        navigate('/home');  // Redirect to home page
+        const { access_token, refresh_token, user } = response.data;
+
+        // Store the tokens and user information in localStorage
+        localStorage.setItem('accessToken', access_token);
+        localStorage.setItem('refreshToken', refresh_token);
+        localStorage.setItem('userRole', user.role_id);  // Store the role ID for role-based access
+        localStorage.setItem('userID', user.id);  // Store the user ID
+        localStorage.setItem('user', JSON.stringify(user));  // Store the full user object for later use if needed
+
+        // Call the onLogin function to set the role in the App state
+        onLogin(user.role_id);  // Pass the role ID to the parent App component
+
+        // Redirect to the home page
+        navigate('/home');
+
         showToast('success', 'Login successful!', 'Success');
       }
     } catch (error) {

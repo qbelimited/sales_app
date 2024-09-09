@@ -67,6 +67,4 @@ def setup_logger(app):
     # Set the overall logging level
     app.logger.setLevel(log_level)
 
-    app.logger.info('Logging has been configured.')
-
     return app.logger

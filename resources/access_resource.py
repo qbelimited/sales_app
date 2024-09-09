@@ -3,13 +3,13 @@ from flask import request
 from models.user_model import Role
 from models.access_model import Access
 from models.audit_model import AuditTrail
-from app import db, logger  # Import logger from app.py
+from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 # Create a namespace for access-related operations
 access_ns = Namespace('access', description='Access control and management operations')
 
-# Define the models for Swagger documentation
+# Define models for Swagger documentation
 access_model = access_ns.model('Access', {
     'role_id': fields.Integer(required=True, description='Role ID'),
     'can_create': fields.Boolean(description='Permission to create'),
@@ -24,6 +24,10 @@ role_id_model = access_ns.model('RoleID', {
     'role_id': fields.Integer(required=True, description='Role ID')
 })
 
+# Utility function to check admin privileges
+def is_admin():
+    current_user = get_jwt_identity()
+    return current_user.get('role') == 'admin'
 
 @access_ns.route('/')
 class AccessResource(Resource):
@@ -36,7 +40,6 @@ class AccessResource(Resource):
         current_user = get_jwt_identity()
         logger.info(f"User {current_user['id']} requested all access records.")
 
-        # Fetch all access records
         accesses = Access.query.all()
 
         if not accesses:
@@ -53,11 +56,8 @@ class AccessResource(Resource):
     @jwt_required()
     def post(self):
         """Admin can create or update access rules for roles."""
-        current_user = get_jwt_identity()
-
-        # Check if the user has admin privileges
-        if current_user['role'] != 'admin':
-            logger.warning(f"Unauthorized attempt to modify access rules by user ID {current_user['id']}")
+        if not is_admin():
+            logger.warning(f"Unauthorized attempt to modify access rules")
             return {'message': 'Unauthorized'}, 403
 
         data = request.json
@@ -67,12 +67,10 @@ class AccessResource(Resource):
             logger.error(f"Role ID {data['role_id']} not found during access modification")
             return {'message': 'Role not found'}, 404
 
-        # Create or update the access object for the role
         access = Access.query.filter_by(role_id=role.id).first()
         if not access:
             access = Access(role_id=role.id)
 
-        # Update access permissions based on the request data
         access.can_create = data.get('can_create', access.can_create)
         access.can_update = data.get('can_update', access.can_update)
         access.can_delete = data.get('can_delete', access.can_delete)
@@ -82,9 +80,8 @@ class AccessResource(Resource):
 
         db.session.add(access)
 
-        # Log the access creation or update in the audit trail
         audit = AuditTrail(
-            user_id=current_user['id'],
+            user_id=get_jwt_identity()['id'],
             action='UPDATE',
             resource_type='role_access',
             resource_id=role.id,
@@ -93,7 +90,7 @@ class AccessResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
-        logger.info(f"Access rules updated for role ID {role.id} by admin ID {current_user['id']}")
+        logger.info(f"Access rules updated for role ID {role.id}")
         return {'message': f'Access for role {role.name} updated successfully'}, 201
 
     @access_ns.doc(security='Bearer Auth')
@@ -104,11 +101,8 @@ class AccessResource(Resource):
     @jwt_required()
     def delete(self):
         """Admin can delete access rules for a specific role."""
-        current_user = get_jwt_identity()
-
-        # Check if the user has admin privileges
-        if current_user['role'] != 'admin':
-            logger.warning(f"Unauthorized attempt to delete access rules by user ID {current_user['id']}")
+        if not is_admin():
+            logger.warning(f"Unauthorized attempt to delete access rules")
             return {'message': 'Unauthorized'}, 403
 
         data = request.json
@@ -118,7 +112,6 @@ class AccessResource(Resource):
             logger.error(f"Role ID {data['role_id']} not found during access deletion")
             return {'message': 'Role not found'}, 404
 
-        # Find and delete the access object
         access = Access.query.filter_by(role_id=role.id).first()
 
         if not access:
@@ -127,9 +120,8 @@ class AccessResource(Resource):
 
         db.session.delete(access)
 
-        # Log the deletion in the audit trail
         audit = AuditTrail(
-            user_id=current_user['id'],
+            user_id=get_jwt_identity()['id'],
             action='DELETE',
             resource_type='role_access',
             resource_id=role.id,
@@ -138,7 +130,7 @@ class AccessResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
-        logger.info(f"Access for role ID {role.id} deleted by admin ID {current_user['id']}")
+        logger.info(f"Access for role ID {role.id} deleted by admin ID {get_jwt_identity()['id']}")
         return {'message': f'Access for role {role.name} deleted successfully'}, 200
 
 
@@ -151,11 +143,8 @@ class SingleAccessResource(Resource):
     @jwt_required()
     def get(self, role_id):
         """Get access rules for a specific role by role ID."""
-        current_user = get_jwt_identity()
-
-        # Check if the user has admin privileges
-        if current_user['role'] != 'admin':
-            logger.warning(f"Unauthorized attempt to view access rules for role ID {role_id} by user ID {current_user['id']}")
+        if not is_admin():
+            logger.warning(f"Unauthorized attempt to view access rules for role ID {role_id} by user ID {get_jwt_identity()['id']}")
             return {'message': 'Unauthorized'}, 403
 
         role = Role.query.filter_by(id=role_id).first()

@@ -7,6 +7,7 @@ from models.audit_model import AuditTrail
 from models.token_model import TokenBlacklist, RefreshToken
 from app import db, logger
 from werkzeug.security import check_password_hash
+from datetime import datetime, timedelta
 
 # Define a namespace for auth-related operations
 auth_ns = Namespace('auth', description='Authentication operations')
@@ -28,6 +29,11 @@ logout_model = auth_ns.model('LogoutResponse', {
     'message': fields.String(description='Logout message')
 })
 
+# Utility function to check admin privileges
+def is_admin():
+    current_user = get_jwt_identity()
+    return current_user.get('role') == 'admin'
+
 # Authentication resource class for login
 @auth_ns.route('/login')
 class LoginResource(Resource):
@@ -43,36 +49,35 @@ class LoginResource(Resource):
         email = data.get('email')
         password = data.get('password')
 
-        # Fetch user by email
         user = User.query.filter_by(email=email).first()
 
-        # Check if user exists and password is correct
         if not user or not check_password_hash(user.password_hash, password):
             logger.warning(f"Failed login attempt for email {email}.")
             return {'message': 'Invalid credentials'}, 401
 
-        # Automatically capture IP address
         ip_address = request.remote_addr
 
-        # Validate IP address
         if not UserSession.validate_ip(ip_address):
             logger.error(f"Invalid IP address {ip_address} provided.")
             return {'message': 'Invalid IP address'}, 400
 
-        # Create new JWT tokens
+        # Revoke old refresh tokens to prevent reuse
+        old_refresh_token = RefreshToken.query.filter_by(user_id=user.id, revoked=False).first()
+        if old_refresh_token:
+            old_refresh_token.revoke()
+            logger.info(f"Old refresh token for user {user.email} revoked.")
+
         access_token = create_access_token(identity={'id': user.id, 'email': user.email, 'role': user.role.name})
         refresh_token = create_refresh_token(identity={'id': user.id, 'email': user.email, 'role': user.role.name})
 
-        # Track user session with IP and tokens
-        session = UserSession(user_id=user.id, ip_address=ip_address)
+        session_expiry = datetime.utcnow() + timedelta(minutes=30)
+        session = UserSession(user_id=user.id, ip_address=ip_address, expires_at=session_expiry)
         db.session.add(session)
 
-        # Store refresh token in the database
         refresh_token_record = RefreshToken(user_id=user.id, token=refresh_token)
         db.session.add(refresh_token_record)
         db.session.commit()
 
-        # Log login event to audit trail
         audit = AuditTrail(
             user_id=user.id,
             action='LOGIN',
@@ -111,71 +116,107 @@ class RefreshTokenResource(Resource):
             'access_token': access_token
         }, 200
 
-
-# Logout resource class
+# Logout resource class with enhanced refresh token revocation and blacklist handling
 @auth_ns.route('/logout')
 class LogoutResource(Resource):
-    @auth_ns.doc(description='Logs the user out and invalidates the JWT token.')
+    @auth_ns.doc(description='Logs the user out by revoking the refresh token and optionally blacklisting the access token.')
     @auth_ns.response(200, 'Success', model=logout_model)
-    @jwt_required()
+    @auth_ns.response(400, 'Invalid or missing token')
+    @auth_ns.response(404, 'Refresh token not found')
+    @auth_ns.response(500, 'Server error')
+    @jwt_required()  # This still uses the access token to authenticate
     def post(self):
-        """Logout user by blacklisting the JWT token and ending session."""
-        current_user = get_jwt_identity()
+        """Logout user by revoking the refresh token and blacklisting the access token."""
+        try:
+            # Get current user's identity from the JWT
+            current_user = get_jwt_identity()
 
-        # Blacklist the JWT token
-        jti = get_jwt()['jti']  # JWT ID (unique identifier for the token)
-        token_blacklist = TokenBlacklist(jti=jti, user_id=current_user['id'], token_type='access', revoked=True)
-        db.session.add(token_blacklist)
+            logger.info(f"Authorization header received: {request.headers.get('Authorization')}")
 
-        # End active user session
-        active_sessions = UserSession.get_active_sessions(current_user['id'])
-        for session in active_sessions:
-            session.end_session()
+            jti_access = get_jwt().get('jti')
 
-        # Log logout event to audit trail
-        audit = AuditTrail(
-            user_id=current_user['id'],
-            action='LOGOUT',
-            resource_type='user',
-            resource_id=current_user['id'],
-            details=f"User {current_user['email']} logged out"
-        )
-        db.session.add(audit)
-        db.session.commit()
+            # Retrieve refresh token for this user and revoke it
+            refresh_token = RefreshToken.query.filter_by(user_id=current_user['id'], revoked=False).first()
+            if refresh_token:
+                refresh_token.revoke()
+                logger.info(f"Refresh token for user {current_user['email']} revoked.")
+            else:
+                logger.warning(f"No active refresh token found for user {current_user['email']}.")
+                return {'message': 'No active refresh token to revoke'}, 404
 
-        logger.info(f"User {current_user['email']} logged out successfully.")
-        return {'message': 'Logged out successfully'}, 200
+            # Always blacklist the current access token
+            if jti_access:
+                token_blacklist = TokenBlacklist.query.filter_by(jti=jti_access).first()
+                if not token_blacklist:
+                    token_blacklist = TokenBlacklist(
+                        jti=jti_access,
+                        user_id=current_user['id'],
+                        token_type='access',
+                        revoked=True
+                    )
+                    db.session.add(token_blacklist)
+                    logger.info(f"Access token {jti_access} for user {current_user['email']} blacklisted.")
 
+            active_sessions = UserSession.get_active_sessions(current_user['id'])
+            if active_sessions:
+                for session in active_sessions:
+                    session.end_session()
+                logger.info(f"All active sessions for user {current_user['email']} ended.")
 
-# Blacklist refresh token on logout
+            audit = AuditTrail(
+                user_id=current_user['id'],
+                action='LOGOUT',
+                resource_type='user',
+                resource_id=current_user['id'],
+                details=f"User {current_user['email']} logged out and refresh token revoked."
+            )
+            db.session.add(audit)
+            db.session.commit()
+
+            logger.info(f"User {current_user['email']} logged out successfully.")
+            return {'message': 'Logged out successfully'}, 200
+
+        except Exception as e:
+            logger.error(f"Error during logout: {str(e)}")
+            db.session.rollback()
+            return {'message': 'An error occurred during logout. Please try again.'}, 500
+
+# Revoke refresh token on logout or explicitly revoke it via this resource
 @auth_ns.route('/revoke_refresh')
 class RevokeRefreshTokenResource(Resource):
     @auth_ns.doc(description='Revoke a refresh token explicitly.')
     @auth_ns.response(200, 'Success', model=logout_model)
+    @auth_ns.response(404, 'Refresh token not found')
+    @auth_ns.response(500, 'Server error')
     @jwt_required(refresh=True)  # Ensure this endpoint only accepts refresh tokens
     def post(self):
-        """Revoke the refresh token upon user logout."""
-        current_user = get_jwt_identity()
+        """Revoke the refresh token explicitly."""
+        try:
+            current_user = get_jwt_identity()
 
-        jti = get_jwt()['jti']  # JWT ID for refresh token
-        refresh_token = RefreshToken.query.filter_by(token=jti, user_id=current_user['id'], revoked=False).first()
+            jti = get_jwt()['jti']
+            refresh_token = RefreshToken.query.filter_by(token=jti, user_id=current_user['id'], revoked=False).first()
 
-        if not refresh_token:
-            return {'message': 'Refresh token not found or already revoked'}, 404
+            if not refresh_token:
+                logger.warning(f"Refresh token not found or already revoked for user {current_user['email']}")
+                return {'message': 'Refresh token not found or already revoked'}, 404
 
-        # Revoke the refresh token
-        refresh_token.revoke()
+            refresh_token.revoke()
 
-        # Log refresh token revocation to audit trail
-        audit = AuditTrail(
-            user_id=current_user['id'],
-            action='REVOKE_REFRESH_TOKEN',
-            resource_type='refresh_token',
-            resource_id=refresh_token.id,
-            details=f"User revoked refresh token with ID {refresh_token.id}"
-        )
-        db.session.add(audit)
-        db.session.commit()
+            audit = AuditTrail(
+                user_id=current_user['id'],
+                action='REVOKE_REFRESH_TOKEN',
+                resource_type='refresh_token',
+                resource_id=refresh_token.id,
+                details=f"User revoked refresh token with ID {refresh_token.id}"
+            )
+            db.session.add(audit)
+            db.session.commit()
 
-        logger.info(f"User {current_user['email']} revoked refresh token {refresh_token.id}.")
-        return {'message': 'Refresh token revoked successfully'}, 200
+            logger.info(f"User {current_user['email']} revoked refresh token {refresh_token.id}.")
+            return {'message': 'Refresh token revoked successfully'}, 200
+
+        except Exception as e:
+            logger.error(f"Error during refresh token revocation: {str(e)}")
+            db.session.rollback()
+            return {'message': 'An error occurred during refresh token revocation. Please try again.'}, 500

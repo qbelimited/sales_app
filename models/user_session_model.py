@@ -1,5 +1,5 @@
 from app import db
-from datetime import datetime
+from datetime import datetime, timedelta
 import ipaddress
 from sqlalchemy.orm import validates
 
@@ -9,6 +9,7 @@ class UserSession(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     login_time = db.Column(db.DateTime, default=datetime.utcnow)
     logout_time = db.Column(db.DateTime, nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.utcnow() + timedelta(minutes=45))
     ip_address = db.Column(db.String(45))  # IPv4 or IPv6
     is_active = db.Column(db.Boolean, default=True, index=True)
 
@@ -20,6 +21,7 @@ class UserSession(db.Model):
             'user_id': self.user_id,
             'login_time': self.login_time.isoformat(),
             'logout_time': self.logout_time.isoformat() if self.logout_time else None,
+            'expires_at': self.expires_at.isoformat(),
             'ip_address': self.ip_address,
             'is_active': self.is_active
         }

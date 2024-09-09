@@ -9,25 +9,31 @@ import NotFoundPage from './pages/NotFoundPage';
 // import ReportsPage from './pages/ReportsPage'; // Uncomment if this page exists
 import Navbar from './components/Navbar';
 
+// Function to get the authenticated user role from sessionStorage
 const getAuthenticatedUser = () => {
   return sessionStorage.getItem('userRole');
 };
 
-// Protected Route Component
+// Protected Route Component to guard certain pages based on the user's role
 const ProtectedRoute = ({ userRole, allowedRoles, children }) => {
   if (!userRole) {
+    console.log('No user role found, redirecting to login');
     return <Navigate to="/login" />;
   }
+
   if (allowedRoles.includes(userRole)) {
-    return children;
+    console.log('User has access to this route:', userRole);
+    return children; // Render the protected page
   }
+
+  console.log('User does not have access, redirecting to home');
   return <Navigate to="/home" />;
 };
 
 function App() {
   const [userRole, setUserRole] = useState(getAuthenticatedUser());
 
-  // Monitor session storage for changes
+  // Monitor session storage for changes to user role
   useEffect(() => {
     const role = getAuthenticatedUser();
     if (role !== userRole) {
@@ -35,16 +41,16 @@ function App() {
     }
   }, [userRole]);
 
-  // Simulate login function - sets the user role after login
+  // Simulate login function to set the user role after login
   const handleLogin = (role) => {
     sessionStorage.setItem('userRole', role);
     setUserRole(role);
   };
 
-  // Logout function
+  // Logout function to clear the user role from session storage and state
   const handleLogout = () => {
-    sessionStorage.removeItem('userRole');
-    setUserRole(null);
+    sessionStorage.removeItem('userRole');  // Clear the stored user role from sessionStorage
+    setUserRole(null);  // Clear the user role from state
   };
 
   return (
@@ -52,7 +58,7 @@ function App() {
       {/* Conditionally render the Navbar only if the user is authenticated */}
       {userRole && <Navbar onLogout={handleLogout} />}
       <Routes>
-        {/* Default route - Redirect to home or login based on authentication */}
+        {/* Default route - check if the user is logged in and route accordingly */}
         <Route
           path="/"
           element={userRole ? <Navigate to="/home" /> : <Navigate to="/login" />}
@@ -61,10 +67,10 @@ function App() {
         {/* Login page */}
         <Route
           path="/login"
-          element={userRole ? <Navigate to="/" /> : <LoginPage onLogin={handleLogin} />}
+          element={userRole ? <Navigate to="/home" /> : <LoginPage onLogin={handleLogin} />}
         />
 
-        {/* Home page for authenticated users */}
+        {/* Home page - accessible by authenticated users with the correct role */}
         <Route
           path="/home"
           element={
