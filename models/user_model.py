@@ -23,7 +23,8 @@ class Role(db.Model):
         return {
             'id': self.id,
             'name': self.name,
-            'description': self.description
+            'description': self.description,
+            'is_deleted': self.is_deleted
         }
 
 

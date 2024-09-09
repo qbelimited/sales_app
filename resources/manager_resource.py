@@ -38,7 +38,7 @@ class ManagerSalesExecutiveResource(Resource):
 
         # Get sales executives under this manager
         sales_executives_query = SalesExecutive.query.filter_by(manager_id=current_user['id'], is_deleted=False)
-        sales_executives = sales_executives_query.paginate(page, per_page, error_out=False)
+        sales_executives = sales_executives_query.paginate(page=page, per_page=per_page, error_out=False)
 
         # Log the access to audit trail
         audit = AuditTrail(

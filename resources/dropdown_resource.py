@@ -117,7 +117,7 @@ class DropdownResource(Resource):
         query = SalesExecutive.query.filter_by(manager_id=manager_id, is_deleted=False)
         if branch_id:
             query = query.filter_by(branch_id=branch_id)
-        sales_executives = query.paginate(page, per_page, error_out=False)
+        sales_executives = query.paginate(page=page, per_page=per_page, error_out=False)
         logger.info(f"Sales executives retrieved for manager ID {manager_id}, total: {sales_executives.total}")
         return jsonify([se.serialize() for se in sales_executives.items])
 

@@ -61,7 +61,7 @@ class SalesPerformanceResource(Resource):
         if target_id:
             sales_performance_query = sales_performance_query.filter_by(target_id=target_id)
 
-        sales_performances = sales_performance_query.paginate(page, per_page, error_out=False)
+        sales_performances = sales_performance_query.paginate(page=page, per_page=per_page, error_out=False)
 
         # Log the access to audit trail
         audit = AuditTrail(
