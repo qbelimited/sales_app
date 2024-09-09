@@ -29,7 +29,7 @@ class ManagerSalesExecutiveResource(Resource):
         # Fetch the current user from the JWT token
         current_user = get_jwt_identity()
 
-        if 'role' not in current_user or current_user['role'].lower() != 'manager':
+        if 'role' not in current_user or current_user['role'].lower() != 'manager' or current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized access attempt by User ID {current_user.get('id')} to retrieve sales executives.")
             return {'message': 'Unauthorized'}, 403
 
@@ -67,7 +67,7 @@ class ManagerSalesExecutiveResource(Resource):
         """Create a new sales executive under the current manager."""
         current_user = get_jwt_identity()
 
-        if 'role' not in current_user or current_user['role'].lower() != 'manager':
+        if 'role' not in current_user or current_user['role'].lower() != 'manager' or current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized sales executive creation attempt by User ID {current_user.get('id')}.")
             return {'message': 'Unauthorized'}, 403
 
@@ -111,7 +111,7 @@ class ManagerSalesExecutiveUpdateResource(Resource):
         """Update an existing sales executive's details (only self-updates or updates to subordinates)."""
         current_user = get_jwt_identity()
 
-        if 'role' not in current_user or current_user['role'].lower() != 'manager':
+        if 'role' not in current_user or current_user['role'].lower() != 'manager' or current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized update attempt by User ID {current_user.get('id')} on Sales Executive ID {executive_id}.")
             return {'message': 'Unauthorized'}, 403
 
