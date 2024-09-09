@@ -25,7 +25,7 @@ class RolesResource(Resource):
     def get(self):
         """Get list of roles."""
         current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':  # Only admin can manage roles
+        if current_user['role'].lower() != 'admin':  # Only admin can manage roles
             logger.warning(f"Unauthorized access attempt by User ID {current_user['id']} to retrieve roles.")
             return {'message': 'Unauthorized'}, 403
 
@@ -38,7 +38,7 @@ class RolesResource(Resource):
     def post(self):
         """Create a new role."""
         current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':
+        if current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized role creation attempt by User ID {current_user['id']}.")
             return {'message': 'Unauthorized'}, 403
 
@@ -75,7 +75,7 @@ class RoleByIdResource(Resource):
     def put(self, role_id):
         """Update an existing role."""
         current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':
+        if current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized update attempt by User ID {current_user['id']} on Role ID {role_id}.")
             return {'message': 'Unauthorized'}, 403
 
@@ -110,7 +110,7 @@ class RoleByIdResource(Resource):
     def delete(self, role_id):
         """Soft delete an existing role."""
         current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':
+        if current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized deletion attempt by User ID {current_user['id']} on Role ID {role_id}.")
             return {'message': 'Unauthorized'}, 403
 

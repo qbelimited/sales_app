@@ -144,7 +144,7 @@ class QueryResource(Resource):
             logger.warning(f"Query ID {query_id} not found for update by User ID {current_user['id']}")
             return {'message': 'Query/Feedback not found'}, 404
 
-        if query.user_id != current_user['id'] and current_user['role'] != 'admin':
+        if query.user_id != current_user['id'] and current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized update attempt on Query ID {query_id} by User ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
@@ -184,7 +184,7 @@ class QueryResource(Resource):
             logger.warning(f"Query ID {query_id} not found for delete by User ID {current_user['id']}")
             return {'message': 'Query/Feedback not found'}, 404
 
-        if query.user_id != current_user['id'] and current_user['role'] != 'admin':
+        if query.user_id != current_user['id'] and current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized delete attempt on Query ID {query_id} by User ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 

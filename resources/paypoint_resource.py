@@ -18,7 +18,7 @@ paypoint_model = paypoint_ns.model('Paypoint', {
 
 # Helper function to check role permissions (allowing multiple roles)
 def check_role_permission(current_user, required_roles):
-    return current_user['role'] in required_roles
+    return current_user['role'].lower() in required_roles
 
 @paypoint_ns.route('/')
 class PaypointListResource(Resource):

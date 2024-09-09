@@ -82,7 +82,7 @@ class UserListResource(Resource):
         """Create a new User (admin only)."""
         current_user = get_jwt_identity()
 
-        if current_user['role'] != 'admin':
+        if current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized attempt by User {current_user['id']} to create a new user.")
             return {'message': 'Unauthorized'}, 403
 
@@ -145,7 +145,7 @@ class UserResource(Resource):
     def put(self, user_id):
         """Update an existing User (admin only)."""
         current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':
+        if current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized update attempt by User {current_user['id']} on User {user_id}.")
             return {'message': 'Unauthorized'}, 403
 
@@ -181,7 +181,7 @@ class UserResource(Resource):
     def delete(self, user_id):
         """Soft-delete a User (admin only)."""
         current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':
+        if current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized deletion attempt by User {current_user['id']} on User {user_id}.")
             return {'message': 'Unauthorized'}, 403
 
@@ -218,7 +218,7 @@ class UserSessionResource(Resource):
         current_user = get_jwt_identity()
 
         # Only admin or the user can access session details
-        if current_user['id'] != user_id and current_user['role'] != 'admin':
+        if current_user['id'] != user_id and current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized access attempt by User {current_user['id']} for sessions of User {user_id}.")
             return {'message': 'Unauthorized'}, 403
 
@@ -233,7 +233,7 @@ class UserSessionResource(Resource):
         """End the user's active session (admin only)."""
         current_user = get_jwt_identity()
 
-        if current_user['role'] != 'admin':
+        if current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized attempt by User {current_user['id']} to end session of User {user_id}.")
             return {'message': 'Unauthorized'}, 403
 

@@ -68,7 +68,7 @@ class SalesExecutiveListResource(Resource):
         """Create a new Sales Executive (admin and manager only)."""
         current_user = get_jwt_identity()
 
-        if current_user['role'] not in ['admin', 'manager']:
+        if current_user['role'].lower() not in ['admin', 'manager']:
             logger.warning(f"Unauthorized attempt by User {current_user['id']} to create a new Sales Executive.")
             return {'message': 'Unauthorized'}, 403
 
@@ -138,7 +138,7 @@ class SalesExecutiveResource(Resource):
         """Update an existing Sales Executive (admin and manager only)."""
         current_user = get_jwt_identity()
 
-        if current_user['role'] not in ['admin', 'manager']:
+        if current_user['role'].lower() not in ['admin', 'manager']:
             logger.warning(f"Unauthorized update attempt by User {current_user['id']} on Sales Executive {sales_executive_id}.")
             return {'message': 'Unauthorized'}, 403
 
@@ -176,7 +176,7 @@ class SalesExecutiveResource(Resource):
         """Soft-delete a Sales Executive (admin and manager only)."""
         current_user = get_jwt_identity()
 
-        if current_user['role'] not in ['admin', 'manager']:
+        if current_user['role'].lower() not in ['admin', 'manager']:
             logger.warning(f"Unauthorized deletion attempt by User {current_user['id']} on Sales Executive {sales_executive_id}.")
             return {'message': 'Unauthorized'}, 403
 

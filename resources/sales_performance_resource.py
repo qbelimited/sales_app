@@ -28,7 +28,7 @@ def check_role_permission(current_user, required_role):
         'manager': ['admin', 'manager'],
         'sales_manager': ['admin', 'manager', 'sales_manager']
     }
-    return current_user['role'] in roles.get(required_role, [])
+    return current_user['role'].lower() in roles.get(required_role, [])
 
 @sales_performance_ns.route('/')
 class SalesPerformanceResource(Resource):

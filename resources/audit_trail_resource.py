@@ -32,7 +32,7 @@ class AuditTrailResource(Resource):
         current_user = get_jwt_identity()
 
         # Only allow admins to view audit logs
-        if current_user['role'] != 'admin':
+        if current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized attempt to view audit trail by user ID {current_user['id']}.")
             return {'message': 'Unauthorized'}, 403
 
@@ -67,7 +67,7 @@ class SingleAuditTrailResource(Resource):
         current_user = get_jwt_identity()
 
         # Only allow admins to view audit logs
-        if current_user['role'] != 'admin':
+        if current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized attempt to view audit log ID {audit_id} by user ID {current_user['id']}.")
             return {'message': 'Unauthorized'}, 403
 
@@ -90,7 +90,7 @@ class FilteredAuditTrailResource(Resource):
         current_user = get_jwt_identity()
 
         # Only admins can filter audit logs
-        if current_user['role'] != 'admin':
+        if current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized attempt to filter audit logs by user ID {current_user['id']}.")
             return {'message': 'Unauthorized'}, 403
 

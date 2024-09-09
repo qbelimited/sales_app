@@ -25,7 +25,7 @@ def check_role_permission(current_user, required_role):
         'back_office': ['admin', 'manager', 'back_office'],
         'sales_manager': ['admin', 'manager', 'sales_manager']
     }
-    return current_user['role'] in roles.get(required_role, [])
+    return current_user['role'].lower() in roles.get(required_role, [])
 
 @branch_ns.route('/')
 class BranchListResource(Resource):

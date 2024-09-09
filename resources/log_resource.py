@@ -21,7 +21,7 @@ log_param.add_argument('end_date', type=str, required=False, help="End date for 
 
 # Helper function to check role permissions
 def check_role_permission(current_user):
-    return current_user['role'] == 'admin'
+    return current_user['role'].lower() == 'admin'
 
 @log_ns.route('/')
 class LogResource(Resource):

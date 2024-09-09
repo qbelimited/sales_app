@@ -22,7 +22,7 @@ def check_role_permission(current_user, required_role):
         'admin': ['admin'],
         'manager': ['admin', 'manager']
     }
-    return current_user['role'] in roles.get(required_role, [])
+    return current_user['role'].lower() in roles.get(required_role, [])
 
 @impact_product_ns.route('/')
 class ImpactProductListResource(Resource):

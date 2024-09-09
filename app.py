@@ -29,28 +29,25 @@ migrate = Migrate(app, db)
 # Setup logging
 logger = setup_logger(app)
 
+# Define JWT Bearer token authorization for Swagger
+authorizations = {
+    'Bearer Auth': {
+        'type': 'apiKey',
+        'in': 'header',
+        'name': 'Authorization',
+        'description': 'JWT Bearer Token with prefix "Bearer "'
+    }
+}
+
 # Initialize Flask-RESTX API with version prefix
 api_version = 'v1'
-api = Api(app, version='1.0', title='Sales Recording API', doc=f'/api/{api_version}/docs')
+api = Api(app,
+          version='1.0',
+          title='Sales Recording API',
+          doc=f'/api/{api_version}/docs',
+          security='Bearer Auth',  # Apply global security
+          authorizations=authorizations)  # Add Bearer Auth to the API
 
-# Import models
-from models.user_model import User, Role
-from models.sales_model import Sale
-from models.bank_model import Bank, BankBranch
-from models.paypoint_model import Paypoint
-from models.impact_product_model import ImpactProduct, ProductCategory
-from models.sales_executive_model import SalesExecutive
-from models.audit_model import AuditTrail
-from models.under_investigation_model import UnderInvestigation
-from models.branch_model import Branch
-from models.query_model import Query, QueryResponse
-from models.report_model import Report
-from models.user_session_model import UserSession
-from models.performance_model import SalesTarget, SalesPerformance
-from models.retention_model import RetentionPolicy
-from models.token_model import RefreshToken, TokenBlacklist
-from models.access_model import Access
-from models.inception_model import Inception
 
 # Import resources (namespaces)
 from resources.auth_resource import auth_ns
@@ -105,6 +102,19 @@ api.add_namespace(inception_ns, path=f'/api/{api_version}/inceptions')
 # Serve the Swagger UI documentation at /api/v1/docs
 swagger_ui_path = f'/api/{api_version}/docs'
 swagger_json_path = f'/api/{api_version}/swagger.json'
+
+# JWT callbacks for error handling
+@jwt.expired_token_loader
+def expired_token_callback(jwt_header, jwt_payload):
+    return jsonify({"message": "The token has expired", "error": "token_expired"}), 401
+
+@jwt.invalid_token_loader
+def invalid_token_callback(error):
+    return jsonify({"message": "Invalid token", "error": "token_invalid"}), 401
+
+@jwt.unauthorized_loader
+def unauthorized_callback(error):
+    return jsonify({"message": "Request does not contain an access token", "error": "authorization_required"}), 401
 
 @app.route(f"{swagger_json_path}")
 def swagger_spec():

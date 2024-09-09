@@ -43,7 +43,7 @@ class BankResource(Resource):
     def post(self):
         """Create a new bank."""
         current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':
+        if current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized attempt to create bank by user ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
@@ -89,7 +89,7 @@ class SingleBankResource(Resource):
     def put(self, bank_id):
         """Update an existing bank."""
         current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':
+        if current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized attempt to update bank by user ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
@@ -122,7 +122,7 @@ class SingleBankResource(Resource):
     def delete(self, bank_id):
         """Soft delete a bank."""
         current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':
+        if current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized attempt to delete bank by user ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
@@ -166,7 +166,7 @@ class BankBranchResource(Resource):
     def post(self):
         """Create a new branch."""
         current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':
+        if current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized attempt to create branch by user ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
@@ -216,7 +216,7 @@ class SingleBranchResource(Resource):
     def put(self, branch_id):
         """Update an existing branch."""
         current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':
+        if current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized attempt to update branch by user ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
@@ -250,7 +250,7 @@ class SingleBranchResource(Resource):
     def delete(self, branch_id):
         """Soft delete a branch."""
         current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':
+        if current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized attempt to delete branch by user ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 

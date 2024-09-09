@@ -21,7 +21,7 @@ query_response_model = query_response_ns.model('QueryResponse', {
 
 # Helper function to check if the user is admin or the owner of the response
 def check_user_authorization(current_user, resource_user_id):
-    return current_user['role'] == 'admin' or current_user['id'] == resource_user_id
+    return current_user['role'].lower() == 'admin' or current_user['id'] == resource_user_id
 
 @query_response_ns.route('/<int:query_id>')
 class QueryResponseResource(Resource):
