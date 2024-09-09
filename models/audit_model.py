@@ -11,6 +11,8 @@ class CompressedText(TypeDecorator):
     def process_bind_param(self, value, _):
         if value is None:
             return None
+        if not isinstance(value, str):
+            raise ValueError("Only string values can be compressed")
         try:
             return zlib.compress(value.encode('utf-8'))
         except Exception as e:
@@ -20,9 +22,12 @@ class CompressedText(TypeDecorator):
         if value is None:
             return None
         try:
-            return zlib.decompress(value).decode('utf-8')
-        except Exception as e:
+            decompressed = zlib.decompress(value)
+            return decompressed.decode('utf-8')
+        except zlib.error as e:
             raise ValueError(f"Error decompressing data: {e}")
+        except UnicodeDecodeError as e:
+            raise ValueError(f"Error decoding decompressed data: {e}")
 
 
 # Enum for Audit actions

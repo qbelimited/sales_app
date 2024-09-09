@@ -1,6 +1,7 @@
 from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
-from models.user_model import User, UserSession
+from models.user_model import User
+from models.user_session_model import UserSession
 from models.audit_model import AuditTrail
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity

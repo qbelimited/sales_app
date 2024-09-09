@@ -2,16 +2,16 @@ import csv
 from app import app, db
 from models.bank_model import Bank, BankBranch
 from models.branch_model import Branch
-from models.impact_product_model import ImpactProduct
+from models.impact_product_model import ImpactProduct, ProductCategory
 from models.paypoint_model import Paypoint
 from models.user_model import Role, User
 from models.sales_executive_model import SalesExecutive
+from werkzeug.security import generate_password_hash
 
-# CSV file path for Sales Executives
+# CSV file paths
 sales_exec_csv_file = './sales_exec.csv'
-
-# Replace 'your_csv_file.csv' with the path to your actual CSV file for banks
 csv_file_path = './banks.csv'
+users_csv_file = './users.csv'
 
 with app.app_context():
     # Seed Banks and BankBranches
@@ -23,17 +23,15 @@ with app.app_context():
             branch_name = row.get('BRANCH NAME', '').strip()
             branch_code = row.get('SORT CODE', '').strip()
 
-            # Check if bank already exists in the database
             existing_bank = db.session.query(Bank).filter_by(name=bank_name).first()
             if not existing_bank:
                 bank = Bank(name=bank_name)
                 db.session.add(bank)
-                db.session.commit()  # Commit to get the bank ID
+                db.session.commit()
                 unique_banks[bank_name] = bank.id
             else:
                 unique_banks[bank_name] = existing_bank.id
 
-            # Create BankBranch entry
             existing_branch = db.session.query(BankBranch).filter_by(name=branch_name, bank_id=unique_banks.get(bank_name)).first()
             if not existing_branch:
                 branch = BankBranch(
@@ -45,16 +43,33 @@ with app.app_context():
 
     db.session.commit()
 
+    # Seed Impact Product Categories
+    categories = ['Retail', 'Corporate', 'Micro']
+    category_dict = {}
+
+    for category_name in categories:
+        category = db.session.query(ProductCategory).filter_by(name=category_name).first()
+        if not category:
+            category = ProductCategory(name=category_name)
+            db.session.add(category)
+            db.session.commit()
+        category_dict[category_name] = category.id
+
     # Seed Impact Products
     products = [
-        {'name': 'EDUCARE', 'category': 'Retail'},
-        {'name': 'FAREWELL', 'category': 'Retail'},
-        {'name': 'PENSION', 'category': 'Retail'}
+        {'name': 'EDUCARE', 'category': 'Retail', 'group': 'risk'},
+        {'name': 'FAREWELL', 'category': 'Retail', 'group': 'risk'},
+        {'name': 'PENSION', 'category': 'Retail', 'group': 'risk'}
     ]
+
     for product_data in products:
-        product = db.session.query(ImpactProduct).filter_by(name=product_data['name']).first()
+        product = db.session.query(ImpactProduct).filter_by(name=product_data['name'], category_id=category_dict[product_data['category']]).first()
         if not product:
-            product = ImpactProduct(name=product_data['name'], category=product_data['category'])
+            product = ImpactProduct(
+                name=product_data['name'],
+                category_id=category_dict[product_data['category']],
+                group=product_data['group']
+            )
             db.session.add(product)
 
     db.session.commit()
@@ -151,32 +166,62 @@ with app.app_context():
 
     db.session.commit()
 
-    # Seed Roles
-    roles_data = {
-        'Super admin': ['ekbotchway@impactlife.com.gh', 'hdogli@impactlife.com.gh', 'ryeboah@impactlife.com.gh'],
-        'Back_office': ['enartey@impactlife.com.gh'],
-        'Manager': ['fappau@impactlife.com.gh']
-    }
+    # Seed Roles (Pre-existing roles for other parts of the app)
+    roles_data = ['Back_office', 'Manager', 'Admin', 'Sales Manager']
+    roles_dict = {}
 
-    for role_name, emails in roles_data.items():
+    for role_name in roles_data:
         role = db.session.query(Role).filter_by(name=role_name).first()
         if not role:
             role = Role(name=role_name, description=f'{role_name} role')
             db.session.add(role)
             db.session.commit()
+        roles_dict[role_name] = role.id
 
-        for email in emails:
+    additional_roles = ['Super admin']
+    for role_name in additional_roles:
+        role = db.session.query(Role).filter_by(name=role_name).first()
+        if not role:
+            role = Role(name=role_name, description=f'{role_name} role')
+            db.session.add(role)
+            db.session.commit()
+        roles_dict[role_name] = role.id
+
+    # Seed Users from CSV
+    with open(users_csv_file, newline='', encoding='utf-8-sig') as csvfile:
+        csv_reader = csv.DictReader(csvfile, delimiter='\t')  # Assuming the file uses tab as delimiter
+        for row in csv_reader:
+            name = row.get('Name', '').strip()
+            email = row.get('Email', '').strip()
+            phone_number = row.get('Phone number', '').strip()
+            role_name = row.get('Role', '').strip()
+
+            # Find or create the user
             user = db.session.query(User).filter_by(email=email).first()
             if not user:
-                user = User(email=email, name=email.split('@')[0], role_id=role.id, is_active=True)
+                user = User(
+                    email=email,
+                    name=name,
+                    password_hash=generate_password_hash('Password'),  # Set a default password
+                    is_active=True,
+                    is_deleted=False
+                )
+                # Assign the role to the user
+                if role_name in roles_dict:
+                    user.role_id = roles_dict[role_name]
+                else:
+                    print(f"Role '{role_name}' not found for user '{name}', skipping.")
+                    continue
+
                 db.session.add(user)
 
     db.session.commit()
+    print("Users and roles seeded successfully!")
 
-    # Define the sales_manager_role here before using it
-    sales_manager_role = db.session.query(Role).filter_by(name='Sales manager').first()
+    # Define the Sales Manager role before using it
+    sales_manager_role = db.session.query(Role).filter_by(name='Sales Manager').first()
     if not sales_manager_role:
-        sales_manager_role = Role(name='Sales manager', description='Sales Executive Manager')
+        sales_manager_role = Role(name='Sales Manager', description='Sales Executive Manager')
         db.session.add(sales_manager_role)
         db.session.commit()
 
@@ -192,12 +237,11 @@ with app.app_context():
             branch_name = row.get('BRANCH', '').strip()
             phone_number = row.get('TELEPHONE', '').strip()
 
-            # Ensure agent_code is not empty
             if not agent_code:
                 print(f"Skipping {executive_name} due to missing agent code.")
                 continue
 
-            # Handle the Sales Manager
+            # Ensure the manager exists as a user
             if manager_name not in unique_sales_managers:
                 email = f"{manager_name.replace(' ', '.').lower()}@example.com"
                 sales_manager = db.session.query(User).filter_by(email=email).first()
@@ -214,7 +258,6 @@ with app.app_context():
 
                 unique_sales_managers[manager_name] = sales_manager.id
 
-            # Handle the Sales Executive
             branch = db.session.query(Branch).filter_by(name=branch_name).first()
             if branch:
                 sales_executive = db.session.query(SalesExecutive).filter_by(name=executive_name).first()
@@ -231,5 +274,4 @@ with app.app_context():
                 print(f"Branch {branch_name} not found, skipping sales executive {executive_name}.")
 
     db.session.commit()
-
-    print("Roles, users, and sales executives seeded successfully!")
+    print("Seeding completed successfully!")
