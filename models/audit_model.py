@@ -1,33 +1,6 @@
 from app import db
 from datetime import datetime
-import zlib
-from sqlalchemy.types import TypeDecorator, LargeBinary
 from enum import Enum
-
-# CompressedText class for compressing old_value and new_value fields
-class CompressedText(TypeDecorator):
-    impl = LargeBinary
-
-    def process_bind_param(self, value, _):
-        if value is None:
-            return None
-        if not isinstance(value, str):
-            raise ValueError("Only string values can be compressed")
-        try:
-            return zlib.compress(value.encode('utf-8'))
-        except Exception as e:
-            raise ValueError(f"Error compressing data: {e}")
-
-    def process_result_value(self, value, _):
-        if value is None:
-            return None
-        try:
-            decompressed = zlib.decompress(value)
-            return decompressed.decode('utf-8')
-        except zlib.error as e:
-            raise ValueError(f"Error decompressing data: {e}")
-        except UnicodeDecodeError as e:
-            raise ValueError(f"Error decoding decompressed data: {e}")
 
 
 # Enum for Audit actions
@@ -45,8 +18,8 @@ class AuditTrail(db.Model):
     action = db.Column(db.Enum(AuditAction), nullable=False)  # Use Enum for action
     resource_type = db.Column(db.String(100), nullable=False)
     resource_id = db.Column(db.Integer, nullable=False)
-    old_value = db.Column(CompressedText, nullable=True)  # Store compressed old value
-    new_value = db.Column(CompressedText, nullable=True)  # Store compressed new value
+    old_value = db.Column(db.String(255), nullable=True)
+    new_value = db.Column(db.String(255), nullable=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     details = db.Column(db.Text, nullable=True)
     ip_address = db.Column(db.String(45), nullable=True)  # IPv4 or IPv6

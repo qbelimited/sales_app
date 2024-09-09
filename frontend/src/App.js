@@ -5,8 +5,8 @@ import SalesPage from './pages/SalesPage';
 import LoginPage from './pages/LoginPage';
 import AdminPage from './pages/AdminPage';
 import NotFoundPage from './pages/NotFoundPage';
-// import SalesExecutivePage from './pages/SalesExecutivePage'; // Assuming this exists
-// import ReportsPage from './pages/ReportsPage'; // Assuming this exists
+// import SalesExecutivePage from './pages/SalesExecutivePage'; // Uncomment if this page exists
+// import ReportsPage from './pages/ReportsPage'; // Uncomment if this page exists
 import Navbar from './components/Navbar';
 
 const getAuthenticatedUser = () => {
@@ -30,8 +30,10 @@ function App() {
   // Monitor session storage for changes
   useEffect(() => {
     const role = getAuthenticatedUser();
-    setUserRole(role);
-  }, []);
+    if (role !== userRole) {
+      setUserRole(role);
+    }
+  }, [userRole]);
 
   // Simulate login function - sets the user role after login
   const handleLogin = (role) => {
@@ -50,7 +52,7 @@ function App() {
       {/* Conditionally render the Navbar only if the user is authenticated */}
       {userRole && <Navbar onLogout={handleLogout} />}
       <Routes>
-        {/* Default route - Redirect to login if not authenticated */}
+        {/* Default route - Redirect to home or login based on authentication */}
         <Route
           path="/"
           element={userRole ? <Navigate to="/home" /> : <Navigate to="/login" />}
@@ -97,7 +99,7 @@ function App() {
           path="/sales-executives"
           element={
             <ProtectedRoute userRole={userRole} allowedRoles={['sales_manager']}>
-              {/* <SalesExecutivePage /> */}
+              {/* Uncomment if the page exists: <SalesExecutivePage /> */}
             </ProtectedRoute>
           }
         />
@@ -107,7 +109,7 @@ function App() {
           path="/reports"
           element={
             <ProtectedRoute userRole={userRole} allowedRoles={['sales_manager', 'admin']}>
-              {/* <ReportsPage /> */}
+              {/* Uncomment if the page exists: <ReportsPage /> */}
             </ProtectedRoute>
           }
         />

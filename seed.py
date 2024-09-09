@@ -252,8 +252,6 @@ with app.app_context():
 
             # Ensure the manager exists as a user with flexible name checking
             if manager_name not in unique_sales_managers:
-                email = f"{manager_name.replace(' ', '.').lower()}@example.com"
-
                 # Split the manager name for a flexible pattern search (assumes first and last name)
                 manager_name_parts = manager_name.split(' ')
                 search_pattern = f"%{'%'.join(manager_name_parts)}%"
@@ -264,16 +262,22 @@ with app.app_context():
                 ).first()
 
                 if not sales_manager:
-                    sales_manager = User(
-                        email=email,
-                        name=manager_name,
-                        role_id=sales_manager_role.id,
-                        is_active=True
-                    )
-                    db.session.add(sales_manager)
-                    db.session.commit()
+                    print(f"Sales manager '{manager_name}' not found in the User table, skipping {executive_name}.")
+                    continue  # Skip the sales executive if no matching manager is found
 
+                # Cache the sales manager ID for later reuse
                 unique_sales_managers[manager_name] = sales_manager.id
+
+            # Handle missing or duplicate phone numbers
+            if not phone_number:
+                print(f"Skipping {executive_name} due to missing phone number.")
+                continue
+
+            # Check if a sales executive with the same phone number already exists
+            existing_executive = db.session.query(SalesExecutive).filter_by(phone_number=phone_number).first()
+            if existing_executive:
+                print(f"Skipping {executive_name} due to duplicate phone number: {phone_number}")
+                continue
 
             branch = db.session.query(Branch).filter_by(name=branch_name).first()
             if branch:

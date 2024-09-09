@@ -1,73 +1,52 @@
+import axios from 'axios';
 import React, { useState } from 'react';
-import { Card, Button, Form, Container, Row, Col, Spinner } from 'react-bootstrap';
-import { Toast, ToastContainer } from 'react-bootstrap';
+import { Button, Spinner, Card, Form, Container, Row, Col } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
+import Toaster from '../components/Toaster';
 
 function LoginPage({ onLogin }) {
-  const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastVariant, setToastVariant] = useState(''); // Controls the color of the toast
+  const [toasts, setToasts] = useState([]);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
 
   const navigate = useNavigate();
 
-  // Simple form validation
-  const validateForm = () => {
-    if (!email || !password) {
-      setToastMessage('Please fill in all fields.');
-      setToastVariant('danger');
-      setShowToast(true);
-      return false;
-    }
-    // Email regex for basic validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      setToastMessage('Please enter a valid email address.');
-      setToastVariant('danger');
-      setShowToast(true);
-      return false;
-    }
-    if (password.length < 6) {
-      setToastMessage('Password must be at least 6 characters long.');
-      setToastVariant('danger');
-      setShowToast(true);
-      return false;
-    }
-    return true;
+  const showToast = (variant, message, heading) => {
+    const newToast = {
+      id: Date.now(),
+      variant,
+      message,
+      heading,
+      time: new Date(),
+    };
+    setToasts((prevToasts) => [...prevToasts, newToast]);
   };
 
   const handleLogin = async () => {
-    if (!validateForm()) return;
-
     setLoading(true);
+
     try {
-      const response = await fetch('/api/v1/auth/login', {
-        method: 'POST',
+      const response = await axios.post('http://127.0.0.1:5000/api/v1/auth/login', {
+        email,
+        password,
+      }, {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setToastMessage('Login successful!');
-        setToastVariant('success');
-        onLogin(data.role); // Pass the user role to the parent app to handle redirection
-        navigate('/'); // Redirect to the appropriate page
-      } else {
-        setToastMessage(data.message || 'Login failed!');
-        setToastVariant('danger');
+      if (response.status === 200) {
+        const { token, role } = response.data;
+        localStorage.setItem('authToken', token);
+        onLogin(role);  // Notify parent about login
+        navigate('/home');  // Redirect to home page
+        showToast('success', 'Login successful!', 'Success');
       }
     } catch (error) {
-      setToastMessage('An error occurred during login.');
-      setToastVariant('danger');
+      showToast('danger', error.response?.data?.message || 'Login failed!', 'Error');
     } finally {
       setLoading(false);
-      setShowToast(true);
     }
   };
 
@@ -112,21 +91,7 @@ function LoginPage({ onLogin }) {
         </Col>
       </Row>
 
-      {/* Toast Notification */}
-      <ToastContainer position="top-end" className="p-3">
-        <Toast
-          onClose={() => setShowToast(false)}
-          show={showToast}
-          delay={3000}
-          autohide
-          bg={toastVariant} // Use variant for background color
-        >
-          <Toast.Header>
-            <strong className="me-auto">Notification</strong>
-          </Toast.Header>
-          <Toast.Body>{toastMessage}</Toast.Body>
-        </Toast>
-      </ToastContainer>
+      <Toaster toasts={toasts} removeToast={(id) => setToasts(toasts.filter((t) => t.id !== id))} />
     </Container>
   );
 }
