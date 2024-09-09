@@ -1,4 +1,5 @@
 from app import db
+import re
 from datetime import datetime
 from sqlalchemy.orm import validates
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -44,15 +45,26 @@ class User(db.Model):
 
     @validates('email')
     def validate_email(self, _, email):
-        if '@' not in email or '.' not in email.split('@')[-1]:
+        if not email or email.strip() == "":
+            print(f"Invalid email address found: {email}")
+            raise ValueError("Invalid email address")
+
+        email_regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+        if not re.match(email_regex, email):
+            print(f"Invalid email address found: {email}")
             raise ValueError("Invalid email address")
         return email
 
-    def set_password(self, password):
-        try:
-            self.password_hash = generate_password_hash(password)
-        except Exception as e:
-            raise ValueError(f"Error setting password: {e}")
+    # Define password property to automatically hash the password
+    @property
+    def password(self):
+        raise AttributeError("Password is not readable")
+
+    @password.setter
+    def password(self, password):
+        if not password or password.strip() == "":
+            raise ValueError("Password cannot be empty")
+        self.password_hash = generate_password_hash(password)
 
     def check_password(self, password):
         try:

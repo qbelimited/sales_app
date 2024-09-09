@@ -1,28 +1,28 @@
-﻿#,Name,Email,Phone number,Role
-1,EMMANUEL KWAKU BOTCHWAY,ekbotchway@impactlife.com.gh,+233245299268,Admin
-2,HERBERT MENSAH DOGLI,hdogli@impactlife.com.gh,+233208982554,Admin
-3,RAYMOND OSEI YEBOAH,ryeboah@impactlife.com.gh,+233207417776,Admin
-4,FREDERICK MARCELLO APPAU,fappau@impactlife.com.gh,+233244064014,Manager
-5,PETERCLARK ABADAMKIA,pabadamkia@impactlife.com.gh,+233209158251,Sales Manager
-6,ANTOINETTE SAFO,asafo@impactlife.com.gh,+233201381110,Sales Manager
-7,DANIEL SOMUAH TANSON,dtanson@impactlife.com.gh,+233242283776,Sales Manager
-8,DANIEL GYAMFI,dgyamfi@impactlife.com.gh,+233551501211,Sales Manager
-9,DEBORAH JOHNSON,djohnson@impactlife.com.gh,+233244654147,Sales Manager
-10,DICKSON EMMANUEL NTIRI GYAMFI,egyamfi@impactlife.com.gh,+233244431718,Sales Manager
-11,EDMUND OPPONG NKETIA,enketia@impactlife.com.gh,+233557679709,Sales Manager
-12,EMMANUEL TANDOH,etandoh@impactlife.com.gh,+233240650404,Sales Manager
-13,EMMANUEL OBENG-MENSAH,eobeng@impactlife.com.gh,+233240423438,Sales Manager
-14,EMMANUEL MISHAEL ASANKOMAH,easankomah@impactlife.com.gh,+233242171232,Sales Manager
-15,ENOCH ANTWI,eantwi@impactlife.com.gh,+233209497192,Sales Manager
-16,HAYFORD OSAE,hosae@impactlife.com.gh,+233246948595,Sales Manager
-17,ISAAC TAKYI,itakyi@impactlife.com.gh,+233595292475,Sales Manager
-18,JAMES SEGLAH,jseglah@impactlife.com.gh,+233240210023,Sales Manager
-19,LAWSON ATIDIGAH,latidigah@impactlife.com.gh,+233242703964,Sales Manager
-20,NANA NKUAH NKRUMAH,nnkrumah@impactlife.com.gh,+233244901830,Sales Manager
-21,RANSFORD DANIEL SARPONG,rsarpong@impactlife.com.gh,+233244267710,Sales Manager
-22,RICHARD OPOKU DWAMENA,rdwamena@impactlife.com.gh,+233244450764,Sales Manager
-23,RICHARD NAKAI TETTEH,rtetteh@impactlife.com.gh,+233243504794,Sales Manager
-24,SETH OFORI AMANKWAH,samankwah@impactlife.com.gh,+233244063285,Sales Manager
-25,SUMAILA ABUDL-RAZAK,asumaila@impactlife.com.gh,+233243667487,Sales Manager
-26,DANIEL ABEL  ANKRAH,dankrah@impactlife.com.gh,+233241917414,Sales Manager
-27,Nathaniel  Akugri,nakugri@impactlife.com.gh,+233243208617,Sales Manager
+﻿Name,Email,Phone number,Role
+EMMANUEL KWAKU BOTCHWAY,ekbotchway@impactlife.com.gh,0245299268,Admin
+HERBERT MENSAH DOGLI,hdogli@impactlife.com.gh,0208982554,Admin
+RAYMOND OSEI YEBOAH,ryeboah@impactlife.com.gh,0207417776,Admin
+FREDERICK MARCELLO APPAU,fappau@impactlife.com.gh,0244064014,Manager
+PETERCLARK ABADAMKIA,pabadamkia@impactlife.com.gh,0209158251,Sales Manager
+ANTOINETTE SAFO,asafo@impactlife.com.gh,0201381110,Sales Manager
+DANIEL SOMUAH TANSON,dtanson@impactlife.com.gh,0242283776,Sales Manager
+DANIEL GYAMFI,dgyamfi@impactlife.com.gh,0551501211,Sales Manager
+DEBORAH JOHNSON,djohnson@impactlife.com.gh,0244654147,Sales Manager
+DICKSON EMMANUEL NTIRI GYAMFI,egyamfi@impactlife.com.gh,0244431718,Sales Manager
+EDMUND OPPONG NKETIA,enketia@impactlife.com.gh,0557679709,Sales Manager
+EMMANUEL TANDOH,etandoh@impactlife.com.gh,0240650404,Sales Manager
+EMMANUEL OBENG-MENSAH,eobeng@impactlife.com.gh,0240423438,Sales Manager
+EMMANUEL MISHAEL ASANKOMAH,easankomah@impactlife.com.gh,0242171232,Sales Manager
+ENOCH ANTWI,eantwi@impactlife.com.gh,0209497192,Sales Manager
+HAYFORD OSAE,hosae@impactlife.com.gh,0246948595,Sales Manager
+ISAAC TAKYI,itakyi@impactlife.com.gh,0595292475,Sales Manager
+JAMES SEGLAH,jseglah@impactlife.com.gh,0240210023,Sales Manager
+LAWSON ATIDIGAH,latidigah@impactlife.com.gh,0242703964,Sales Manager
+NANA NKUAH NKRUMAH,nnkrumah@impactlife.com.gh,0244901830,Sales Manager
+RANSFORD DANIEL SARPONG,rsarpong@impactlife.com.gh,0244267710,Sales Manager
+RICHARD OPOKU DWAMENA,rdwamena@impactlife.com.gh,0244450764,Sales Manager
+RICHARD NAKAI TETTEH,rtetteh@impactlife.com.gh,0243504794,Sales Manager
+SETH OFORI AMANKWAH,samankwah@impactlife.com.gh,0244063285,Sales Manager
+SUMAILA ABUDL-RAZAK,asumaila@impactlife.com.gh,0243667487,Sales Manager
+DANIEL ABEL  ANKRAH,dankrah@impactlife.com.gh,0241917414,Sales Manager
+Nathaniel  Akugri,nakugri@impactlife.com.gh,0243208617,Sales Manager

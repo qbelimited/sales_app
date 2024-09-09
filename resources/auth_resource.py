@@ -33,8 +33,7 @@ logout_model = auth_ns.model('LogoutResponse', {
 class LoginResource(Resource):
     @auth_ns.expect(auth_ns.model('LoginCredentials', {
         'email': fields.String(required=True, description='User email'),
-        'password': fields.String(required=True, description='User password'),
-        'ip_address': fields.String(required=True, description='User IP address')  # Capture IP address
+        'password': fields.String(required=True, description='User password')
     }), validate=True)
     @auth_ns.response(200, 'Success', model=login_model)
     @auth_ns.response(401, 'Invalid credentials')
@@ -43,7 +42,6 @@ class LoginResource(Resource):
         data = request.json
         email = data.get('email')
         password = data.get('password')
-        ip_address = data.get('ip_address')
 
         # Fetch user by email
         user = User.query.filter_by(email=email).first()
@@ -53,17 +51,25 @@ class LoginResource(Resource):
             logger.warning(f"Failed login attempt for email {email}.")
             return {'message': 'Invalid credentials'}, 401
 
-        # Create JWT tokens
-        access_token = create_access_token(identity={'id': user.id, 'email': user.email, 'role': user.role.name})
-        refresh_token = create_refresh_token(identity={'id': user.id, 'email': user.email, 'role': user.role.name})
+        # Automatically capture IP address
+        ip_address = request.remote_addr
 
-        # Track user session
+        # Validate IP address
         if not UserSession.validate_ip(ip_address):
             logger.error(f"Invalid IP address {ip_address} provided.")
             return {'message': 'Invalid IP address'}, 400
 
+        # Create new JWT tokens
+        access_token = create_access_token(identity={'id': user.id, 'email': user.email, 'role': user.role.name})
+        refresh_token = create_refresh_token(identity={'id': user.id, 'email': user.email, 'role': user.role.name})
+
+        # Track user session with IP and tokens
         session = UserSession(user_id=user.id, ip_address=ip_address)
         db.session.add(session)
+
+        # Store refresh token in the database
+        refresh_token_record = RefreshToken(user_id=user.id, token=refresh_token)
+        db.session.add(refresh_token_record)
         db.session.commit()
 
         # Log login event to audit trail

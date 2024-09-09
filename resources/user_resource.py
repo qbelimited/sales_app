@@ -31,6 +31,7 @@ session_model = user_ns.model('UserSession', {
     'is_active': fields.Boolean(description='Is Active'),
 })
 
+
 @user_ns.route('/')
 class UserListResource(Resource):
     @user_ns.doc(security='Bearer Auth')
@@ -92,7 +93,7 @@ class UserListResource(Resource):
             name=data['name'],
             role_id=data['role_id']
         )
-        new_user.set_password(data['password'])
+        new_user.set_password(data['password'])  # Assuming you have a method to hash the password
 
         db.session.add(new_user)
         db.session.commit()

@@ -1,6 +1,5 @@
 from app import db
 from datetime import datetime
-from sqlalchemy.orm import validates
 
 class Branch(db.Model):
     __tablename__ = 'branch'
@@ -15,10 +14,6 @@ class Branch(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
-    # Relationships with User and SalesExecutive models
-    users = db.relationship('User', backref='branch', lazy='joined')  # Consider using 'joined' for performance
-    sales_executives = db.relationship('SalesExecutive', backref='branch', lazy='joined')
-
     def serialize(self):
         return {
             'id': self.id,
@@ -29,9 +24,7 @@ class Branch(db.Model):
             'ghpost_gps': self.ghpost_gps,
             'is_deleted': self.is_deleted,
             'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'users': [user.id for user in self.users],
-            'sales_executives': [sales_executive.id for sales_executive in self.sales_executives]
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
     @staticmethod

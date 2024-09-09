@@ -42,6 +42,7 @@ with app.app_context():
                 db.session.add(branch)
 
     db.session.commit()
+    print("Banks and branches seeded successfully!")
 
     # Seed Impact Product Categories
     categories = ['Retail', 'Corporate', 'Micro']
@@ -73,6 +74,7 @@ with app.app_context():
             db.session.add(product)
 
     db.session.commit()
+    print("Products seeded successfully!")
 
     # Seed Pay Points
     pay_points = [
@@ -138,6 +140,7 @@ with app.app_context():
             db.session.add(pay_point)
 
     db.session.commit()
+    print("Paypoints seeded successfully!")
 
     # Seed Branches
     branches = [
@@ -165,6 +168,7 @@ with app.app_context():
             db.session.add(branch)
 
     db.session.commit()
+    print("Branches seeded successfully!")
 
     # Seed Roles (Pre-existing roles for other parts of the app)
     roles_data = ['Back_office', 'Manager', 'Admin', 'Sales Manager']
@@ -187,14 +191,19 @@ with app.app_context():
             db.session.commit()
         roles_dict[role_name] = role.id
 
-    # Seed Users from CSV
+    # Seed Users from CSV with Debugging
     with open(users_csv_file, newline='', encoding='utf-8-sig') as csvfile:
-        csv_reader = csv.DictReader(csvfile, delimiter='\t')  # Assuming the file uses tab as delimiter
+        csv_reader = csv.DictReader(csvfile)
         for row in csv_reader:
             name = row.get('Name', '').strip()
             email = row.get('Email', '').strip()
             phone_number = row.get('Phone number', '').strip()
             role_name = row.get('Role', '').strip()
+
+            # Skip the record if the email is empty
+            if not email:
+                print(f"Skipping user {row.get('Name', 'Unknown')} due to missing email.")
+                continue
 
             # Find or create the user
             user = db.session.query(User).filter_by(email=email).first()
@@ -241,10 +250,18 @@ with app.app_context():
                 print(f"Skipping {executive_name} due to missing agent code.")
                 continue
 
-            # Ensure the manager exists as a user
+            # Ensure the manager exists as a user with flexible name checking
             if manager_name not in unique_sales_managers:
                 email = f"{manager_name.replace(' ', '.').lower()}@example.com"
-                sales_manager = db.session.query(User).filter_by(email=email).first()
+
+                # Split the manager name for a flexible pattern search (assumes first and last name)
+                manager_name_parts = manager_name.split(' ')
+                search_pattern = f"%{'%'.join(manager_name_parts)}%"
+
+                # Perform a case-insensitive search using the SQL LIKE operator
+                sales_manager = db.session.query(User).filter(
+                    User.name.ilike(search_pattern)
+                ).first()
 
                 if not sales_manager:
                     sales_manager = User(
@@ -274,4 +291,5 @@ with app.app_context():
                 print(f"Branch {branch_name} not found, skipping sales executive {executive_name}.")
 
     db.session.commit()
-    print("Seeding completed successfully!")
+    print("Sales executives seeding completed successfully!")
+    print("All Seeding completed successfully!")
