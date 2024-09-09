@@ -87,7 +87,6 @@ class RoleByIdResource(Resource):
         data = request.json
         role.name = data.get('name', role.name)
         role.description = data.get('description', role.description)
-        role.updated_at = datetime.utcnow()
 
         db.session.commit()
 

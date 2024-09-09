@@ -171,7 +171,7 @@ with app.app_context():
     print("Branches seeded successfully!")
 
     # Seed Roles (Pre-existing roles for other parts of the app)
-    roles_data = ['Back_office', 'Manager', 'Admin', 'Sales Manager']
+    roles_data = ['Back_office', 'Manager', 'Admin', 'Sales_Manager']
     roles_dict = {}
 
     for role_name in roles_data:
