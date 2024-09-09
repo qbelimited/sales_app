@@ -9,7 +9,7 @@ class RetentionPolicy(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     @validates('retention_days')
-    def validate_retention_days(self, key, retention_days):
+    def validate_retention_days(self, _, retention_days):
         if retention_days <= 0:
             raise ValueError("Retention days must be a positive integer")
         return retention_days

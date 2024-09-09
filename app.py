@@ -6,7 +6,7 @@ from flask_migrate import Migrate
 from flask_cors import CORS
 from dotenv import load_dotenv
 from flask_restx import Api
-from authlib.integrations.flask_client import OAuth
+from logger import setup_logger
 
 # Disable OneDNN
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
@@ -29,19 +29,8 @@ db = SQLAlchemy(app)
 jwt = JWTManager(app)
 migrate = Migrate(app, db)
 
-# Initialize OAuth after Flask app is created
-oauth = OAuth(app)
-oauth.register(
-    name='microsoft',
-    client_id=os.getenv('MICROSOFT_CLIENT_ID'),
-    client_secret=os.getenv('MICROSOFT_CLIENT_SECRET'),
-    authorize_url='https://login.microsoftonline.com/common/oauth2/v2.0/authorize',
-    authorize_params=None,
-    access_token_url='https://login.microsoftonline.com/common/oauth2/v2.0/token',
-    access_token_params=None,
-    refresh_token_url=None,
-    client_kwargs={'scope': 'openid email profile'},
-)
+# Setup logging
+logger = setup_logger(app)
 
 # Initialize Flask-RESTX API with version prefix
 api_version = 'v1'  # Define the API version
@@ -109,6 +98,21 @@ swagger_json_path = f'/api/{api_version}/swagger.json'
 def swagger_spec():
     """Serve the OpenAPI specification dynamically."""
     return api.__schema__
+
+# Global error handler to log unhandled exceptions
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """
+    Handle uncaught exceptions and log them.
+
+    Args:
+        e (Exception): The exception that was raised.
+
+    Returns:
+        tuple: JSON response with error message and HTTP status code.
+    """
+    app.logger.error(f'Unhandled Exception: {e}', exc_info=True)
+    return {"message": "An unexpected error occurred."}, 500
 
 # Run the Flask application
 if __name__ == "__main__":

@@ -18,7 +18,7 @@ class Query(db.Model):
     responses = db.relationship('QueryResponse', backref='query', lazy=True, cascade="all, delete-orphan")
 
     @validates('content')
-    def validate_content(self, key, content):
+    def validate_content(self, _, content):
         if not content:
             raise ValueError("Query content cannot be empty")
         return content
@@ -72,7 +72,7 @@ class QueryResponse(db.Model):
     user = db.relationship('User', backref='responses')
 
     @validates('content')
-    def validate_content(self, key, content):
+    def validate_content(self, _, content):
         if not content:
             raise ValueError("Response content cannot be empty")
         return content

@@ -1,163 +1,117 @@
 from flask_restx import Namespace, Resource, fields
 from flask import request
-from models.user_model import Role
-from models.access_model import Access
 from models.audit_model import AuditTrail
-from app import db, logger
+from app import logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
-# Create a namespace for access-related operations
-access_ns = Namespace('access', description='Access control and management operations')
+# Define namespace for audit trails
+audit_ns = Namespace('audit_trail', description='Audit trail operations')
 
-# Define the models for Swagger documentation
-access_model = access_ns.model('Access', {
-    'role_id': fields.Integer(required=True, description='Role ID'),
-    'can_create': fields.Boolean(description='Permission to create'),
-    'can_update': fields.Boolean(description='Permission to update'),
-    'can_delete': fields.Boolean(description='Permission to delete'),
-    'can_view_logs': fields.Boolean(description='Permission to view logs'),
-    'can_manage_users': fields.Boolean(description='Permission to manage users'),
-    'can_view_audit_trail': fields.Boolean(description='Permission to view audit trail')
+# Define model for Swagger documentation
+audit_model = audit_ns.model('AuditTrail', {
+    'id': fields.Integer(description='Audit ID'),
+    'user_id': fields.Integer(required=True, description='User ID who performed the action'),
+    'action': fields.String(required=True, description='Action performed (CREATE, UPDATE, DELETE, etc.)'),
+    'resource_type': fields.String(required=True, description='The type of resource affected (e.g., "role", "user")'),
+    'resource_id': fields.Integer(description='The ID of the resource affected'),
+    'old_value': fields.String(description='The previous value before the action'),
+    'new_value': fields.String(description='The new value after the action'),
+    'timestamp': fields.DateTime(description='When the action occurred'),
+    'details': fields.String(description='Additional details about the action'),
+    'ip_address': fields.String(description='IP address of the user'),
+    'user_agent': fields.String(description='User agent of the user')
 })
 
-role_id_model = access_ns.model('RoleID', {
-    'role_id': fields.Integer(required=True, description='Role ID')
-})
-
-
-@access_ns.route('/')
-class AccessResource(Resource):
-    @access_ns.doc(security='Bearer Auth')
-    @access_ns.response(200, 'Success', access_model)
+@audit_ns.route('/')
+class AuditTrailResource(Resource):
+    @audit_ns.doc(security='Bearer Auth')
+    @audit_ns.marshal_list_with(audit_model)
     @jwt_required()
     def get(self):
-        """Get access details for the current user."""
+        """Get the audit trail logs."""
         current_user = get_jwt_identity()
-        role = Role.query.filter_by(id=current_user['role_id']).first()
 
-        if not role:
-            logger.error(f"Role not found for user ID {current_user['id']}")
-            return {'message': 'Role not found'}, 404
+        # Only allow admins to view audit logs
+        if current_user['role'] != 'admin':
+            logger.warning(f"Unauthorized attempt to view audit trail by user ID {current_user['id']}.")
+            return {'message': 'Unauthorized'}, 403
 
-        access = Access.query.filter_by(role_id=role.id).first()
+        # Optional query parameters to filter the logs
+        user_id = request.args.get('user_id')
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
 
-        if not access:
-            logger.warning(f"Access details not found for role {role.name}")
-            return {'message': 'Access details not found'}, 404
+        query = AuditTrail.query
 
-        logger.info(f"Access details retrieved for role {role.name}")
-        return access.serialize(), 200
+        # Filter by user if provided
+        if user_id:
+            query = query.filter_by(user_id=user_id)
 
-    @access_ns.doc(security='Bearer Auth')
-    @access_ns.expect(access_model, validate=True)
+        # Filter by date range if provided
+        if start_date and end_date:
+            query = query.filter(AuditTrail.timestamp.between(start_date, end_date))
+
+        audit_trails = query.all()
+
+        logger.info(f"User ID {current_user['id']} retrieved audit trail logs.")
+        return audit_trails, 200
+
+@audit_ns.route('/<int:audit_id>')
+class SingleAuditTrailResource(Resource):
+    @audit_ns.doc(security='Bearer Auth')
+    @audit_ns.response(200, 'Success', audit_model)
+    @audit_ns.response(404, 'Audit log not found')
     @jwt_required()
+    def get(self, audit_id):
+        """Retrieve a specific audit log by its ID."""
+        current_user = get_jwt_identity()
+
+        # Only allow admins to view audit logs
+        if current_user['role'] != 'admin':
+            logger.warning(f"Unauthorized attempt to view audit log ID {audit_id} by user ID {current_user['id']}.")
+            return {'message': 'Unauthorized'}, 403
+
+        audit_log = AuditTrail.query.filter_by(id=audit_id).first()
+
+        if not audit_log:
+            logger.error(f"Audit log ID {audit_id} not found.")
+            return {'message': 'Audit log not found'}, 404
+
+        logger.info(f"Audit log ID {audit_id} retrieved by user ID {current_user['id']}.")
+        return audit_log.serialize(), 200
+
+@audit_ns.route('/filter')
+class FilteredAuditTrailResource(Resource):
+    @audit_ns.doc(security='Bearer Auth')
+    @jwt_required()
+    @audit_ns.marshal_list_with(audit_model)
     def post(self):
-        """Admin can create or update access rules for roles."""
+        """Filter the audit logs by resource type, action, or date range."""
         current_user = get_jwt_identity()
+
+        # Only admins can filter audit logs
         if current_user['role'] != 'admin':
-            logger.warning(f"Unauthorized access attempt by user ID {current_user['id']}")
+            logger.warning(f"Unauthorized attempt to filter audit logs by user ID {current_user['id']}.")
             return {'message': 'Unauthorized'}, 403
 
-        data = request.json
-        role = Role.query.filter_by(id=data['role_id']).first()
+        data = request.get_json()
 
-        if not role:
-            logger.error(f"Role ID {data['role_id']} not found for update attempt")
-            return {'message': 'Role not found'}, 404
+        resource_type = data.get('resource_type')
+        action = data.get('action')
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
 
-        # Create or update the access object for the role
-        access = Access.query.filter_by(role_id=role.id).first()
-        if not access:
-            access = Access(role_id=role.id)
+        query = AuditTrail.query
 
-        # Update access permissions based on the request data
-        access.can_create = data.get('can_create', access.can_create)
-        access.can_update = data.get('can_update', access.can_update)
-        access.can_delete = data.get('can_delete', access.can_delete)
-        access.can_view_logs = data.get('can_view_logs', access.can_view_logs)
-        access.can_manage_users = data.get('can_manage_users', access.can_manage_users)
-        access.can_view_audit_trail = data.get('can_view_audit_trail', access.can_view_audit_trail)
+        # Apply filters if provided
+        if resource_type:
+            query = query.filter_by(resource_type=resource_type)
+        if action:
+            query = query.filter_by(action=action)
+        if start_date and end_date:
+            query = query.filter(AuditTrail.timestamp.between(start_date, end_date))
 
-        db.session.add(access)
+        filtered_audits = query.all()
 
-        # Log the access creation or update in the audit trail
-        audit = AuditTrail(
-            user_id=current_user['id'],
-            action='UPDATE',
-            resource_type='role_access',
-            resource_id=role.id,
-            details=f"Admin updated access for role {role.name}"
-        )
-        db.session.add(audit)
-        db.session.commit()
-
-        logger.info(f"Access updated successfully for role {role.name} by admin ID {current_user['id']}")
-        return {'message': f'Access for role {role.name} updated successfully'}, 200
-
-    @access_ns.doc(security='Bearer Auth')
-    @access_ns.expect(role_id_model, validate=True)
-    @jwt_required()
-    def delete(self):
-        """Admin can delete access rules for a specific role."""
-        current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':
-            logger.warning(f"Unauthorized delete attempt by user ID {current_user['id']}")
-            return {'message': 'Unauthorized'}, 403
-
-        data = request.json
-        role = Role.query.filter_by(id=data['role_id']).first()
-
-        if not role:
-            logger.error(f"Role ID {data['role_id']} not found for delete attempt")
-            return {'message': 'Role not found'}, 404
-
-        # Find and delete the access object
-        access = Access.query.filter_by(role_id=role.id).first()
-
-        if not access:
-            logger.warning(f"Access details not found for role {role.name}")
-            return {'message': 'Access details not found'}, 404
-
-        db.session.delete(access)
-
-        # Log the deletion in the audit trail
-        audit = AuditTrail(
-            user_id=current_user['id'],
-            action='DELETE',
-            resource_type='role_access',
-            resource_id=role.id,
-            details=f"Admin deleted access for role {role.name}"
-        )
-        db.session.add(audit)
-        db.session.commit()
-
-        logger.info(f"Access for role {role.name} deleted by admin ID {current_user['id']}")
-        return {'message': f'Access for role {role.name} deleted successfully'}, 200
-
-
-@access_ns.route('/<int:role_id>')
-class SingleAccessResource(Resource):
-    @access_ns.doc(security='Bearer Auth')
-    @access_ns.response(200, 'Success', access_model)
-    @jwt_required()
-    def get(self, role_id):
-        """Admin can get access rules for a specific role by ID."""
-        current_user = get_jwt_identity()
-        if current_user['role'] != 'admin':
-            logger.warning(f"Unauthorized access attempt by user ID {current_user['id']} to view role {role_id}")
-            return {'message': 'Unauthorized'}, 403
-
-        role = Role.query.filter_by(id=role_id).first()
-
-        if not role:
-            logger.error(f"Role ID {role_id} not found")
-            return {'message': 'Role not found'}, 404
-
-        access = Access.query.filter_by(role_id=role.id).first()
-
-        if not access:
-            logger.warning(f"Access details not found for role {role.name}")
-            return {'message': 'Access details not found'}, 404
-
-        logger.info(f"Access details retrieved for role {role.name}")
-        return access.serialize(), 200
+        logger.info(f"User ID {current_user['id']} filtered audit logs.")
+        return filtered_audits, 200

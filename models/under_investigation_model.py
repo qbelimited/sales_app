@@ -18,7 +18,7 @@ class UnderInvestigation(db.Model):
     updated_by = db.relationship('User', backref='investigation_updates')
 
     @validates('reason')
-    def validate_reason(self, key, reason):
+    def validate_reason(self, _, reason):
         if not reason:
             raise ValueError("Reason cannot be empty")
         return reason

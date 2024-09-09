@@ -13,7 +13,7 @@ class Bank(db.Model):
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
     @validates('name')
-    def validate_name(self, key, name):
+    def validate_name(self, _, name):
         if not name:
             raise ValueError("Bank name cannot be empty")
         return name
@@ -49,7 +49,7 @@ class BankBranch(db.Model):
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
     @validates('name')
-    def validate_name(self, key, name):
+    def validate_name(self, _, name):
         if not name:
             raise ValueError("Branch name cannot be empty")
         return name

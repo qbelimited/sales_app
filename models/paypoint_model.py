@@ -11,7 +11,7 @@ class Paypoint(db.Model):
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
     @validates('name')
-    def validate_name(self, key, name):
+    def validate_name(self, _, name):
         if not name:
             raise ValueError("Paypoint name cannot be empty")
         return name

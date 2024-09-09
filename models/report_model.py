@@ -14,7 +14,7 @@ class Report(db.Model):
     user = db.relationship('User', backref='reports')
 
     @validates('report_type')
-    def validate_report_type(self, key, report_type):
+    def validate_report_type(self, _, report_type):
         if not report_type:
             raise ValueError("Report type cannot be empty")
         return report_type

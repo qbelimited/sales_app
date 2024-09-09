@@ -25,7 +25,7 @@ class SalesExecutive(db.Model):
     branches = db.relationship('Branch', secondary=sales_executive_branches, backref=db.backref('sales_executives', lazy='dynamic'))
 
     @validates('phone_number')
-    def validate_phone_number(self, key, phone_number):
+    def validate_phone_number(self, _, phone_number):
         if phone_number and len(phone_number) != 10:
             raise ValueError("Phone number must be 10 digits")
         return phone_number

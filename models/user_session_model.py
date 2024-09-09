@@ -52,7 +52,7 @@ class UserSession(db.Model):
             return False
 
     @validates('ip_address')
-    def validate_ip_address(self, key, ip):
+    def validate_ip_address(self, _, ip):
         """Validate IP address upon session creation or update."""
         if not self.validate_ip(ip):
             raise ValueError(f"Invalid IP address: {ip}")

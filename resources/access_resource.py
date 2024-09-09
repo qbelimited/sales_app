@@ -28,32 +28,34 @@ role_id_model = access_ns.model('RoleID', {
 @access_ns.route('/')
 class AccessResource(Resource):
     @access_ns.doc(security='Bearer Auth')
-    @access_ns.response(200, 'Success', access_model)
+    @access_ns.response(200, 'Success', [access_model])
+    @access_ns.response(404, 'Access not found')
     @jwt_required()
     def get(self):
-        """Get access details for the current user."""
+        """Get access details for all roles."""
         current_user = get_jwt_identity()
-        role = Role.query.filter_by(id=current_user['role_id']).first()
+        logger.info(f"User {current_user['id']} requested all access records.")
 
-        if not role:
-            logger.error(f"Role not found for user ID {current_user['id']}")
-            return {'message': 'Role not found'}, 404
+        # Fetch all access records
+        accesses = Access.query.all()
 
-        access = Access.query.filter_by(role_id=role.id).first()
+        if not accesses:
+            logger.warning("No access records found.")
+            return {'message': 'No access records found'}, 404
 
-        if not access:
-            logger.warning(f"Access details not found for role ID {role.id}")
-            return {'message': 'Access details not found'}, 404
-
-        logger.info(f"Access details retrieved for role ID {role.id}")
-        return access.serialize(), 200
+        return [access.serialize() for access in accesses], 200
 
     @access_ns.doc(security='Bearer Auth')
     @access_ns.expect(access_model, validate=True)
+    @access_ns.response(201, 'Access record created or updated successfully')
+    @access_ns.response(403, 'Unauthorized')
+    @access_ns.response(404, 'Role not found')
     @jwt_required()
     def post(self):
         """Admin can create or update access rules for roles."""
         current_user = get_jwt_identity()
+
+        # Check if the user has admin privileges
         if current_user['role'] != 'admin':
             logger.warning(f"Unauthorized attempt to modify access rules by user ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
@@ -92,14 +94,19 @@ class AccessResource(Resource):
         db.session.commit()
 
         logger.info(f"Access rules updated for role ID {role.id} by admin ID {current_user['id']}")
-        return {'message': f'Access for role {role.name} updated successfully'}, 200
+        return {'message': f'Access for role {role.name} updated successfully'}, 201
 
     @access_ns.doc(security='Bearer Auth')
     @access_ns.expect(role_id_model, validate=True)
+    @access_ns.response(200, 'Access record deleted successfully')
+    @access_ns.response(403, 'Unauthorized')
+    @access_ns.response(404, 'Access not found')
     @jwt_required()
     def delete(self):
         """Admin can delete access rules for a specific role."""
         current_user = get_jwt_identity()
+
+        # Check if the user has admin privileges
         if current_user['role'] != 'admin':
             logger.warning(f"Unauthorized attempt to delete access rules by user ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
@@ -139,10 +146,14 @@ class AccessResource(Resource):
 class SingleAccessResource(Resource):
     @access_ns.doc(security='Bearer Auth')
     @access_ns.response(200, 'Success', access_model)
+    @access_ns.response(403, 'Unauthorized')
+    @access_ns.response(404, 'Access not found')
     @jwt_required()
     def get(self, role_id):
-        """Admin can get access rules for a specific role by ID."""
+        """Get access rules for a specific role by role ID."""
         current_user = get_jwt_identity()
+
+        # Check if the user has admin privileges
         if current_user['role'] != 'admin':
             logger.warning(f"Unauthorized attempt to view access rules for role ID {role_id} by user ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403

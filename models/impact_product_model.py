@@ -36,7 +36,7 @@ class ImpactProduct(db.Model):
     __table_args__ = (db.UniqueConstraint('name', 'category_id', name='_product_category_uc'),)
 
     @validates('name')
-    def validate_name(self, key, name):
+    def validate_name(self, _, name):
         if not name:
             raise ValueError("Product name cannot be empty")
         return name
