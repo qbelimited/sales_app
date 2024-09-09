@@ -51,7 +51,7 @@ class ImpactProductListResource(Resource):
         if filter_by:
             product_query = product_query.filter(ImpactProduct.name.ilike(f'%{filter_by}%'))
 
-        products = product_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+        products = product_query.order_by(sort_by).paginate(page=page, per_page=per_page, error_out=False)
 
         # Log the access to audit trail
         audit = AuditTrail(

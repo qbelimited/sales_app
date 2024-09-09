@@ -77,7 +77,7 @@ class SaleListResource(Resource):
             sales_query = sales_query.filter(Sale.status == status)
 
         # Apply sorting and pagination
-        sales = sales_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+        sales = sales_query.order_by(sort_by).paginate(page=page, per_page=per_page, error_out=False)
 
         # Log the access to audit trail
         logger.info(f"User {current_user['id']} accessed sales list.")

@@ -102,13 +102,13 @@ class DropdownResource(Resource):
 
     def get_banks(self, page, per_page):
         """Retrieve banks for dropdown."""
-        banks = Bank.query.filter_by(is_deleted=False).paginate(page, per_page, error_out=False)
+        banks = Bank.query.filter_by(is_deleted=False).paginate(page=page, per_page=per_page, error_out=False)
         logger.info(f"Banks retrieved for dropdown, total: {banks.total}")
         return jsonify([bank.serialize() for bank in banks.items])
 
     def get_branches(self, bank_id, page, per_page):
         """Retrieve branches for dropdown."""
-        branches = Branch.query.filter_by(bank_id=bank_id, is_deleted=False).paginate(page, per_page, error_out=False)
+        branches = Branch.query.filter_by(bank_id=bank_id, is_deleted=False).paginate(page=page, per_page=per_page, error_out=False)
         logger.info(f"Branches retrieved for bank ID {bank_id}, total: {branches.total}")
         return jsonify([branch.serialize() for branch in branches.items])
 
@@ -123,13 +123,13 @@ class DropdownResource(Resource):
 
     def get_impact_products(self, page, per_page):
         """Retrieve impact products for dropdown."""
-        products = ImpactProduct.query.filter_by(is_deleted=False).paginate(page, per_page, error_out=False)
+        products = ImpactProduct.query.filter_by(is_deleted=False).paginate(page=page, per_page=per_page, error_out=False)
         logger.info(f"Impact products retrieved for dropdown, total: {products.total}")
         return jsonify([product.serialize() for product in products.items])
 
     def get_sales_managers(self, page, per_page):
         """Retrieve sales managers (users with role 'sales_manager') for dropdown."""
-        sales_managers = User.query.filter_by(role_id='sales_manager', is_deleted=False).paginate(page, per_page, error_out=False)
+        sales_managers = User.query.filter_by(role_id='sales_manager', is_deleted=False).paginate(page=page, per_page=per_page, error_out=False)
         logger.info(f"Sales managers retrieved for dropdown, total: {sales_managers.total}")
         return jsonify([{'id': manager.id, 'name': manager.name, 'email': manager.email} for manager in sales_managers.items])
 

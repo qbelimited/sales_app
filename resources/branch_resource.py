@@ -55,7 +55,7 @@ class BranchListResource(Resource):
             branch_query = branch_query.filter(Branch.name.ilike(f'%{filter_by}%'))
 
         try:
-            branches = branch_query.order_by(getattr(Branch, sort_by).desc()).paginate(page, per_page, error_out=False)
+            branches = branch_query.order_by(getattr(Branch, sort_by).desc()).paginate(page=page, per_page=per_page, error_out=False)
         except AttributeError:
             logger.error(f"Invalid sort_by field: {sort_by}")
             return {'message': 'Invalid sorting field'}, 400

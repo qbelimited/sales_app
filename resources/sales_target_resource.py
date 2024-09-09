@@ -51,7 +51,7 @@ class SalesTargetListResource(Resource):
         if filter_by:
             sales_target_query = sales_target_query.join(SalesExecutive).filter(SalesExecutive.name.ilike(f'%{filter_by}%'))
 
-        sales_targets = sales_target_query.order_by(getattr(SalesTarget, sort_by).desc()).paginate(page, per_page, error_out=False)
+        sales_targets = sales_target_query.order_by(getattr(SalesTarget, sort_by).desc()).paginate(page=page, per_page=per_page, error_out=False)
 
         # Log the access to audit trail
         audit = AuditTrail(

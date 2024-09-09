@@ -43,7 +43,7 @@ class QueryListResource(Resource):
             query_query = query_query.filter(Query.content.ilike(f'%{filter_by}%'))
 
         try:
-            queries = query_query.order_by(getattr(Query, sort_by).desc()).paginate(page, per_page, error_out=False)
+            queries = query_query.order_by(getattr(Query, sort_by).desc()).paginate(page=page, per_page=per_page, error_out=False)
         except Exception as e:
             logger.error(f"Error fetching query list: {str(e)}")
             return {'message': 'Error fetching query list'}, 500

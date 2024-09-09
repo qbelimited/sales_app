@@ -39,7 +39,7 @@ class UnderInvestigationListResource(Resource):
         if filter_by:
             investigation_query = investigation_query.filter(UnderInvestigation.reason.ilike(f'%{filter_by}%'))
 
-        investigations = investigation_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+        investigations = investigation_query.order_by(sort_by).paginate(page=page, per_page=per_page, error_out=False)
 
         # Log the access to audit trail and logger
         logger.info(f"User {current_user['id']} accessed list of under investigation records")

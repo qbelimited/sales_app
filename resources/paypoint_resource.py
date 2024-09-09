@@ -49,7 +49,7 @@ class PaypointListResource(Resource):
             return {'message': f'Invalid sorting field: {sort_by}'}, 400
 
         try:
-            paypoints = paypoint_query.order_by(getattr(Paypoint, sort_by).desc()).paginate(page, per_page, error_out=False)
+            paypoints = paypoint_query.order_by(getattr(Paypoint, sort_by).desc()).paginate(page=page, per_page=per_page, error_out=False)
         except Exception as e:
             logger.error(f"Error during Paypoint sorting: {str(e)}")
             return {'message': 'Error retrieving Paypoints'}, 500

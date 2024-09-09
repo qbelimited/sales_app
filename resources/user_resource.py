@@ -54,7 +54,7 @@ class UserListResource(Resource):
         if filter_by:
             user_query = user_query.filter(User.name.ilike(f'%{filter_by}%'))
 
-        users = user_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+        users = user_query.order_by(sort_by).paginate(page=page, per_page=per_page, error_out=False)
 
         # Log the access to the audit trail and logger
         logger.info(f"User {current_user['id']} accessed the list of users.")

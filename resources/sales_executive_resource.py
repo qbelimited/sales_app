@@ -40,7 +40,7 @@ class SalesExecutiveListResource(Resource):
         if filter_by:
             sales_executive_query = sales_executive_query.filter(SalesExecutive.name.ilike(f'%{filter_by}%'))
 
-        sales_executives = sales_executive_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+        sales_executives = sales_executive_query.order_by(sort_by).paginate(page=page, per_page=per_page, error_out=False)
 
         # Log the access to audit trail and logger
         logger.info(f"User {current_user['id']} accessed the list of Sales Executives.")
