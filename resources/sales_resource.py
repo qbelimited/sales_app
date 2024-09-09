@@ -2,7 +2,7 @@ from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
 from models.sales_model import Sale
 from models.audit_model import AuditTrail
-from app import db
+from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import or_, and_
 from datetime import datetime
@@ -80,6 +80,7 @@ class SaleListResource(Resource):
         sales = sales_query.order_by(sort_by).paginate(page, per_page, error_out=False)
 
         # Log the access to audit trail
+        logger.info(f"User {current_user['id']} accessed sales list.")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='ACCESS',
@@ -127,6 +128,7 @@ class SaleListResource(Resource):
         db.session.commit()
 
         # Log the creation to audit trail
+        logger.info(f"User {current_user['id']} created a new sale with ID {new_sale.id}.")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='CREATE',
@@ -154,6 +156,7 @@ class SaleDetailResource(Resource):
             return {'message': 'Sale not found'}, 404
 
         # Log the access to audit trail
+        logger.info(f"User {current_user['id']} accessed a sale with ID {sale_id}.")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='ACCESS',
@@ -191,6 +194,7 @@ class SaleDetailResource(Resource):
         db.session.commit()
 
         # Log the update to audit trail
+        logger.info(f"User {current_user['id']} updated sale with ID {sale.id}.")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='UPDATE',
@@ -216,6 +220,7 @@ class SaleDetailResource(Resource):
         db.session.commit()
 
         # Log the deletion to audit trail
+        logger.info(f"User {current_user['id']} soft-deleted sale with ID {sale.id}.")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='DELETE',

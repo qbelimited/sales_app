@@ -19,6 +19,10 @@ query_response_model = query_response_ns.model('QueryResponse', {
     'updated_at': fields.DateTime(description='Updated at'),
 })
 
+# Helper function to check if the user is admin or the owner of the response
+def check_user_authorization(current_user, resource_user_id):
+    return current_user['role'] == 'admin' or current_user['id'] == resource_user_id
+
 @query_response_ns.route('/<int:query_id>')
 class QueryResponseResource(Resource):
     @query_response_ns.doc(security='Bearer Auth')
@@ -30,6 +34,7 @@ class QueryResponseResource(Resource):
 
         query = Query.query.filter_by(id=query_id, is_deleted=False).first()
         if not query:
+            logger.warning(f"Query ID {query_id} not found for User ID {current_user['id']}.")
             return {'message': 'Query/Feedback not found'}, 404
 
         responses = QueryResponse.query.filter_by(query_id=query_id, is_deleted=False).all()
@@ -56,10 +61,12 @@ class QueryResponseResource(Resource):
 
         query = Query.query.filter_by(id=query_id, is_deleted=False).first()
         if not query:
+            logger.warning(f"Query ID {query_id} not found for User ID {current_user['id']}.")
             return {'message': 'Query/Feedback not found'}, 404
 
         data = request.json
         if not data.get('response'):
+            logger.error(f"Missing response content for User ID {current_user['id']} in Query ID {query_id}.")
             return {'message': 'Response content is required'}, 400
 
         try:
@@ -72,7 +79,7 @@ class QueryResponseResource(Resource):
             db.session.add(new_response)
             db.session.commit()
         except Exception as e:
-            logger.error(f"Error creating response for query ID {query_id}: {str(e)}")
+            logger.error(f"Error creating response for query ID {query_id} by User ID {current_user['id']}: {str(e)}")
             return {'message': 'Error creating response'}, 500
 
         # Log the response creation to audit trail
@@ -86,6 +93,7 @@ class QueryResponseResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
+        logger.info(f"Response created for Query ID {query_id} by User ID {current_user['id']}.")
         return new_response.serialize(), 201
 
 @query_response_ns.route('/<int:query_id>/<int:response_id>')
@@ -99,9 +107,11 @@ class QueryResponseByIdResource(Resource):
 
         response = QueryResponse.query.filter_by(id=response_id, query_id=query_id, is_deleted=False).first()
         if not response:
+            logger.warning(f"Response ID {response_id} not found for Query ID {query_id} by User ID {current_user['id']}.")
             return {'message': 'Response not found'}, 404
 
-        if response.user_id != current_user['id'] and current_user['role'] != 'admin':
+        if not check_user_authorization(current_user, response.user_id):
+            logger.warning(f"Unauthorized update attempt on Response ID {response_id} for Query ID {query_id} by User ID {current_user['id']}.")
             return {'message': 'Unauthorized'}, 403
 
         data = request.json
@@ -110,7 +120,7 @@ class QueryResponseByIdResource(Resource):
             response.updated_at = datetime.utcnow()
             db.session.commit()
         except Exception as e:
-            logger.error(f"Error updating response ID {response_id} for query ID {query_id}: {str(e)}")
+            logger.error(f"Error updating response ID {response_id} for query ID {query_id} by User ID {current_user['id']}: {str(e)}")
             return {'message': 'Error updating response'}, 500
 
         # Log the update to audit trail
@@ -124,6 +134,7 @@ class QueryResponseByIdResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
+        logger.info(f"Response ID {response_id} for Query ID {query_id} updated by User ID {current_user['id']}.")
         return response.serialize(), 200
 
     @query_response_ns.doc(security='Bearer Auth', responses={200: 'Deleted', 404: 'Response not found', 403: 'Unauthorized'})
@@ -134,16 +145,18 @@ class QueryResponseByIdResource(Resource):
 
         response = QueryResponse.query.filter_by(id=response_id, query_id=query_id, is_deleted=False).first()
         if not response:
+            logger.warning(f"Response ID {response_id} not found for Query ID {query_id} by User ID {current_user['id']}.")
             return {'message': 'Response not found'}, 404
 
-        if response.user_id != current_user['id'] and current_user['role'] != 'admin':
+        if not check_user_authorization(current_user, response.user_id):
+            logger.warning(f"Unauthorized delete attempt on Response ID {response_id} for Query ID {query_id} by User ID {current_user['id']}.")
             return {'message': 'Unauthorized'}, 403
 
         try:
             response.is_deleted = True
             db.session.commit()
         except Exception as e:
-            logger.error(f"Error deleting response ID {response_id} for query ID {query_id}: {str(e)}")
+            logger.error(f"Error deleting response ID {response_id} for query ID {query_id} by User ID {current_user['id']}: {str(e)}")
             return {'message': 'Error deleting response'}, 500
 
         # Log the deletion to audit trail
@@ -157,4 +170,5 @@ class QueryResponseByIdResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
+        logger.info(f"Response ID {response_id} for Query ID {query_id} soft-deleted by User ID {current_user['id']}.")
         return {'message': 'Response deleted successfully'}, 200

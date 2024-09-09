@@ -32,13 +32,18 @@ class QueryListResource(Resource):
         filter_by = request.args.get('filter_by', None)
         sort_by = request.args.get('sort_by', 'created_at')
 
+        valid_sort_fields = ['created_at', 'updated_at', 'subject']
+        if sort_by not in valid_sort_fields:
+            logger.error(f"Invalid sorting field: {sort_by}")
+            return {'message': f'Invalid sorting field: {sort_by}'}, 400
+
         query_query = Query.query.filter_by(is_deleted=False)
 
         if filter_by:
             query_query = query_query.filter(Query.content.ilike(f'%{filter_by}%'))
 
         try:
-            queries = query_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+            queries = query_query.order_by(getattr(Query, sort_by).desc()).paginate(page, per_page, error_out=False)
         except Exception as e:
             logger.error(f"Error fetching query list: {str(e)}")
             return {'message': 'Error fetching query list'}, 500
@@ -71,6 +76,7 @@ class QueryListResource(Resource):
 
         # Validate required fields
         if not data.get('content'):
+            logger.error(f"Query content missing for User ID {current_user['id']}")
             return {'message': 'Query/Feedback content is required'}, 400
 
         try:
@@ -83,7 +89,7 @@ class QueryListResource(Resource):
             db.session.add(new_query)
             db.session.commit()
         except Exception as e:
-            logger.error(f"Error creating query: {str(e)}")
+            logger.error(f"Error creating query for User ID {current_user['id']}: {str(e)}")
             return {'message': 'Error creating query'}, 500
 
         # Log the query creation to audit trail
@@ -97,6 +103,7 @@ class QueryListResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
+        logger.info(f"New query/feedback created with ID {new_query.id} by User ID {current_user['id']}")
         return new_query.serialize(), 201
 
 @query_ns.route('/<int:query_id>')
@@ -109,6 +116,7 @@ class QueryResource(Resource):
 
         query = Query.query.filter_by(id=query_id, is_deleted=False).first()
         if not query:
+            logger.warning(f"Query ID {query_id} not found for User ID {current_user['id']}")
             return {'message': 'Query/Feedback not found'}, 404
 
         # Log the access to audit trail
@@ -133,9 +141,11 @@ class QueryResource(Resource):
 
         query = Query.query.filter_by(id=query_id, is_deleted=False).first()
         if not query:
+            logger.warning(f"Query ID {query_id} not found for update by User ID {current_user['id']}")
             return {'message': 'Query/Feedback not found'}, 404
 
         if query.user_id != current_user['id'] and current_user['role'] != 'admin':
+            logger.warning(f"Unauthorized update attempt on Query ID {query_id} by User ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
         data = request.json
@@ -160,6 +170,7 @@ class QueryResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
+        logger.info(f"Query/feedback ID {query.id} updated by User ID {current_user['id']}")
         return query.serialize(), 200
 
     @query_ns.doc(security='Bearer Auth', responses={200: 'Deleted', 404: 'Query Not Found', 403: 'Unauthorized'})
@@ -170,9 +181,11 @@ class QueryResource(Resource):
 
         query = Query.query.filter_by(id=query_id, is_deleted=False).first()
         if not query:
+            logger.warning(f"Query ID {query_id} not found for delete by User ID {current_user['id']}")
             return {'message': 'Query/Feedback not found'}, 404
 
         if query.user_id != current_user['id'] and current_user['role'] != 'admin':
+            logger.warning(f"Unauthorized delete attempt on Query ID {query_id} by User ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
         try:
@@ -193,4 +206,5 @@ class QueryResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
+        logger.info(f"Query/feedback ID {query.id} soft-deleted by User ID {current_user['id']}")
         return {'message': 'Query/Feedback deleted successfully'}, 200

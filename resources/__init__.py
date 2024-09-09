@@ -1,4 +1,4 @@
-from .auth_resource import AuthResource, AuthCallbackResource, LogoutResource
+from .auth_resource import LoginResource, LogoutResource
 from .sales_resource import SaleListResource, SaleDetailResource
 from .report_resource import ReportResource
 from .admin_resource import AdminResource
@@ -16,3 +16,5 @@ from .query_resource import QueryResource
 from .role_resource import RolesResource
 from .access_resource import AccessResource
 from .query_response_resource import QueryResponseResource
+from .sales_performance_resource import SalesPerformanceResource
+from .sales_target_resource import SalesTargetListResource, SalesTargetResource

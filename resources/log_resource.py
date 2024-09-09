@@ -52,6 +52,10 @@ class LogResource(Resource):
         log_file_path = os.path.join(Config.LOG_FILE_PATH, log_file_map.get(log_type, 'general.log'))
 
         try:
+            # Check if log file exists
+            if not os.path.exists(log_file_path):
+                return {'message': f'Log file not found: {log_file_map.get(log_type, "general.log")}'}, 404
+
             with open(log_file_path, 'r') as log_file:
                 logs = log_file.readlines()
 
@@ -85,9 +89,8 @@ class LogResource(Resource):
                 'per_page': per_page
             }, 200
 
-        except FileNotFoundError:
-            return {'message': f'Log file not found: {log_file_map.get(log_type, "general.log")}'}, 404
         except Exception as e:
+            logger.error(f"Error retrieving logs: {str(e)}")
             return {'message': str(e)}, 500
 
     @staticmethod
@@ -96,8 +99,11 @@ class LogResource(Resource):
         if not start_date and not end_date:
             return logs
 
-        start_date = datetime.strptime(start_date, '%Y-%m-%d') if start_date else None
-        end_date = datetime.strptime(end_date, '%Y-%m-%d') if end_date else None
+        try:
+            start_date = datetime.strptime(start_date, '%Y-%m-%d') if start_date else None
+            end_date = datetime.strptime(end_date, '%Y-%m-%d') if end_date else None
+        except ValueError:
+            return logs  # If the date format is incorrect, skip filtering by date
 
         filtered_logs = []
         for log in logs:

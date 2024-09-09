@@ -26,9 +26,11 @@ class ManagerSalesExecutiveResource(Resource):
     @manager_ns.param('per_page', 'Number of items per page', type='integer', default=10)
     def get(self):
         """Retrieve all sales executives managed by the current manager, with pagination."""
+        # Fetch the current user from the JWT token
         current_user = get_jwt_identity()
-        if current_user['role'] != 'manager':
-            logger.warning(f"Unauthorized access attempt by User ID {current_user['id']} to retrieve sales executives.")
+
+        if 'role' not in current_user or current_user['role'] != 'manager':
+            logger.warning(f"Unauthorized access attempt by User ID {current_user.get('id')} to retrieve sales executives.")
             return {'message': 'Unauthorized'}, 403
 
         page = request.args.get('page', 1, type=int)
@@ -64,8 +66,9 @@ class ManagerSalesExecutiveResource(Resource):
     def post(self):
         """Create a new sales executive under the current manager."""
         current_user = get_jwt_identity()
-        if current_user['role'] != 'manager':
-            logger.warning(f"Unauthorized sales executive creation attempt by User ID {current_user['id']}.")
+
+        if 'role' not in current_user or current_user['role'] != 'manager':
+            logger.warning(f"Unauthorized sales executive creation attempt by User ID {current_user.get('id')}.")
             return {'message': 'Unauthorized'}, 403
 
         data = request.json
@@ -73,7 +76,7 @@ class ManagerSalesExecutiveResource(Resource):
         # Validation for phone number (if provided)
         phone_number = data.get('phone_number')
         if phone_number and (not phone_number.isdigit() or len(phone_number) != 10):
-            logger.error(f"Invalid phone number provided by User ID {current_user['id']}.")
+            logger.error(f"Invalid phone number provided by User ID {current_user.get('id')}.")
             return {'message': 'Invalid phone number. Must be 10 digits.'}, 400
 
         new_sales_executive = SalesExecutive(
@@ -107,14 +110,15 @@ class ManagerSalesExecutiveUpdateResource(Resource):
     def put(self, executive_id):
         """Update an existing sales executive's details (only self-updates or updates to subordinates)."""
         current_user = get_jwt_identity()
-        if current_user['role'] != 'manager':
-            logger.warning(f"Unauthorized update attempt by User ID {current_user['id']} on Sales Executive ID {executive_id}.")
+
+        if 'role' not in current_user or current_user['role'] != 'manager':
+            logger.warning(f"Unauthorized update attempt by User ID {current_user.get('id')} on Sales Executive ID {executive_id}.")
             return {'message': 'Unauthorized'}, 403
 
         # Allow manager to update only their own details or sales executives they manage
         sales_executive = SalesExecutive.query.filter_by(id=executive_id, is_deleted=False).first()
         if not sales_executive or (sales_executive.manager_id != current_user['id']):
-            logger.error(f"Sales Executive ID {executive_id} not found or unauthorized access by User ID {current_user['id']}.")
+            logger.error(f"Sales Executive ID {executive_id} not found or unauthorized access by User ID {current_user.get('id')}.")
             return {'message': 'Sales Executive not found or unauthorized'}, 404
 
         data = request.json
@@ -122,7 +126,7 @@ class ManagerSalesExecutiveUpdateResource(Resource):
         # Validation for phone number (if provided)
         phone_number = data.get('phone_number')
         if phone_number and (not phone_number.isdigit() or len(phone_number) != 10):
-            logger.error(f"Invalid phone number update attempt by User ID {current_user['id']} for Sales Executive ID {executive_id}.")
+            logger.error(f"Invalid phone number update attempt by User ID {current_user.get('id')} for Sales Executive ID {executive_id}.")
             return {'message': 'Invalid phone number. Must be 10 digits.'}, 400
 
         sales_executive.name = data.get('name', sales_executive.name)
@@ -150,5 +154,7 @@ class ManagerSalesExecutiveUpdateResource(Resource):
     @jwt_required()
     def delete(self, executive_id):
         """Soft-deletes are not allowed for sales executives."""
-        logger.warning(f"Unauthorized delete attempt by User ID {current_user['id']} on Sales Executive ID {executive_id}.")
+        current_user = get_jwt_identity()
+
+        logger.warning(f"Unauthorized delete attempt by User ID {current_user.get('id')} on Sales Executive ID {executive_id}.")
         return {'message': 'Managers are not authorized to delete sales executives'}, 403

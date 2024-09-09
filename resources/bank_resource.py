@@ -2,26 +2,29 @@ from flask_restx import Namespace, Resource, fields
 from flask import request
 from models.bank_model import Bank, BankBranch
 from models.audit_model import AuditTrail
-from app import db, logger  # Import logger from app.py
+from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 # Create a namespace for bank-related operations
 bank_ns = Namespace('banks', description='Operations related to banks and their branches')
 
 # Define models for Swagger documentation
+bank_branch_model = bank_ns.model('BankBranch', {
+    'id': fields.Integer(description='Branch ID'),
+    'name': fields.String(required=True, description='Branch Name'),
+    'sort_code': fields.String(description='Branch Sort Code'),
+    'is_deleted': fields.Boolean(description='Soft delete flag')
+})
+
 bank_model = bank_ns.model('Bank', {
     'id': fields.Integer(description='Bank ID'),
     'name': fields.String(required=True, description='Bank Name'),
     'is_deleted': fields.Boolean(description='Soft delete flag'),
     'created_at': fields.DateTime(description='Creation date'),
     'updated_at': fields.DateTime(description='Last update date'),
-    'bank_branches': fields.List(fields.Nested(bank_ns.model('BankBranch', {
-        'id': fields.Integer(description='Branch ID'),
-        'name': fields.String(required=True, description='Branch Name'),
-        'sort_code': fields.String(description='Branch Sort Code'),
-        'is_deleted': fields.Boolean(description='Soft delete flag')
-    })))
+    'bank_branches': fields.List(fields.Nested(bank_branch_model))
 })
+
 
 @bank_ns.route('/')
 class BankResource(Resource):
@@ -158,7 +161,7 @@ class BankBranchResource(Resource):
         return [branch.serialize() for branch in branches], 200
 
     @bank_ns.doc(security='Bearer Auth')
-    @bank_ns.expect(bank_model, validate=True)
+    @bank_ns.expect(bank_branch_model, validate=True)
     @jwt_required()
     def post(self):
         """Create a new branch."""
@@ -194,7 +197,7 @@ class BankBranchResource(Resource):
 @bank_ns.route('/branches/<int:branch_id>')
 class SingleBranchResource(Resource):
     @bank_ns.doc(security='Bearer Auth')
-    @bank_ns.response(200, 'Success', bank_model)
+    @bank_ns.response(200, 'Success', bank_branch_model)
     @jwt_required()
     def get(self, branch_id):
         """Get a single branch by its ID."""
@@ -208,7 +211,7 @@ class SingleBranchResource(Resource):
         return branch.serialize(), 200
 
     @bank_ns.doc(security='Bearer Auth')
-    @bank_ns.expect(bank_model, validate=True)
+    @bank_ns.expect(bank_branch_model, validate=True)
     @jwt_required()
     def put(self, branch_id):
         """Update an existing branch."""

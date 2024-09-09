@@ -7,7 +7,7 @@ from models.branch_model import Branch
 from models.paypoint_model import Paypoint
 from models.impact_product_model import ImpactProduct
 from models.audit_model import AuditTrail
-from app import db, logger  # Import logger from app.py
+from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 # Define a namespace for admin-related operations

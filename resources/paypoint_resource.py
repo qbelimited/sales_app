@@ -42,11 +42,20 @@ class PaypointListResource(Resource):
         if filter_by:
             paypoint_query = paypoint_query.filter(Paypoint.name.ilike(f'%{filter_by}%'))
 
+        # Validate sorting field
+        valid_sort_fields = ['created_at', 'name', 'location']
+        if sort_by not in valid_sort_fields:
+            logger.error(f"Invalid sorting field: {sort_by}")
+            return {'message': f'Invalid sorting field: {sort_by}'}, 400
+
         try:
-            paypoints = paypoint_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+            paypoints = paypoint_query.order_by(getattr(Paypoint, sort_by).desc()).paginate(page, per_page, error_out=False)
         except Exception as e:
             logger.error(f"Error during Paypoint sorting: {str(e)}")
-            return {'message': f'Invalid sorting field: {e}'}, 400
+            return {'message': 'Error retrieving Paypoints'}, 500
+
+        if not paypoints.items:
+            return {'message': 'No Paypoints found'}, 200
 
         # Log the access to audit trail
         audit = AuditTrail(
@@ -92,7 +101,7 @@ class PaypointListResource(Resource):
             db.session.add(new_paypoint)
             db.session.commit()
         except Exception as e:
-            logger.error(f"Database error during Paypoint creation: {str(e)}")
+            logger.error(f"Database error during Paypoint creation by User ID {current_user['id']}: {str(e)}")
             return {'message': 'Failed to create Paypoint, please try again later.'}, 500
 
         # Log the creation to audit trail

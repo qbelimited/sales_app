@@ -20,6 +20,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from app import db
 from joblib import Parallel, delayed
 from sqlalchemy import or_
+from fpdf import FPDF
 
 # Define namespace for report-related operations
 report_ns = Namespace('reports', description='Sales and Performance Report Generation')
@@ -35,13 +36,16 @@ class ReportResource(Resource):
     @report_ns.doc(security='Bearer Auth')
     @jwt_required()
     @report_ns.param('report_type', 'The type of report to generate')
-    def get(self, report_type):
+    def get(self):
         """Generate and return a report with visualizations if requested."""
         current_user = get_jwt_identity()
 
-        # Define the type of report to generate
-        report_type = report_type.lower()
+        report_type = request.args.get('report_type', None)
+        if not report_type:
+            return {'message': 'Report type is required'}, 400
 
+        # Route to the correct report generation function
+        report_type = report_type.lower()
         if report_type == 'performance':
             return self.generate_performance_report()
         elif report_type == 'sales':
@@ -96,6 +100,9 @@ class ReportResource(Resource):
         sales_data = db.session.query(Sale).all()
         df = pd.DataFrame([sale.serialize() for sale in sales_data])
 
+        if df.empty:
+            return {'message': 'No sales data available'}, 200
+
         # Visualization: Line graph for sales over time
         df['created_at'] = pd.to_datetime(df['created_at'])
         df.set_index('created_at', inplace=True)
@@ -112,6 +119,9 @@ class ReportResource(Resource):
 
         df = pd.DataFrame(sales_data, columns=['Branch', 'Total Sales'])
 
+        if df.empty:
+            return {'message': 'No branch sales data available'}, 200
+
         # Visualization: Pie chart for sales distribution by branch
         plt.figure(figsize=(8, 8))
         df.set_index('Branch')['Total Sales'].plot.pie(autopct='%1.1f%%', startangle=90)
@@ -122,22 +132,28 @@ class ReportResource(Resource):
         return self.export_visualization('branch_sales_pie_chart')
 
     def generate_sales_executive_wise_report(self):
-        """Generate a sales executive-wise report with visualizations."""
+        """Generate a sales executive-wise report."""
         sales_data = db.session.query(
             SalesExecutive.name, db.func.sum(Sale.amount).label('total_sales')
         ).join(Sale).group_by(SalesExecutive.name).all()
 
         df = pd.DataFrame(sales_data, columns=['Sales Executive', 'Total Sales'])
 
+        if df.empty:
+            return {'message': 'No sales executive data available'}, 200
+
         return self.export_to_format(df, 'sales_executive_wise_report')
 
     def generate_sales_manager_wise_report(self):
-        """Generate a sales manager-wise report with visualizations."""
+        """Generate a sales manager-wise report."""
         sales_data = db.session.query(
             User.name, db.func.sum(Sale.amount).label('total_sales')
         ).join(Sale).group_by(User.name).all()
 
         df = pd.DataFrame(sales_data, columns=['Sales Manager', 'Total Sales'])
+
+        if df.empty:
+            return {'message': 'No sales manager data available'}, 200
 
         return self.export_to_format(df, 'sales_manager_wise_report')
 
@@ -149,7 +165,6 @@ class ReportResource(Resource):
         df['created_at'] = pd.to_datetime(df['created_at'])
         df.set_index('created_at', inplace=True)
 
-        # Check if there’s enough data
         sufficient_data, days_needed = self.check_data_sufficiency(df)
         if not sufficient_data:
             return {
@@ -188,7 +203,6 @@ class ReportResource(Resource):
         df['created_at'] = pd.to_datetime(df['created_at'])
         df.set_index('created_at', inplace=True)
 
-        # Check if there’s enough data
         sufficient_data, days_needed = self.check_data_sufficiency(df)
         if not sufficient_data:
             return {
@@ -200,12 +214,10 @@ class ReportResource(Resource):
         scaler = MinMaxScaler(feature_range=(0, 1))
         scaled_data = scaler.fit_transform(df[['amount']])
 
-        # Hyperparameter tuning from request arguments
         look_back = request.args.get('look_back', default=30, type=int)
         batch_size = request.args.get('batch_size', default=32, type=int)
         epochs = request.args.get('epochs', default=10, type=int)
 
-        # Prepare data for LSTM model
         def create_dataset(data, look_back=1):
             X, y = [], []
             for i in range(len(data) - look_back - 1):
@@ -214,25 +226,21 @@ class ReportResource(Resource):
             return np.array(X), np.array(y)
 
         X, y = create_dataset(scaled_data, look_back)
-        X = np.reshape(X, (X.shape[0], X.shape[1], 1))  # Reshape for LSTM
+        X = np.reshape(X, (X.shape[0], X.shape[1], 1))
 
-        # Build LSTM model
         model = Sequential()
         model.add(LSTM(50, return_sequences=True, input_shape=(look_back, 1)))
         model.add(LSTM(50))
         model.add(Dense(1))
         model.compile(optimizer='adam', loss='mean_squared_error')
 
-        # Train model with the hyperparameters
         model.fit(X, y, epochs=epochs, batch_size=batch_size)
 
-        # Predict future sales
         last_data = scaled_data[-look_back:]
         last_data = np.reshape(last_data, (1, look_back, 1))
         predicted_sales = model.predict(last_data)
         predicted_sales = scaler.inverse_transform(predicted_sales)
 
-        # Create DataFrame for predicted sales
         future_df = pd.DataFrame({
             'Date': pd.date_range(start=datetime.today(), periods=30, freq='D'),
             'Predicted Sales': predicted_sales.flatten()
@@ -278,8 +286,6 @@ class ReportResource(Resource):
 
     def export_to_pdf(self, df, filename):
         """Export the DataFrame to a PDF file."""
-        from fpdf import FPDF
-
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", size=12)
@@ -300,7 +306,6 @@ class ParallelReportResource(Resource):
     @jwt_required()
     def get(self):
         """Generate reports in parallel using joblib."""
-        current_user = get_jwt_identity()
 
         # Use joblib to parallelize report generation tasks
         reports = ['performance', 'sales', 'branch', 'sales_executive', 'sales_manager']
@@ -313,19 +318,17 @@ class ParallelReportResource(Resource):
 
     def generate_report(self, report_type):
         """Generate report based on report type."""
-        if report_type == 'performance':
-            return self.generate_performance_report()
-        elif report_type == 'sales':
-            return self.generate_sales_report()
-        elif report_type == 'branch':
-            return self.generate_branch_wise_report()
-        elif report_type == 'sales_executive':
-            return self.generate_sales_executive_wise_report()
-        elif report_type == 'sales_manager':
-            return self.generate_sales_manager_wise_report()
-        elif report_type == 'predictive':
-            return self.generate_predictive_report()
-        elif report_type == 'lstm_predictive':
-            return self.generate_lstm_predictive_report()
+        report_mapping = {
+            'performance': self.generate_performance_report,
+            'sales': self.generate_sales_report,
+            'branch': self.generate_branch_wise_report,
+            'sales_executive': self.generate_sales_executive_wise_report,
+            'sales_manager': self.generate_sales_manager_wise_report,
+            'predictive': self.generate_predictive_report,
+            'lstm_predictive': self.generate_lstm_predictive_report
+        }
+
+        if report_type in report_mapping:
+            return report_mapping[report_type]()
         else:
             return {'message': 'Invalid report type'}, 400

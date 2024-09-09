@@ -41,6 +41,11 @@ class ImpactProductListResource(Resource):
         filter_by = request.args.get('filter_by', None)
         sort_by = request.args.get('sort_by', 'created_at')
 
+        # Ensure sorting by valid fields
+        if sort_by not in ['created_at', 'name']:
+            logger.error(f"Invalid sort_by field: {sort_by}")
+            return {"message": "Invalid sorting field"}, 400
+
         product_query = ImpactProduct.query.filter_by(is_deleted=False)
 
         if filter_by:

@@ -1,6 +1,6 @@
 from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
-from models.user_model import User
+from models.user_model import User, UserSession
 from models.audit_model import AuditTrail
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -15,7 +15,19 @@ user_model = user_ns.model('User', {
     'email': fields.String(required=True, description='User Email'),
     'name': fields.String(required=True, description='User Name'),
     'role_id': fields.Integer(required=True, description='Role ID'),
-    'microsoft_id': fields.String(description='Microsoft ID')
+    'is_active': fields.Boolean(description='Is Active'),
+    'is_deleted': fields.Boolean(description='Is Deleted'),
+    'created_at': fields.String(description='Created At'),
+    'updated_at': fields.String(description='Updated At'),
+})
+
+session_model = user_ns.model('UserSession', {
+    'id': fields.Integer(description='Session ID'),
+    'user_id': fields.Integer(description='User ID'),
+    'login_time': fields.String(description='Login Time'),
+    'logout_time': fields.String(description='Logout Time'),
+    'ip_address': fields.String(description='IP Address'),
+    'is_active': fields.Boolean(description='Is Active'),
 })
 
 @user_ns.route('/')
@@ -77,9 +89,10 @@ class UserListResource(Resource):
         new_user = User(
             email=data['email'],
             name=data['name'],
-            role_id=data['role_id'],
-            microsoft_id=data.get('microsoft_id')
+            role_id=data['role_id']
         )
+        new_user.set_password(data['password'])
+
         db.session.add(new_user)
         db.session.commit()
 
@@ -191,3 +204,43 @@ class UserResource(Resource):
         db.session.commit()
 
         return {'message': 'User deleted successfully'}, 200
+
+
+@user_ns.route('/<int:user_id>/sessions')
+class UserSessionResource(Resource):
+    @user_ns.doc(security='Bearer Auth')
+    @jwt_required()
+    @user_ns.marshal_list_with(session_model)
+    def get(self, user_id):
+        """Retrieve active sessions for a user."""
+        current_user = get_jwt_identity()
+
+        # Only admin or the user can access session details
+        if current_user['id'] != user_id and current_user['role'] != 'admin':
+            logger.warning(f"Unauthorized access attempt by User {current_user['id']} for sessions of User {user_id}.")
+            return {'message': 'Unauthorized'}, 403
+
+        sessions = UserSession.get_active_sessions(user_id=user_id)
+
+        logger.info(f"User {current_user['id']} accessed sessions of User {user_id}.")
+        return sessions, 200
+
+    @user_ns.doc(security='Bearer Auth', responses={200: 'Session ended', 403: 'Unauthorized'})
+    @jwt_required()
+    def post(self, user_id):
+        """End the user's active session (admin only)."""
+        current_user = get_jwt_identity()
+
+        if current_user['role'] != 'admin':
+            logger.warning(f"Unauthorized attempt by User {current_user['id']} to end session of User {user_id}.")
+            return {'message': 'Unauthorized'}, 403
+
+        sessions = UserSession.get_active_sessions(user_id=user_id)
+        if not sessions:
+            return {'message': 'No active sessions found'}, 404
+
+        for session in sessions:
+            session.end_session()
+
+        logger.info(f"User {current_user['id']} ended all active sessions for User {user_id}.")
+        return {'message': 'All active sessions ended successfully'}, 200
