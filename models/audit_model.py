@@ -20,7 +20,7 @@ class AuditTrail(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     action = db.Column(db.Enum(AuditAction), nullable=False)  # Use Enum for action
     resource_type = db.Column(db.String(100), nullable=False)
-    resource_id = db.Column(db.Integer, nullable=False)
+    resource_id = db.Column(db.Integer, nullable=True)
     old_value = db.Column(db.String(255), nullable=True)
     new_value = db.Column(db.String(255), nullable=True)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)

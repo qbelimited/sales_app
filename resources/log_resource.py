@@ -3,7 +3,7 @@ from flask_restx import Namespace, Resource
 from config import Config
 from flask import request, jsonify
 from models.audit_model import AuditTrail
-from app import db
+from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
