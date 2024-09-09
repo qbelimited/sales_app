@@ -6,7 +6,6 @@ import { faTimesCircle, faCheckCircle, faExclamationTriangle, faClock } from '@f
 import moment from 'moment';
 
 const Toaster = ({ toasts, removeToast }) => {
-  // Function to render the appropriate icon based on the variant (danger, success, warning)
   const renderIcon = (variant) => {
     switch (variant) {
       case 'danger':
@@ -20,16 +19,15 @@ const Toaster = ({ toasts, removeToast }) => {
     }
   };
 
-  // Function to render each toast with the appropriate styles and content
   const renderToast = (toast) => {
-    const timePassed = moment().diff(toast.time, 'seconds'); // Calculate time since toast creation
+    const timePassed = moment().diff(toast.time, 'seconds');
     const timeString = `${timePassed} seconds ago`;
 
     return (
       <Toast
         key={toast.id}
         className="mb-3"
-        onClose={() => removeToast(toast.id)} // Call removeToast to remove the toast from the list
+        onClose={() => removeToast(toast.id)}
         autohide
         delay={5000}
       >
@@ -39,12 +37,10 @@ const Toaster = ({ toasts, removeToast }) => {
         </Toast.Header>
         <Toast.Body className="bg-white text-dark">
           {toast.message}
-          {toast.variant !== 'warning' && (
-            <div className="mt-3 text-dark p-1 d-flex justify-content-end align-items-center">
-              <FontAwesomeIcon icon={faClock} /> &nbsp;
-              <small>{timeString}</small>
-            </div>
-          )}
+          <div className="mt-3 text-dark p-1 d-flex justify-content-end align-items-center">
+            <FontAwesomeIcon icon={faClock} /> &nbsp;
+            <small>{timeString}</small>
+          </div>
         </Toast.Body>
       </Toast>
     );

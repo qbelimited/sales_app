@@ -1,128 +1,155 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
-import HomePage from './pages/HomePage';
-import SalesPage from './pages/SalesPage';
-import LoginPage from './pages/LoginPage';
-import AdminPage from './pages/AdminPage';
-import NotFoundPage from './pages/NotFoundPage';
-// import SalesExecutivePage from './pages/SalesExecutivePage'; // Uncomment if this page exists
-// import ReportsPage from './pages/ReportsPage'; // Uncomment if this page exists
 import Navbar from './components/Navbar';
-
-// Function to get the authenticated user role from sessionStorage
-const getAuthenticatedUser = () => {
-  return sessionStorage.getItem('userRole');
-};
-
-// Protected Route Component to guard certain pages based on the user's role
-const ProtectedRoute = ({ userRole, allowedRoles, children }) => {
-  if (!userRole) {
-    console.log('No user role found, redirecting to login');
-    return <Navigate to="/login" />;
-  }
-
-  if (allowedRoles.includes(userRole)) {
-    console.log('User has access to this route:', userRole);
-    return children; // Render the protected page
-  }
-
-  console.log('User does not have access, redirecting to home');
-  return <Navigate to="/home" />;
-};
+import Sidebar from './components/Sidebar';
+import LoginPage from './pages/LoginPage';
+import SalesPage from './pages/SalesPage';
+import AuditTrailPage from './pages/AuditTrailPage';
+import ManageAccessPage from './pages/ManageAccessPage';
+import LogsPage from './pages/LogsPage';
+import RetentionPolicyPage from './pages/RetentionPolicyPage';
+import ManageUsersPage from './pages/ManageUsersPage';
+import ManageProductsPage from './pages/ManageProductsPage';
+import ManageBanksPage from './pages/ManageBanksPage';
+import ProtectedRoute from './components/ProtectedRoute';
+import BranchManagementPage from './pages/BranchManagementPage';
+import Toaster from './components/Toaster';  // Global Toaster component
 
 function App() {
-  const [userRole, setUserRole] = useState(getAuthenticatedUser());
+  const [role, setRole] = useState(null);
+  const [toasts, setToasts] = useState([]);  // Global toast state
 
-  // Monitor session storage for changes to user role
+  // On mount, check if the user is already logged in by checking localStorage
   useEffect(() => {
-    const role = getAuthenticatedUser();
-    if (role !== userRole) {
-      setUserRole(role);
+    const savedRole = localStorage.getItem('userRole');
+    if (savedRole) {
+      setRole(savedRole);
     }
-  }, [userRole]);
+  }, []);  // This will run only once when the component mounts
 
-  // Simulate login function to set the user role after login
-  const handleLogin = (role) => {
-    sessionStorage.setItem('userRole', role);
-    setUserRole(role);
+  // Function to show toast messages
+  const showToast = (variant, message, heading) => {
+    const newToast = {
+      id: Date.now(),
+      variant,
+      message,
+      heading,
+      time: new Date(),
+    };
+    setToasts((prevToasts) => [...prevToasts, newToast]);
   };
 
-  // Logout function to clear the user role from session storage and state
+  // Function to remove toast
+  const removeToast = (id) => {
+    setToasts((prevToasts) => prevToasts.filter((t) => t.id !== id));
+  };
+
+  const handleLogin = (userRole) => {
+    setRole(userRole);
+    localStorage.setItem('userRole', userRole);  // Store role in localStorage after login
+    showToast('success', 'Login successful', 'Welcome');
+  };
+
   const handleLogout = () => {
-    sessionStorage.removeItem('userRole');  // Clear the stored user role from sessionStorage
-    setUserRole(null);  // Clear the user role from state
+    setRole(null);
+    localStorage.removeItem('userRole');  // Clear userRole from localStorage on logout
+    showToast('success', 'Logout successful', 'Goodbye');
   };
 
   return (
     <Router>
-      {/* Conditionally render the Navbar only if the user is authenticated */}
-      {userRole && <Navbar onLogout={handleLogout} />}
-      <Routes>
-        {/* Default route - check if the user is logged in and route accordingly */}
-        <Route
-          path="/"
-          element={userRole ? <Navigate to="/home" /> : <Navigate to="/login" />}
-        />
+      <div>
+        {/* If the user is logged in (role exists), show Navbar and Sidebar */}
+        {role && <Navbar onLogout={handleLogout} />}
+        {role && <Sidebar />}
 
-        {/* Login page */}
-        <Route
-          path="/login"
-          element={userRole ? <Navigate to="/home" /> : <LoginPage onLogin={handleLogin} />}
-        />
+        <div style={{ marginLeft: role ? '250px' : '0' }}>
+          <Routes>
+            {/* Public route */}
+            <Route path="/login" element={<LoginPage onLogin={handleLogin} showToast={showToast} />} />
 
-        {/* Home page - accessible by authenticated users with the correct role */}
-        <Route
-          path="/home"
-          element={
-            <ProtectedRoute userRole={userRole} allowedRoles={['sales_manager', 'admin']}>
-              <HomePage />
-            </ProtectedRoute>
-          }
-        />
+            {/* Protected routes */}
+            <Route
+              path="/sales"
+              element={
+                <ProtectedRoute allowedRoles={['user', 'admin']} userRole={role}>
+                  <SalesPage showToast={showToast} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/audit-trail"
+              element={
+                <ProtectedRoute allowedRoles={['manager', 'admin']} userRole={role}>
+                  <AuditTrailPage showToast={showToast} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage-access"
+              element={
+                <ProtectedRoute allowedRoles={['admin']} userRole={role}>
+                  <ManageAccessPage showToast={showToast} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/logs"
+              element={
+                <ProtectedRoute allowedRoles={['admin']} userRole={role}>
+                  <LogsPage showToast={showToast} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/retention-policy"
+              element={
+                <ProtectedRoute allowedRoles={['admin']} userRole={role}>
+                  <RetentionPolicyPage showToast={showToast} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage-users"
+              element={
+                <ProtectedRoute allowedRoles={['manager', 'admin']} userRole={role}>
+                  <ManageUsersPage showToast={showToast} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage-products"
+              element={
+                <ProtectedRoute allowedRoles={['manager', 'admin']} userRole={role}>
+                  <ManageProductsPage showToast={showToast} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/banks/:bankId/branches"
+              element={
+                <ProtectedRoute allowedRoles={['manager', 'admin']} userRole={role}>
+                  <BranchManagementPage showToast={showToast} />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/manage-banks"
+              element={
+                <ProtectedRoute allowedRoles={['manager', 'admin']} userRole={role}>
+                  <ManageBanksPage showToast={showToast} />
+                </ProtectedRoute>
+              }
+            />
 
-        {/* Sales page for Sales Managers */}
-        <Route
-          path="/sales"
-          element={
-            <ProtectedRoute userRole={userRole} allowedRoles={['sales_manager']}>
-              <SalesPage />
-            </ProtectedRoute>
-          }
-        />
+            {/* Redirect any unknown paths */}
+            <Route path="*" element={<Navigate to={role ? "/sales" : "/login"} />} />
+          </Routes>
+        </div>
 
-        {/* Admin page - only accessible to admin */}
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute userRole={userRole} allowedRoles={['admin']}>
-              <AdminPage />
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Sales Executives Page - Only accessible to sales managers */}
-        <Route
-          path="/sales-executives"
-          element={
-            <ProtectedRoute userRole={userRole} allowedRoles={['sales_manager']}>
-              {/* Uncomment if the page exists: <SalesExecutivePage /> */}
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Reports Page - For both sales managers and admin */}
-        <Route
-          path="/reports"
-          element={
-            <ProtectedRoute userRole={userRole} allowedRoles={['sales_manager', 'admin']}>
-              {/* Uncomment if the page exists: <ReportsPage /> */}
-            </ProtectedRoute>
-          }
-        />
-
-        {/* Not Found page */}
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
+        {/* Global Toaster to show notifications */}
+        <Toaster toasts={toasts} removeToast={removeToast} />
+      </div>
     </Router>
   );
 }

@@ -1,29 +1,21 @@
+// src/pages/LoginPage.js
 import React, { useState } from 'react';
 import { Button, Spinner, Card, Form, Container, Row, Col } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import Toaster from '../components/Toaster';
 
-function LoginPage({ onLogin }) {
-  const [toasts, setToasts] = useState([]);
+function LoginPage({ onLogin, showToast }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-
   const navigate = useNavigate();
 
-  const showToast = (variant, message, heading) => {
-    const newToast = {
-      id: Date.now(),
-      variant,
-      message,
-      heading,
-      time: new Date(),
-    };
-    setToasts((prevToasts) => [...prevToasts, newToast]);
-  };
-
   const handleLogin = async () => {
+    if (!email || !password) {
+      showToast('warning', 'Please fill in all fields', 'Missing Fields');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -35,20 +27,23 @@ function LoginPage({ onLogin }) {
       if (response.status === 200) {
         const { access_token, refresh_token, user } = response.data;
 
-        // Store the tokens and user information in localStorage
+        // Store tokens and user info
         localStorage.setItem('accessToken', access_token);
         localStorage.setItem('refreshToken', refresh_token);
-        localStorage.setItem('userRole', user.role_id);  // Store the role ID for role-based access
-        localStorage.setItem('userID', user.id);  // Store the user ID
-        localStorage.setItem('user', JSON.stringify(user));  // Store the full user object for later use if needed
+        localStorage.setItem('userRole', user.role_id);
+        localStorage.setItem('userID', user.id);
+        localStorage.setItem('user', JSON.stringify(user));
 
         // Call the onLogin function to set the role in the App state
-        onLogin(user.role_id);  // Pass the role ID to the parent App component
+        onLogin(user.role_id);
 
-        // Redirect to the home page
-        navigate('/home');
-
+        // Show success toast
         showToast('success', 'Login successful!', 'Success');
+
+        // Redirect to the sales page after login
+        setTimeout(() => {
+          navigate('/sales');
+        }, 500);  // Delay for toast to display before redirection
       }
     } catch (error) {
       showToast('danger', error.response?.data?.message || 'Login failed!', 'Error');
@@ -97,8 +92,6 @@ function LoginPage({ onLogin }) {
           </Card>
         </Col>
       </Row>
-
-      <Toaster toasts={toasts} removeToast={(id) => setToasts(toasts.filter((t) => t.id !== id))} />
     </Container>
   );
 }

@@ -49,6 +49,7 @@ sales_app/
                 SalesForm.js
                 SalesTable.js
                 Sidebar.js
+                Toaster.js
                 UserManagement.js
             pages/
                 AccessManagementPage.js
@@ -87,7 +88,7 @@ sales_app/
         README
         script.py.mako
         versions/
-            6de8e3681e51_initial_migration.py
+            c60e400531e0_initial_migration.py
     models/
         access_model.py
         audit_model.py
