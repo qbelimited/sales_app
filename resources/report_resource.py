@@ -11,8 +11,8 @@ from models.branch_model import Branch
 from models.user_model import User
 from models.audit_model import AuditTrail
 from pmdarima import auto_arima
-from keras.models import Sequential
-from keras.layers import LSTM, Dense
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 from datetime import datetime

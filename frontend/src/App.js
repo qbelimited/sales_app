@@ -5,8 +5,8 @@ import SalesPage from './pages/SalesPage';
 import LoginPage from './pages/LoginPage';
 import AdminPage from './pages/AdminPage';
 import NotFoundPage from './pages/NotFoundPage';
-import SalesExecutivePage from './pages/SalesExecutivePage'; // Assuming this exists
-import ReportsPage from './pages/ReportsPage'; // Assuming this exists
+// import SalesExecutivePage from './pages/SalesExecutivePage'; // Assuming this exists
+// import ReportsPage from './pages/ReportsPage'; // Assuming this exists
 import Navbar from './components/Navbar';
 
 const getAuthenticatedUser = () => {
@@ -97,7 +97,7 @@ function App() {
           path="/sales-executives"
           element={
             <ProtectedRoute userRole={userRole} allowedRoles={['sales_manager']}>
-              <SalesExecutivePage />
+              {/* <SalesExecutivePage /> */}
             </ProtectedRoute>
           }
         />
@@ -107,7 +107,7 @@ function App() {
           path="/reports"
           element={
             <ProtectedRoute userRole={userRole} allowedRoles={['sales_manager', 'admin']}>
-              <ReportsPage />
+              {/* <ReportsPage /> */}
             </ProtectedRoute>
           }
         />
