@@ -2,7 +2,7 @@ from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
 from models.sales_executive_model import SalesExecutive
 from models.audit_model import AuditTrail
-from app import db
+from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
@@ -42,13 +42,14 @@ class SalesExecutiveListResource(Resource):
 
         sales_executives = sales_executive_query.order_by(sort_by).paginate(page, per_page, error_out=False)
 
-        # Log the access to audit trail
+        # Log the access to audit trail and logger
+        logger.info(f"User {current_user['id']} accessed the list of Sales Executives.")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='ACCESS',
             resource_type='sales_executive_list',
             resource_id=None,
-            details=f"User accessed list of Sales Executives"
+            details="User accessed list of Sales Executives"
         )
         db.session.add(audit)
         db.session.commit()
@@ -66,7 +67,18 @@ class SalesExecutiveListResource(Resource):
     def post(self):
         """Create a new Sales Executive (admin and manager only)."""
         current_user = get_jwt_identity()
+
+        if current_user['role'] not in ['admin', 'manager']:
+            logger.warning(f"Unauthorized attempt by User {current_user['id']} to create a new Sales Executive.")
+            return {'message': 'Unauthorized'}, 403
+
         data = request.json
+
+        # Validation
+        required_fields = ['name', 'code', 'manager_id', 'branch_id']
+        if not all([data.get(field) for field in required_fields]):
+            logger.error(f"User {current_user['id']} attempted to create a Sales Executive with missing fields.")
+            return {'message': 'Missing required fields'}, 400
 
         new_sales_executive = SalesExecutive(
             name=data['name'],
@@ -77,7 +89,8 @@ class SalesExecutiveListResource(Resource):
         db.session.add(new_sales_executive)
         db.session.commit()
 
-        # Log the creation to audit trail
+        # Log the creation to audit trail and logger
+        logger.info(f"User {current_user['id']} created a new Sales Executive with ID {new_sales_executive.id}.")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='CREATE',
@@ -98,11 +111,14 @@ class SalesExecutiveResource(Resource):
     def get(self, sales_executive_id):
         """Retrieve a specific Sales Executive by ID."""
         current_user = get_jwt_identity()
+
         sales_executive = SalesExecutive.query.filter_by(id=sales_executive_id, is_deleted=False).first()
         if not sales_executive:
+            logger.error(f"Sales Executive with ID {sales_executive_id} not found for User {current_user['id']}.")
             return {'message': 'Sales Executive not found'}, 404
 
-        # Log the access to audit trail
+        # Log the access to audit trail and logger
+        logger.info(f"User {current_user['id']} accessed Sales Executive with ID {sales_executive_id}.")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='ACCESS',
@@ -121,8 +137,14 @@ class SalesExecutiveResource(Resource):
     def put(self, sales_executive_id):
         """Update an existing Sales Executive (admin and manager only)."""
         current_user = get_jwt_identity()
+
+        if current_user['role'] not in ['admin', 'manager']:
+            logger.warning(f"Unauthorized update attempt by User {current_user['id']} on Sales Executive {sales_executive_id}.")
+            return {'message': 'Unauthorized'}, 403
+
         sales_executive = SalesExecutive.query.filter_by(id=sales_executive_id, is_deleted=False).first()
         if not sales_executive:
+            logger.error(f"Sales Executive with ID {sales_executive_id} not found for update by User {current_user['id']}.")
             return {'message': 'Sales Executive not found'}, 404
 
         data = request.json
@@ -134,7 +156,8 @@ class SalesExecutiveResource(Resource):
 
         db.session.commit()
 
-        # Log the update to audit trail
+        # Log the update to audit trail and logger
+        logger.info(f"User {current_user['id']} updated Sales Executive {sales_executive_id}.")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='UPDATE',
@@ -152,20 +175,27 @@ class SalesExecutiveResource(Resource):
     def delete(self, sales_executive_id):
         """Soft-delete a Sales Executive (admin and manager only)."""
         current_user = get_jwt_identity()
+
+        if current_user['role'] not in ['admin', 'manager']:
+            logger.warning(f"Unauthorized deletion attempt by User {current_user['id']} on Sales Executive {sales_executive_id}.")
+            return {'message': 'Unauthorized'}, 403
+
         sales_executive = SalesExecutive.query.filter_by(id=sales_executive_id, is_deleted=False).first()
         if not sales_executive:
+            logger.error(f"Sales Executive with ID {sales_executive_id} not found for deletion by User {current_user['id']}.")
             return {'message': 'Sales Executive not found'}, 404
 
         sales_executive.is_deleted = True
         db.session.commit()
 
-        # Log the deletion to audit trail
+        # Log the deletion to audit trail and logger
+        logger.info(f"User {current_user['id']} deleted Sales Executive {sales_executive_id}.")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='DELETE',
             resource_type='sales_executive',
             resource_id=sales_executive.id,
-            details=f"User deleted Sales Executive with ID {sales_executive.id}"
+            details=f"User soft-deleted Sales Executive with ID {sales_executive.id}"
         )
         db.session.add(audit)
         db.session.commit()

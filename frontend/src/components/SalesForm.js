@@ -2,18 +2,19 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify'; // For toast notifications
 
-const SalesForm = () => {
+const SalesForm = ({ saleData, onSubmit }) => {
     const [formData, setFormData] = useState({
         sale_manager: '',
         sales_executive_id: '',
         client_name: '',
+        client_id_no: '',
         policy_type: '',
         client_phone: '',
         serial_number: '',
         source_type: 'momo',
         momo_reference_number: '',
         momo_transaction_id: '',
-        first_pay_with_momo: false,
+        first_pay_with_momo: true,
         subsequent_pay_source_type: '',
         bank_name: '',
         bank_branch: '',
@@ -31,7 +32,10 @@ const SalesForm = () => {
 
     useEffect(() => {
         fetchImpactProducts();  // Fetch available Impact Products (Policy Types) on component mount
-    }, []);
+        if (saleData) {
+            setFormData(saleData); // Pre-fill the form if it's an edit
+        }
+    }, [saleData]);
 
     const fetchImpactProducts = async () => {
         try {
@@ -63,8 +67,8 @@ const SalesForm = () => {
                 ...prevData,
                 momo_reference_number: value === 'momo' ? prevData.momo_reference_number : '',
                 momo_transaction_id: value === 'momo' ? prevData.momo_transaction_id : '',
-                first_pay_with_momo: value === 'momo' ? prevData.first_pay_with_momo : false,
-                subsequent_pay_source_type: value === 'momo' ? prevData.subsequent_pay_source_type : '',
+                first_pay_with_momo: value === 'momo' ? true : false,
+                client_id_no: value === 'bank' ? prevData.client_id_no : '',
                 bank_name: value !== 'momo' ? prevData.bank_name : '',
                 bank_branch: value !== 'momo' ? prevData.bank_branch : '',
                 bank_acc_number: value !== 'momo' ? prevData.bank_acc_number : '',
@@ -98,30 +102,26 @@ const SalesForm = () => {
         if (!formData.serial_number) newErrors.serial_number = 'Serial number is required';
         if (!formData.amount) newErrors.amount = 'Amount is required';
 
+        // Validate for Momo transactions
         if (formData.source_type === 'momo') {
             if (!formData.momo_reference_number) newErrors.momo_reference_number = 'Momo reference number is required';
             if (!formData.momo_transaction_id) newErrors.momo_transaction_id = 'Momo transaction ID is required';
-            if (formData.first_pay_with_momo && !formData.subsequent_pay_source_type) {
-                newErrors.subsequent_pay_source_type = 'Subsequent pay source type is required';
-            }
-        } else if (formData.source_type === 'bank') {
+        }
+
+        // Validate for Bank transactions
+        if (formData.source_type === 'bank') {
+            if (!formData.first_pay_with_momo) newErrors.first_pay_with_momo = 'First payment must be with Momo for Bank businesses';
+            if (!formData.client_id_no) newErrors.client_id_no = 'Client ID is required for Bank businesses';
             if (!formData.bank_name) newErrors.bank_name = 'Bank name is required';
             if (!formData.bank_branch) newErrors.bank_branch = 'Bank branch is required';
             if (!formData.bank_acc_number) newErrors.bank_acc_number = 'Bank account number is required';
             if (!formData.staff_id) newErrors.staff_id = 'Staff ID is required';
-        } else if (formData.source_type === 'paypoint') {
-            if (!formData.paypoint_name) newErrors.paypoint_name = 'Paypoint name is required';
-            if (!formData.staff_id) newErrors.staff_id = 'Staff ID is required';
         }
 
-        if (formData.subsequent_pay_source_type === 'bank' && formData.first_pay_with_momo) {
-            if (!formData.bank_name) newErrors.bank_name = 'Bank name is required for subsequent payment';
-            if (!formData.bank_branch) newErrors.bank_branch = 'Bank branch is required for subsequent payment';
-            if (!formData.bank_acc_number) newErrors.bank_acc_number = 'Bank account number is required for subsequent payment';
-            if (!formData.staff_id) newErrors.staff_id = 'Staff ID is required for subsequent payment';
-        } else if (formData.subsequent_pay_source_type === 'paypoint' && formData.first_pay_with_momo) {
-            if (!formData.paypoint_name) newErrors.paypoint_name = 'Paypoint name is required for subsequent payment';
-            if (!formData.staff_id) newErrors.staff_id = 'Staff ID is required for subsequent payment';
+        // Validate for Paypoint transactions
+        if (formData.source_type === 'paypoint') {
+            if (!formData.paypoint_name) newErrors.paypoint_name = 'Paypoint name is required';
+            if (!formData.staff_id) newErrors.staff_id = 'Staff ID is required';
         }
 
         setErrors(newErrors);
@@ -132,38 +132,36 @@ const SalesForm = () => {
         e.preventDefault();
         if (!validateForm()) return;
 
-        try {
-            await axios.post('/api/v1/sales', formData);
-            toast.success('Sale submitted successfully');
-            setFormData({
-                sale_manager: '',
-                sales_executive_id: '',
-                client_name: '',
-                policy_type: '',
-                client_phone: '',
-                serial_number: '',
-                source_type: 'momo',
-                momo_reference_number: '',
-                momo_transaction_id: '',
-                first_pay_with_momo: false,
-                subsequent_pay_source_type: '',
-                bank_name: '',
-                bank_branch: '',
-                bank_acc_number: '',
-                paypoint_name: '',
-                paypoint_branch: '',
-                staff_id: '',
-                amount: '',
-                customer_called: false,
-            });
-        } catch (error) {
-            console.error('Error submitting sale:', error);
-            toast.error('Error submitting sale');
-        }
+        onSubmit(formData); // Call onSubmit from parent component
+
+        // Reset form after submission
+        setFormData({
+            sale_manager: '',
+            sales_executive_id: '',
+            client_name: '',
+            client_id_no: '',
+            policy_type: '',
+            client_phone: '',
+            serial_number: '',
+            source_type: 'momo',
+            momo_reference_number: '',
+            momo_transaction_id: '',
+            first_pay_with_momo: true,
+            subsequent_pay_source_type: '',
+            bank_name: '',
+            bank_branch: '',
+            bank_acc_number: '',
+            paypoint_name: '',
+            paypoint_branch: '',
+            staff_id: '',
+            amount: '',
+            customer_called: false,
+        });
     };
 
     return (
         <form onSubmit={handleSubmit}>
+            {/* Sale Manager Field */}
             <div className="form-group">
                 <label>Sale Manager</label>
                 <input
@@ -176,6 +174,7 @@ const SalesForm = () => {
                 {errors.sale_manager && <div className="text-danger">{errors.sale_manager}</div>}
             </div>
 
+            {/* Sales Executive Dropdown */}
             <div className="form-group">
                 <label>Sales Executive</label>
                 <select
@@ -194,6 +193,7 @@ const SalesForm = () => {
                 {errors.sales_executive_id && <div className="text-danger">{errors.sales_executive_id}</div>}
             </div>
 
+            {/* Client Name Field */}
             <div className="form-group">
                 <label>Client Name</label>
                 <input
@@ -206,6 +206,22 @@ const SalesForm = () => {
                 {errors.client_name && <div className="text-danger">{errors.client_name}</div>}
             </div>
 
+            {/* Client ID No for Bank Transactions */}
+            {formData.source_type === 'bank' && (
+                <div className="form-group">
+                    <label>Client ID No</label>
+                    <input
+                        type="text"
+                        className="form-control"
+                        name="client_id_no"
+                        value={formData.client_id_no}
+                        onChange={handleInputChange}
+                    />
+                    {errors.client_id_no && <div className="text-danger">{errors.client_id_no}</div>}
+                </div>
+            )}
+
+            {/* Policy Type Dropdown */}
             <div className="form-group">
                 <label>Policy Type</label>
                 <select
@@ -224,6 +240,7 @@ const SalesForm = () => {
                 {errors.policy_type && <div className="text-danger">{errors.policy_type}</div>}
             </div>
 
+            {/* Client Phone Field */}
             <div className="form-group">
                 <label>Client Phone</label>
                 <input
@@ -236,6 +253,7 @@ const SalesForm = () => {
                 {errors.client_phone && <div className="text-danger">{errors.client_phone}</div>}
             </div>
 
+            {/* Serial Number Field */}
             <div className="form-group">
                 <label>Serial Number</label>
                 <input
@@ -248,6 +266,7 @@ const SalesForm = () => {
                 {errors.serial_number && <div className="text-danger">{errors.serial_number}</div>}
             </div>
 
+            {/* Source Type Dropdown */}
             <div className="form-group">
                 <label>Source Type</label>
                 <select
@@ -263,6 +282,7 @@ const SalesForm = () => {
                 {errors.source_type && <div className="text-danger">{errors.source_type}</div>}
             </div>
 
+            {/* Momo Fields */}
             {formData.source_type === 'momo' && (
                 <>
                     <div className="form-group">
@@ -317,100 +337,10 @@ const SalesForm = () => {
                             {errors.subsequent_pay_source_type && <div className="text-danger">{errors.subsequent_pay_source_type}</div>}
                         </div>
                     )}
-
-                    {formData.subsequent_pay_source_type === 'bank' && (
-                        <>
-                            <div className="form-group">
-                                <label>Bank Name</label>
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    name="bank_name"
-                                    value={formData.bank_name}
-                                    onChange={handleInputChange}
-                                />
-                                {errors.bank_name && <div className="text-danger">{errors.bank_name}</div>}
-                            </div>
-
-                            <div className="form-group">
-                                <label>Bank Branch</label>
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    name="bank_branch"
-                                    value={formData.bank_branch}
-                                    onChange={handleInputChange}
-                                />
-                                {errors.bank_branch && <div className="text-danger">{errors.bank_branch}</div>}
-                            </div>
-
-                            <div className="form-group">
-                                <label>Bank Account Number</label>
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    name="bank_acc_number"
-                                    value={formData.bank_acc_number}
-                                    onChange={handleInputChange}
-                                />
-                                {errors.bank_acc_number && <div className="text-danger">{errors.bank_acc_number}</div>}
-                            </div>
-
-                            <div className="form-group">
-                                <label>Staff ID</label>
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    name="staff_id"
-                                    value={formData.staff_id}
-                                    onChange={handleInputChange}
-                                />
-                                {errors.staff_id && <div className="text-danger">{errors.staff_id}</div>}
-                            </div>
-                        </>
-                    )}
-
-                    {formData.subsequent_pay_source_type === 'paypoint' && (
-                        <>
-                            <div className="form-group">
-                                <label>Paypoint Name</label>
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    name="paypoint_name"
-                                    value={formData.paypoint_name}
-                                    onChange={handleInputChange}
-                                />
-                                {errors.paypoint_name && <div className="text-danger">{errors.paypoint_name}</div>}
-                            </div>
-
-                            <div className="form-group">
-                                <label>Paypoint Branch</label>
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    name="paypoint_branch"
-                                    value={formData.paypoint_branch}
-                                    onChange={handleInputChange}
-                                />
-                            </div>
-
-                            <div className="form-group">
-                                <label>Staff ID</label>
-                                <input
-                                    type="text"
-                                    className="form-control"
-                                    name="staff_id"
-                                    value={formData.staff_id}
-                                    onChange={handleInputChange}
-                                />
-                                {errors.staff_id && <div className="text-danger">{errors.staff_id}</div>}
-                            </div>
-                        </>
-                    )}
                 </>
             )}
 
+            {/* Bank Fields */}
             {formData.source_type === 'bank' && (
                 <>
                     <div className="form-group">
@@ -463,6 +393,7 @@ const SalesForm = () => {
                 </>
             )}
 
+            {/* Paypoint Fields */}
             {formData.source_type === 'paypoint' && (
                 <>
                     <div className="form-group">
@@ -502,6 +433,7 @@ const SalesForm = () => {
                 </>
             )}
 
+            {/* Amount Field */}
             <div className="form-group">
                 <label>Amount</label>
                 <input
@@ -514,6 +446,7 @@ const SalesForm = () => {
                 {errors.amount && <div className="text-danger">{errors.amount}</div>}
             </div>
 
+            {/* Customer Called Checkbox */}
             <div className="form-group">
                 <label>
                     <input
@@ -526,6 +459,7 @@ const SalesForm = () => {
                 </label>
             </div>
 
+            {/* Submit Button */}
             <button type="submit" className="btn btn-primary mt-3">Submit Sale</button>
         </form>
     );

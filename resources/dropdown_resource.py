@@ -5,7 +5,7 @@ from models.branch_model import Branch
 from models.sales_executive_model import SalesExecutive
 from models.impact_product_model import ImpactProduct
 from models.audit_model import AuditTrail
-from app import db
+from app import db, logger  # Import logger for logging
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 # Define a namespace for dropdown-related operations
@@ -51,56 +51,75 @@ class DropdownResource(Resource):
     @dropdown_ns.doc(security='Bearer Auth')
     @jwt_required()
     @dropdown_ns.param('type', 'The type of dropdown to retrieve (bank, branch, sales_executive, impact_product)', required=True)
-    @dropdown_ns.param('bank_id', 'The bank ID for branch filtering (required for branch dropdown)')
-    @dropdown_ns.param('manager_id', 'The manager ID for sales executive filtering (required for sales executive dropdown)')
-    @dropdown_ns.param('branch_id', 'The branch ID for sales executive filtering (optional for sales executive dropdown)')
+    @dropdown_ns.param('bank_id', 'The bank ID for branch filtering (required for branch dropdown)', type='integer')
+    @dropdown_ns.param('manager_id', 'The manager ID for sales executive filtering (required for sales executive dropdown)', type='integer')
+    @dropdown_ns.param('branch_id', 'The branch ID for sales executive filtering (optional for sales executive dropdown)', type='integer')
+    @dropdown_ns.param('page', 'Page number for pagination', type='integer', default=1)
+    @dropdown_ns.param('per_page', 'Number of items per page', type='integer', default=10)
     def get(self):
         """Retrieve dropdown values based on the type."""
         current_user = get_jwt_identity()
         dropdown_type = request.args.get('type')
-        response = []
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
 
         if not dropdown_type:
+            logger.error("Dropdown type is missing")
             return {"message": "Dropdown type is required"}, 400
 
-        if dropdown_type == 'bank':
-            banks = Bank.query.filter_by(is_deleted=False).all()
-            response = [bank.serialize() for bank in banks]
+        try:
+            if dropdown_type == 'bank':
+                return self.get_banks(page, per_page)
+            elif dropdown_type == 'branch':
+                bank_id = request.args.get('bank_id')
+                if not bank_id:
+                    return {"message": "Bank ID is required for branch dropdown"}, 400
+                return self.get_branches(bank_id, page, per_page)
+            elif dropdown_type == 'sales_executive':
+                manager_id = request.args.get('manager_id')
+                if not manager_id:
+                    return {"message": "Manager ID is required for sales executive dropdown"}, 400
+                branch_id = request.args.get('branch_id')  # Optional filter
+                return self.get_sales_executives(manager_id, branch_id, page, per_page)
+            elif dropdown_type == 'impact_product':
+                return self.get_impact_products(page, per_page)
+            else:
+                logger.error(f"Invalid dropdown type: {dropdown_type}")
+                return {"message": "Invalid dropdown type"}, 400
+        except Exception as e:
+            logger.error(f"Error retrieving {dropdown_type} dropdown: {e}")
+            return {"message": f"Error retrieving {dropdown_type} dropdown"}, 500
 
-        elif dropdown_type == 'branch':
-            bank_id = request.args.get('bank_id')
-            if not bank_id:
-                return {"message": "Bank ID is required for branch dropdown"}, 400
-            branches = Branch.query.filter_by(bank_id=bank_id, is_deleted=False).all()
-            response = [branch.serialize() for branch in branches]
+    def get_banks(self, page, per_page):
+        banks = Bank.query.filter_by(is_deleted=False).paginate(page, per_page, error_out=False)
+        logger.info(f"Banks retrieved for dropdown, total: {banks.total}")
+        return jsonify([bank.serialize() for bank in banks.items])
 
-        elif dropdown_type == 'sales_executive':
-            manager_id = request.args.get('manager_id')
-            if not manager_id:
-                return {"message": "Manager ID is required for sales executive dropdown"}, 400
-            branch_id = request.args.get('branch_id')  # Optional: filtering by branch
-            query = SalesExecutive.query.filter_by(manager_id=manager_id, is_deleted=False)
-            if branch_id:
-                query = query.filter_by(branch_id=branch_id)
-            sales_executives = query.all()
-            response = [se.serialize() for se in sales_executives]
+    def get_branches(self, bank_id, page, per_page):
+        branches = Branch.query.filter_by(bank_id=bank_id, is_deleted=False).paginate(page, per_page, error_out=False)
+        logger.info(f"Branches retrieved for bank ID {bank_id}, total: {branches.total}")
+        return jsonify([branch.serialize() for branch in branches.items])
 
-        elif dropdown_type == 'impact_product':
-            impact_products = ImpactProduct.query.filter_by(is_deleted=False).all()
-            response = [product.serialize() for product in impact_products]
+    def get_sales_executives(self, manager_id, branch_id, page, per_page):
+        query = SalesExecutive.query.filter_by(manager_id=manager_id, is_deleted=False)
+        if branch_id:
+            query = query.filter_by(branch_id=branch_id)
+        sales_executives = query.paginate(page, per_page, error_out=False)
+        logger.info(f"Sales executives retrieved for manager ID {manager_id}, total: {sales_executives.total}")
+        return jsonify([se.serialize() for se in sales_executives.items])
 
-        else:
-            return {"message": "Invalid dropdown type"}, 400
+    def get_impact_products(self, page, per_page):
+        products = ImpactProduct.query.filter_by(is_deleted=False).paginate(page, per_page, error_out=False)
+        logger.info(f"Impact products retrieved for dropdown, total: {products.total}")
+        return jsonify([product.serialize() for product in products.items])
 
-        # Log the dropdown access to the audit trail
-        audit = AuditTrail(
-            user_id=current_user['id'],
-            action='ACCESS',
-            resource_type='dropdown',
-            resource_id=None,
-            details=f"Accessed {dropdown_type} dropdown"
-        )
-        db.session.add(audit)
-        db.session.commit()
-
-        return jsonify(response)
+    # Log the dropdown access to the audit trail
+    audit = AuditTrail(
+        user_id=current_user['id'],
+        action='ACCESS',
+        resource_type='dropdown',
+        resource_id=None,
+        details=f"Accessed {dropdown_type} dropdown"
+    )
+    db.session.add(audit)
+    db.session.commit()

@@ -2,7 +2,7 @@ from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
 from models.user_model import User
 from models.audit_model import AuditTrail
-from app import db
+from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
@@ -42,13 +42,14 @@ class UserListResource(Resource):
 
         users = user_query.order_by(sort_by).paginate(page, per_page, error_out=False)
 
-        # Log the access to audit trail
+        # Log the access to the audit trail and logger
+        logger.info(f"User {current_user['id']} accessed the list of users.")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='ACCESS',
             resource_type='user_list',
             resource_id=None,
-            details=f"User accessed list of Users"
+            details=f"User accessed list of users"
         )
         db.session.add(audit)
         db.session.commit()
@@ -66,6 +67,11 @@ class UserListResource(Resource):
     def post(self):
         """Create a new User (admin only)."""
         current_user = get_jwt_identity()
+
+        if current_user['role'] != 'admin':
+            logger.warning(f"Unauthorized attempt by User {current_user['id']} to create a new user.")
+            return {'message': 'Unauthorized'}, 403
+
         data = request.json
 
         new_user = User(
@@ -77,7 +83,8 @@ class UserListResource(Resource):
         db.session.add(new_user)
         db.session.commit()
 
-        # Log the creation to audit trail
+        # Log the creation to audit trail and logger
+        logger.info(f"User {current_user['id']} created a new user with ID {new_user.id}.")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='CREATE',
@@ -100,9 +107,11 @@ class UserResource(Resource):
         current_user = get_jwt_identity()
         user = User.query.filter_by(id=user_id, is_deleted=False).first()
         if not user:
+            logger.error(f"User with ID {user_id} not found for User {current_user['id']}.")
             return {'message': 'User not found'}, 404
 
-        # Log the access to audit trail
+        # Log the access to audit trail and logger
+        logger.info(f"User {current_user['id']} accessed details of User {user_id}.")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='ACCESS',
@@ -121,8 +130,13 @@ class UserResource(Resource):
     def put(self, user_id):
         """Update an existing User (admin only)."""
         current_user = get_jwt_identity()
+        if current_user['role'] != 'admin':
+            logger.warning(f"Unauthorized update attempt by User {current_user['id']} on User {user_id}.")
+            return {'message': 'Unauthorized'}, 403
+
         user = User.query.filter_by(id=user_id, is_deleted=False).first()
         if not user:
+            logger.error(f"User with ID {user_id} not found for update by User {current_user['id']}.")
             return {'message': 'User not found'}, 404
 
         data = request.json
@@ -133,7 +147,8 @@ class UserResource(Resource):
 
         db.session.commit()
 
-        # Log the update to audit trail
+        # Log the update to audit trail and logger
+        logger.info(f"User {current_user['id']} updated User {user_id}.")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='UPDATE',
@@ -151,14 +166,20 @@ class UserResource(Resource):
     def delete(self, user_id):
         """Soft-delete a User (admin only)."""
         current_user = get_jwt_identity()
+        if current_user['role'] != 'admin':
+            logger.warning(f"Unauthorized deletion attempt by User {current_user['id']} on User {user_id}.")
+            return {'message': 'Unauthorized'}, 403
+
         user = User.query.filter_by(id=user_id, is_deleted=False).first()
         if not user:
+            logger.error(f"User with ID {user_id} not found for deletion by User {current_user['id']}.")
             return {'message': 'User not found'}, 404
 
         user.is_deleted = True
         db.session.commit()
 
-        # Log the deletion to audit trail
+        # Log the deletion to audit trail and logger
+        logger.info(f"User {current_user['id']} deleted User {user_id}.")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='DELETE',

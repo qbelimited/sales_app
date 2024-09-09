@@ -1,17 +1,23 @@
 from app import db
 from datetime import datetime
-
+from sqlalchemy.orm import validates
 
 class Report(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
-    report_type = db.Column(db.String(100), nullable=False, index=True)  # Used String for optimization
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    report_type = db.Column(db.String(100), nullable=False, index=True)  # String used for optimization
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
     is_deleted = db.Column(db.Boolean, default=False, index=True)
 
     # Relationship to the User
     user = db.relationship('User', backref='reports')
+
+    @validates('report_type')
+    def validate_report_type(self, key, report_type):
+        if not report_type:
+            raise ValueError("Report type cannot be empty")
+        return report_type
 
     def serialize(self):
         return {
@@ -24,11 +30,17 @@ class Report(db.Model):
         }
 
     @staticmethod
-    def get_active_reports():
-        """Static method to get non-deleted reports."""
-        return Report.query.filter_by(is_deleted=False).all()
+    def get_active_reports(page=1, per_page=10):
+        """Retrieve paginated list of active reports."""
+        try:
+            return Report.query.filter_by(is_deleted=False).paginate(page=page, per_page=per_page).items
+        except Exception as e:
+            raise ValueError(f"Error fetching active reports: {e}")
 
     @staticmethod
-    def get_reports_by_type(report_type):
-        """Static method to get reports by type."""
-        return Report.query.filter_by(report_type=report_type, is_deleted=False).all()
+    def get_reports_by_type(report_type, page=1, per_page=10):
+        """Retrieve paginated list of reports by type."""
+        try:
+            return Report.query.filter_by(report_type=report_type, is_deleted=False).paginate(page=page, per_page=per_page).items
+        except Exception as e:
+            raise ValueError(f"Error fetching reports by type: {e}")

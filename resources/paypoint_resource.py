@@ -2,7 +2,7 @@ from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
 from models.paypoint_model import Paypoint
 from models.audit_model import AuditTrail
-from app import db
+from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
@@ -15,6 +15,10 @@ paypoint_model = paypoint_ns.model('Paypoint', {
     'name': fields.String(required=True, description='Paypoint Name'),
     'location': fields.String(required=True, description='Paypoint Location')
 })
+
+# Helper function to check role permissions (allowing multiple roles)
+def check_role_permission(current_user, required_roles):
+    return current_user['role'] in required_roles
 
 @paypoint_ns.route('/')
 class PaypointListResource(Resource):
@@ -38,7 +42,11 @@ class PaypointListResource(Resource):
         if filter_by:
             paypoint_query = paypoint_query.filter(Paypoint.name.ilike(f'%{filter_by}%'))
 
-        paypoints = paypoint_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+        try:
+            paypoints = paypoint_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+        except Exception as e:
+            logger.error(f"Error during Paypoint sorting: {str(e)}")
+            return {'message': f'Invalid sorting field: {e}'}, 400
 
         # Log the access to audit trail
         audit = AuditTrail(
@@ -46,7 +54,7 @@ class PaypointListResource(Resource):
             action='ACCESS',
             resource_type='paypoint_list',
             resource_id=None,
-            details=f"User accessed list of Paypoints"
+            details="User accessed list of Paypoints"
         )
         db.session.add(audit)
         db.session.commit()
@@ -64,14 +72,28 @@ class PaypointListResource(Resource):
     def post(self):
         """Create a new Paypoint (admin only)."""
         current_user = get_jwt_identity()
+
+        # Check if the user has admin privileges
+        if not check_role_permission(current_user, ['admin']):
+            logger.warning(f"Unauthorized attempt by User ID {current_user['id']} to create Paypoint.")
+            return {'message': 'Unauthorized'}, 403
+
         data = request.json
+
+        if not data.get('name') or not data.get('location'):
+            logger.error(f"Missing required fields in Paypoint creation by User ID {current_user['id']}.")
+            return {'message': 'Missing required fields: name and location'}, 400
 
         new_paypoint = Paypoint(
             name=data['name'],
             location=data['location']
         )
-        db.session.add(new_paypoint)
-        db.session.commit()
+        try:
+            db.session.add(new_paypoint)
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"Database error during Paypoint creation: {str(e)}")
+            return {'message': 'Failed to create Paypoint, please try again later.'}, 500
 
         # Log the creation to audit trail
         audit = AuditTrail(
@@ -84,6 +106,7 @@ class PaypointListResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
+        logger.info(f"Paypoint ID {new_paypoint.id} created by User ID {current_user['id']}.")
         return new_paypoint.serialize(), 201
 
 @paypoint_ns.route('/<int:paypoint_id>')
@@ -95,6 +118,7 @@ class PaypointResource(Resource):
         current_user = get_jwt_identity()
         paypoint = Paypoint.query.filter_by(id=paypoint_id, is_deleted=False).first()
         if not paypoint:
+            logger.warning(f"Paypoint ID {paypoint_id} not found for User ID {current_user['id']}.")
             return {'message': 'Paypoint not found'}, 404
 
         # Log the access to audit trail
@@ -116,8 +140,15 @@ class PaypointResource(Resource):
     def put(self, paypoint_id):
         """Update an existing Paypoint (admin only)."""
         current_user = get_jwt_identity()
+
+        # Check if the user has admin privileges
+        if not check_role_permission(current_user, ['admin']):
+            logger.warning(f"Unauthorized update attempt on Paypoint ID {paypoint_id} by User ID {current_user['id']}.")
+            return {'message': 'Unauthorized'}, 403
+
         paypoint = Paypoint.query.filter_by(id=paypoint_id, is_deleted=False).first()
         if not paypoint:
+            logger.error(f"Paypoint ID {paypoint_id} not found for update by User ID {current_user['id']}.")
             return {'message': 'Paypoint not found'}, 404
 
         data = request.json
@@ -138,6 +169,7 @@ class PaypointResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
+        logger.info(f"Paypoint ID {paypoint.id} updated by User ID {current_user['id']}.")
         return paypoint.serialize(), 200
 
     @paypoint_ns.doc(security='Bearer Auth', responses={200: 'Deleted', 404: 'Paypoint not found', 403: 'Unauthorized'})
@@ -145,8 +177,15 @@ class PaypointResource(Resource):
     def delete(self, paypoint_id):
         """Soft-delete a Paypoint (admin only)."""
         current_user = get_jwt_identity()
+
+        # Check if the user has admin privileges
+        if not check_role_permission(current_user, ['admin']):
+            logger.warning(f"Unauthorized delete attempt on Paypoint ID {paypoint_id} by User ID {current_user['id']}.")
+            return {'message': 'Unauthorized'}, 403
+
         paypoint = Paypoint.query.filter_by(id=paypoint_id, is_deleted=False).first()
         if not paypoint:
+            logger.error(f"Paypoint ID {paypoint_id} not found for deletion by User ID {current_user['id']}.")
             return {'message': 'Paypoint not found'}, 404
 
         paypoint.is_deleted = True
@@ -163,4 +202,5 @@ class PaypointResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
+        logger.info(f"Paypoint ID {paypoint.id} soft-deleted by User ID {current_user['id']}.")
         return {'message': 'Paypoint deleted successfully'}, 200

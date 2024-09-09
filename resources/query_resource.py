@@ -2,8 +2,7 @@ from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
 from models.query_model import Query
 from models.audit_model import AuditTrail
-from models.user_model import User
-from app import db
+from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
@@ -24,7 +23,6 @@ query_model = query_ns.model('Query', {
 class QueryListResource(Resource):
     @query_ns.doc(security='Bearer Auth')
     @jwt_required()
-    @query_ns.marshal_with(query_model)
     def get(self):
         """Retrieve a list of all queries/feedback."""
         current_user = get_jwt_identity()
@@ -39,7 +37,11 @@ class QueryListResource(Resource):
         if filter_by:
             query_query = query_query.filter(Query.content.ilike(f'%{filter_by}%'))
 
-        queries = query_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+        try:
+            queries = query_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+        except Exception as e:
+            logger.error(f"Error fetching query list: {str(e)}")
+            return {'message': 'Error fetching query list'}, 500
 
         # Log the access to audit trail
         audit = AuditTrail(
@@ -71,14 +73,18 @@ class QueryListResource(Resource):
         if not data.get('content'):
             return {'message': 'Query/Feedback content is required'}, 400
 
-        new_query = Query(
-            user_id=current_user['id'],
-            content=data['content'],
-            subject=data.get('subject', ''),
-            created_at=datetime.utcnow()
-        )
-        db.session.add(new_query)
-        db.session.commit()
+        try:
+            new_query = Query(
+                user_id=current_user['id'],
+                content=data['content'],
+                subject=data.get('subject', ''),
+                created_at=datetime.utcnow()
+            )
+            db.session.add(new_query)
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"Error creating query: {str(e)}")
+            return {'message': 'Error creating query'}, 500
 
         # Log the query creation to audit trail
         audit = AuditTrail(
@@ -97,7 +103,6 @@ class QueryListResource(Resource):
 class QueryResource(Resource):
     @query_ns.doc(security='Bearer Auth', responses={200: 'OK', 404: 'Query Not Found'})
     @jwt_required()
-    @query_ns.marshal_with(query_model)
     def get(self, query_id):
         """Retrieve a single query/feedback by ID."""
         current_user = get_jwt_identity()
@@ -125,6 +130,7 @@ class QueryResource(Resource):
     def put(self, query_id):
         """Update an existing query/feedback."""
         current_user = get_jwt_identity()
+
         query = Query.query.filter_by(id=query_id, is_deleted=False).first()
         if not query:
             return {'message': 'Query/Feedback not found'}, 404
@@ -133,11 +139,15 @@ class QueryResource(Resource):
             return {'message': 'Unauthorized'}, 403
 
         data = request.json
-        query.content = data.get('content', query.content)
-        query.subject = data.get('subject', query.subject)
-        query.updated_at = datetime.utcnow()
 
-        db.session.commit()
+        try:
+            query.content = data.get('content', query.content)
+            query.subject = data.get('subject', query.subject)
+            query.updated_at = datetime.utcnow()
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"Error updating query ID {query_id}: {str(e)}")
+            return {'message': 'Error updating query'}, 500
 
         # Log the update to audit trail
         audit = AuditTrail(
@@ -157,6 +167,7 @@ class QueryResource(Resource):
     def delete(self, query_id):
         """Soft delete a query/feedback."""
         current_user = get_jwt_identity()
+
         query = Query.query.filter_by(id=query_id, is_deleted=False).first()
         if not query:
             return {'message': 'Query/Feedback not found'}, 404
@@ -164,8 +175,12 @@ class QueryResource(Resource):
         if query.user_id != current_user['id'] and current_user['role'] != 'admin':
             return {'message': 'Unauthorized'}, 403
 
-        query.is_deleted = True
-        db.session.commit()
+        try:
+            query.is_deleted = True
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"Error deleting query ID {query_id}: {str(e)}")
+            return {'message': 'Error deleting query'}, 500
 
         # Log the deletion to audit trail
         audit = AuditTrail(

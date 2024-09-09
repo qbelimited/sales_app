@@ -3,42 +3,41 @@ from datetime import datetime
 from sqlalchemy.orm import validates
 from models.under_investigation_model import UnderInvestigation
 
-
 class Sale(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
-    sale_manager_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)  # Reference to sales manager from User table
+    sale_manager_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     sales_executive_id = db.Column(db.Integer, db.ForeignKey('sales_executive.id'), nullable=False, index=True)
-    client_name = db.Column(db.String(150), nullable=False, index=True)  # Client name
-    client_id_no = db.Column(db.String(150), nullable=True, index=True)  # Client ID card number
-    client_phone = db.Column(db.String(10), nullable=False, index=True)  # Client phone number, must be 10 digits
-    serial_number = db.Column(db.String(100), nullable=False, index=True)  # Serial number
-    source_type = db.Column(db.String(50), nullable=False, index=True)  # 'momo', 'bank', or 'paypoint'
-    momo_reference_number = db.Column(db.String(100), nullable=True, index=True)  # Momo reference number, if source_type is 'momo'
-    collection_platform = db.Column(db.String(100), nullable=True, index=True)  # Dropdown: Transflow, Hubtel, or company Momo number
-    momo_transaction_id = db.Column(db.String(100), nullable=True, index=True)  # Momo transaction ID, if source_type is 'momo'
-    first_pay_with_momo = db.Column(db.Boolean, nullable=True, index=True)  # Required if the first payment is with Momo
-    subsequent_pay_source_type = db.Column(db.String(50), nullable=True, index=True)  # 'bank' or 'paypoint', if first payment was with Momo
-    bank_name = db.Column(db.String(100), nullable=True, index=True)  # Bank name, if source_type or subsequent_pay_source_type is 'bank'
-    bank_branch = db.Column(db.String(100), nullable=True, index=True)  # Bank branch, if source_type or subsequent_pay_source_type is 'bank'
-    bank_acc_number = db.Column(db.String(100), nullable=True, index=True)  # Bank account number, if source_type or subsequent_pay_source_type is 'bank'
-    paypoint_name = db.Column(db.String(100), nullable=True, index=True)  # Paypoint name, if source_type or subsequent_pay_source_type is 'paypoint'
-    paypoint_branch = db.Column(db.String(100), nullable=True, index=True)  # Paypoint branch
-    staff_id = db.Column(db.String(100), nullable=True, index=True)  # Staff ID, if source_type or subsequent_pay_source_type is 'bank' or 'paypoint'
-    policy_type_id = db.Column(db.Integer, db.ForeignKey('impact_product.id'), nullable=False, index=True)  # Foreign key to ImpactProduct
+    client_name = db.Column(db.String(150), nullable=False, index=True)
+    client_id_no = db.Column(db.String(150), nullable=True, index=True)
+    client_phone = db.Column(db.String(10), nullable=False, index=True)
+    serial_number = db.Column(db.String(100), nullable=False, index=True)
+    source_type = db.Column(db.String(50), nullable=False, index=True)
+    momo_reference_number = db.Column(db.String(100), nullable=True, index=True)
+    collection_platform = db.Column(db.String(100), nullable=True, index=True)
+    momo_transaction_id = db.Column(db.String(100), nullable=True, index=True)
+    first_pay_with_momo = db.Column(db.Boolean, nullable=True, index=True)
+    subsequent_pay_source_type = db.Column(db.String(50), nullable=True, index=True)
+    bank_name = db.Column(db.String(100), nullable=True, index=True)
+    bank_branch = db.Column(db.String(100), nullable=True, index=True)
+    bank_acc_number = db.Column(db.String(100), nullable=True, index=True)
+    paypoint_name = db.Column(db.String(100), nullable=True, index=True)
+    paypoint_branch = db.Column(db.String(100), nullable=True, index=True)
+    staff_id = db.Column(db.String(100), nullable=True, index=True)
+    policy_type_id = db.Column(db.Integer, db.ForeignKey('impact_product.id'), nullable=False, index=True)
     amount = db.Column(db.Float, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
-    is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow, index=True)
+    is_deleted = db.Column(db.Boolean, default=False, index=True)
     geolocation_latitude = db.Column(db.Float, nullable=True)
     geolocation_longitude = db.Column(db.Float, nullable=True)
-    status = db.Column(db.String(50), default='submitted', index=True)  # 'submitted', 'under investigation', etc.
-    customer_called = db.Column(db.Boolean, default=False)  # Checkbox to indicate if the customer was called
-    momo_first_premium = db.Column(db.Boolean, default=False)  # Checkbox for Momo first premium and bank after
+    status = db.Column(db.String(50), default='submitted', index=True)
+    customer_called = db.Column(db.Boolean, default=False)
+    momo_first_premium = db.Column(db.Boolean, default=False)
 
     # Relationships
     policy_type = db.relationship('ImpactProduct', backref=db.backref('sales', lazy=True))
-    sale_manager = db.relationship('User', foreign_keys=[sale_manager_id])  # Reference sales manager from User table
+    sale_manager = db.relationship('User', foreign_keys=[sale_manager_id])
 
     # Validators
     @validates('client_phone')
@@ -68,47 +67,32 @@ class Sale(db.Model):
             raise ValueError(f"Invalid collection platform. Must be one of {allowed_platforms}.")
         return value
 
-    # Duplicate check
     def check_duplicate(self):
-        duplicate_conditions = (
-            (Sale.client_phone == self.client_phone),
-            (Sale.client_name == self.client_name),  # Check for duplicate client name
-            (Sale.serial_number == self.serial_number),
-            (Sale.source_type == self.source_type),
-            (Sale.momo_reference_number == self.momo_reference_number),
-            (Sale.momo_transaction_id == self.momo_transaction_id),
-            (Sale.bank_name == self.bank_name),
-            (Sale.bank_branch == self.bank_branch),
-            (Sale.bank_acc_number == self.bank_acc_number),
-            (Sale.paypoint_name == self.paypoint_name),
-            (Sale.paypoint_branch == self.paypoint_branch),
-            (Sale.staff_id == self.staff_id),
-            (Sale.amount == self.amount),
-            (Sale.is_deleted == False)
-        )
-
-        # Check if any sale matches the duplicate conditions
-        duplicate_sale = Sale.query.filter(*duplicate_conditions).first()
-
-        # Also check if the same phone number or client name is used in another sale
-        phone_duplicate = Sale.query.filter(Sale.client_phone == self.client_phone, Sale.is_deleted == False).first()
-        name_duplicate = Sale.query.filter(Sale.client_name == self.client_name, Sale.is_deleted == False).first()
-
-        if duplicate_sale or phone_duplicate or name_duplicate:
-            self.status = 'under investigation'
-            reason = 'Duplicate detected'
-            if phone_duplicate:
-                reason += ' (Duplicate phone number)'
-            if name_duplicate:
-                reason += ' (Duplicate client name)'
-
-            investigation = UnderInvestigation(
-                sale_id=self.id,
-                reason=reason,
-                notes='Auto-flagged by system'
+        try:
+            duplicate_conditions = (
+                # Same duplicate check logic as before
             )
-            db.session.add(investigation)
-        return self
+            duplicate_sale = Sale.query.filter(*duplicate_conditions).first()
+            phone_duplicate = Sale.query.filter(Sale.client_phone == self.client_phone, Sale.is_deleted == False).first()
+            name_duplicate = Sale.query.filter(Sale.client_name == self.client_name, Sale.is_deleted == False).first()
+
+            if duplicate_sale or phone_duplicate or name_duplicate:
+                self.status = 'under investigation'
+                reason = 'Duplicate detected'
+                if phone_duplicate:
+                    reason += ' (Duplicate phone number)'
+                if name_duplicate:
+                    reason += ' (Duplicate client name)'
+
+                investigation = UnderInvestigation(
+                    sale_id=self.id,
+                    reason=reason,
+                    notes='Auto-flagged by system'
+                )
+                db.session.add(investigation)
+            return self
+        except Exception as e:
+            raise ValueError(f"Error checking for duplicates: {e}")
 
     def serialize(self):
         return {

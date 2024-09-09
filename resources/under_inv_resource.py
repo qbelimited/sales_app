@@ -3,7 +3,7 @@ from flask import request, jsonify
 from models.under_investigation_model import UnderInvestigation
 from models.audit_model import AuditTrail
 from models.sales_model import Sale
-from app import db
+from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
@@ -41,7 +41,8 @@ class UnderInvestigationListResource(Resource):
 
         investigations = investigation_query.order_by(sort_by).paginate(page, per_page, error_out=False)
 
-        # Log the access to audit trail
+        # Log the access to audit trail and logger
+        logger.info(f"User {current_user['id']} accessed list of under investigation records")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='ACCESS',
@@ -66,10 +67,12 @@ class UnderInvestigationListResource(Resource):
         required_fields = ['sale_id', 'reason']
         for field in required_fields:
             if field not in data:
+                logger.error(f"Missing required field: {field} by User {current_user['id']}")
                 return {'message': f'Missing required field: {field}'}, 400
 
         sale = Sale.query.filter_by(id=data['sale_id'], is_deleted=False).first()
         if not sale:
+            logger.error(f"Sale ID {data['sale_id']} not found for User {current_user['id']}")
             return {'message': 'Sale not found'}, 404
 
         new_investigation = UnderInvestigation(
@@ -82,7 +85,8 @@ class UnderInvestigationListResource(Resource):
         db.session.add(new_investigation)
         db.session.commit()
 
-        # Log the investigation creation to audit trail
+        # Log the investigation creation to audit trail and logger
+        logger.info(f"User {current_user['id']} flagged sale with ID {data['sale_id']} as under investigation")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='CREATE',
@@ -106,9 +110,11 @@ class UnderInvestigationResource(Resource):
 
         investigation = UnderInvestigation.query.filter_by(id=investigation_id).first()
         if not investigation:
+            logger.error(f"Investigation ID {investigation_id} not found for User {current_user['id']}")
             return {'message': 'Investigation not found'}, 404
 
-        # Log the access to audit trail
+        # Log the access to audit trail and logger
+        logger.info(f"User {current_user['id']} accessed investigation with ID {investigation_id}")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='ACCESS',
@@ -130,6 +136,7 @@ class UnderInvestigationResource(Resource):
 
         investigation = UnderInvestigation.query.filter_by(id=investigation_id).first()
         if not investigation:
+            logger.error(f"Investigation ID {investigation_id} not found for User {current_user['id']}")
             return {'message': 'Investigation not found'}, 404
 
         data = request.json
@@ -141,7 +148,8 @@ class UnderInvestigationResource(Resource):
 
         db.session.commit()
 
-        # Log the investigation update to audit trail
+        # Log the investigation update to audit trail and logger
+        logger.info(f"User {current_user['id']} updated investigation with ID {investigation.id}")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='UPDATE',
@@ -162,13 +170,15 @@ class UnderInvestigationResource(Resource):
 
         investigation = UnderInvestigation.query.filter_by(id=investigation_id).first()
         if not investigation:
+            logger.error(f"Investigation ID {investigation_id} not found for User {current_user['id']}")
             return {'message': 'Investigation not found'}, 404
 
         investigation.resolved = True
         investigation.resolved_at = datetime.utcnow()
         db.session.commit()
 
-        # Log the investigation resolution in audit trail
+        # Log the investigation resolution to audit trail and logger
+        logger.info(f"User {current_user['id']} resolved and closed investigation with ID {investigation.id}")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='DELETE',

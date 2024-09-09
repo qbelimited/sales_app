@@ -11,7 +11,7 @@ user_branches = db.Table('user_branches',
 
 
 class Role(db.Model):
-    __tablename__ = 'role'  # Explicitly set the table name
+    __tablename__ = 'role'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True, nullable=False)
@@ -26,18 +26,18 @@ class Role(db.Model):
 
 
 class User(db.Model):
-    __tablename__ = 'user'  # Explicitly set the table name
+    __tablename__ = 'user'
 
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(150), unique=True, nullable=False, index=True)
     name = db.Column(db.String(150), nullable=False)
-    password_hash = db.Column(db.String(255), nullable=False)  # Store hashed password
+    password_hash = db.Column(db.String(255), nullable=False)
     role_id = db.Column(db.Integer, db.ForeignKey('role.id'), nullable=False, index=True)
     branches = db.relationship('Branch', secondary=user_branches, backref=db.backref('users', lazy=True))
     is_active = db.Column(db.Boolean, default=True, index=True)
-    is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete
+    is_deleted = db.Column(db.Boolean, default=False, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Role relationship
     role = db.relationship('Role', backref='users')
@@ -48,14 +48,17 @@ class User(db.Model):
             raise ValueError("Invalid email address")
         return email
 
-    # Password hashing and validation methods
     def set_password(self, password):
-        """Hash and store the password."""
-        self.password_hash = generate_password_hash(password)
+        try:
+            self.password_hash = generate_password_hash(password)
+        except Exception as e:
+            raise ValueError(f"Error setting password: {e}")
 
     def check_password(self, password):
-        """Check if the given password matches the stored hash."""
-        return check_password_hash(self.password_hash, password)
+        try:
+            return check_password_hash(self.password_hash, password)
+        except Exception as e:
+            raise ValueError(f"Error checking password: {e}")
 
     def serialize(self):
         return {
@@ -72,5 +75,4 @@ class User(db.Model):
 
     @staticmethod
     def get_active_users():
-        """Static method to get non-deleted users."""
         return User.query.filter_by(is_deleted=False).all()

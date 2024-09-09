@@ -1,5 +1,6 @@
 from app import db
 from datetime import datetime
+from sqlalchemy.orm import validates
 
 
 class Query(db.Model):
@@ -7,7 +8,7 @@ class Query(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     subject = db.Column(db.String(255), nullable=True)
     content = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
     is_deleted = db.Column(db.Boolean, default=False, index=True)
     resolved = db.Column(db.Boolean, default=False, index=True)
@@ -15,6 +16,12 @@ class Query(db.Model):
     # Relationships
     user = db.relationship('User', backref='queries')
     responses = db.relationship('QueryResponse', backref='query', lazy=True, cascade="all, delete-orphan")
+
+    @validates('content')
+    def validate_content(self, key, content):
+        if not content:
+            raise ValueError("Query content cannot be empty")
+        return content
 
     def serialize(self):
         return {
@@ -30,19 +37,28 @@ class Query(db.Model):
         }
 
     @staticmethod
-    def get_active_queries():
-        """Static method to get non-deleted queries."""
-        return Query.query.filter_by(is_deleted=False).all()
+    def get_active_queries(page=1, per_page=10):
+        """Retrieve paginated list of active queries."""
+        try:
+            return Query.query.filter_by(is_deleted=False).paginate(page=page, per_page=per_page).items
+        except Exception as e:
+            raise ValueError(f"Error fetching active queries: {e}")
 
     @staticmethod
-    def get_resolved_queries():
-        """Static method to get resolved queries."""
-        return Query.query.filter_by(resolved=True, is_deleted=False).all()
+    def get_resolved_queries(page=1, per_page=10):
+        """Retrieve paginated list of resolved queries."""
+        try:
+            return Query.query.filter_by(resolved=True, is_deleted=False).paginate(page=page, per_page=per_page).items
+        except Exception as e:
+            raise ValueError(f"Error fetching resolved queries: {e}")
 
     @staticmethod
-    def get_unresolved_queries():
-        """Static method to get unresolved queries."""
-        return Query.query.filter_by(resolved=False, is_deleted=False).all()
+    def get_unresolved_queries(page=1, per_page=10):
+        """Retrieve paginated list of unresolved queries."""
+        try:
+            return Query.query.filter_by(resolved=False, is_deleted=False).paginate(page=page, per_page=per_page).items
+        except Exception as e:
+            raise ValueError(f"Error fetching unresolved queries: {e}")
 
 
 class QueryResponse(db.Model):
@@ -54,6 +70,12 @@ class QueryResponse(db.Model):
 
     # Relationships
     user = db.relationship('User', backref='responses')
+
+    @validates('content')
+    def validate_content(self, key, content):
+        if not content:
+            raise ValueError("Response content cannot be empty")
+        return content
 
     def serialize(self):
         return {

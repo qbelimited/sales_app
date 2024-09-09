@@ -1,16 +1,22 @@
 from app import db
 from datetime import datetime
-
+from sqlalchemy.orm import validates
 
 class Bank(db.Model):
-    __tablename__ = 'bank'  # Explicitly set the table name
+    __tablename__ = 'bank'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True, index=True)
-    bank_branches = db.relationship('BankBranch', backref='bank', lazy=True)  # Reflects the BankBranch class
+    bank_branches = db.relationship('BankBranch', backref='bank', lazy='selectin')  # Optimized lazy loading
     is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+
+    @validates('name')
+    def validate_name(self, key, name):
+        if not name:
+            raise ValueError("Bank name cannot be empty")
+        return name
 
     def serialize(self):
         return {
@@ -23,20 +29,30 @@ class Bank(db.Model):
         }
 
     @staticmethod
-    def get_active_banks():
-        return Bank.query.filter_by(is_deleted=False).all()
+    def get_active_banks(page=1, per_page=10):
+        """Retrieve paginated list of active banks."""
+        try:
+            return Bank.query.filter_by(is_deleted=False).paginate(page=page, per_page=per_page).items
+        except Exception as e:
+            raise ValueError(f"Error fetching active banks: {e}")
 
 
 class BankBranch(db.Model):
-    __tablename__ = 'bank_branch'  # Explicitly set the table name
+    __tablename__ = 'bank_branch'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, index=True)
     bank_id = db.Column(db.Integer, db.ForeignKey('bank.id'), nullable=False, index=True)
-    sort_code = db.Column(db.String(255), nullable=True)
+    sort_code = db.Column(db.String(50), nullable=True)  # Adjusted length
     is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+
+    @validates('name')
+    def validate_name(self, key, name):
+        if not name:
+            raise ValueError("Branch name cannot be empty")
+        return name
 
     def serialize(self):
         return {
@@ -50,5 +66,9 @@ class BankBranch(db.Model):
         }
 
     @staticmethod
-    def get_active_branches():
-        return BankBranch.query.filter_by(is_deleted=False).all()
+    def get_active_branches(page=1, per_page=10):
+        """Retrieve paginated list of active bank branches."""
+        try:
+            return BankBranch.query.filter_by(is_deleted=False).paginate(page=page, per_page=per_page).items
+        except Exception as e:
+            raise ValueError(f"Error fetching active branches: {e}")

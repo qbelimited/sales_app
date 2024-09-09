@@ -2,7 +2,7 @@ from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
 from models.impact_product_model import ImpactProduct
 from models.audit_model import AuditTrail
-from app import db
+from app import db, logger  # Import logger from app.py
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
@@ -15,6 +15,14 @@ impact_product_model = impact_product_ns.model('ImpactProduct', {
     'name': fields.String(required=True, description='Product Name'),
     'category': fields.String(required=True, description='Product Category')
 })
+
+# Helper function to check role permissions
+def check_role_permission(current_user, required_role):
+    roles = {
+        'admin': ['admin'],
+        'manager': ['admin', 'manager']
+    }
+    return current_user['role'] in roles.get(required_role, [])
 
 @impact_product_ns.route('/')
 class ImpactProductListResource(Resource):
@@ -64,7 +72,16 @@ class ImpactProductListResource(Resource):
     def post(self):
         """Create a new Impact Product (admin and manager only)."""
         current_user = get_jwt_identity()
+
+        # Role-based access control
+        if not check_role_permission(current_user, 'admin'):
+            return {'message': 'Unauthorized'}, 403
+
         data = request.json
+
+        # Validate required fields
+        if not data.get('name') or not data.get('category'):
+            return {'message': 'Missing required fields'}, 400
 
         new_product = ImpactProduct(
             name=data['name'],
@@ -117,6 +134,11 @@ class ImpactProductResource(Resource):
     def put(self, product_id):
         """Update an existing Impact Product (admin and manager only)."""
         current_user = get_jwt_identity()
+
+        # Role-based access control
+        if not check_role_permission(current_user, 'manager'):
+            return {'message': 'Unauthorized'}, 403
+
         product = ImpactProduct.query.filter_by(id=product_id, is_deleted=False).first()
         if not product:
             return {'message': 'Impact Product not found'}, 404
@@ -146,6 +168,11 @@ class ImpactProductResource(Resource):
     def delete(self, product_id):
         """Soft-delete an Impact Product (admin only)."""
         current_user = get_jwt_identity()
+
+        # Role-based access control
+        if not check_role_permission(current_user, 'admin'):
+            return {'message': 'Unauthorized'}, 403
+
         product = ImpactProduct.query.filter_by(id=product_id, is_deleted=False).first()
         if not product:
             return {'message': 'Impact Product not found'}, 404

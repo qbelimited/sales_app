@@ -7,8 +7,7 @@ from models.branch_model import Branch
 from models.paypoint_model import Paypoint
 from models.impact_product_model import ImpactProduct
 from models.audit_model import AuditTrail
-from models.under_investigation_model import UnderInvestigation
-from app import db
+from app import db, logger  # Import logger from app.py
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 # Define a namespace for admin-related operations
@@ -23,31 +22,13 @@ sales_executive_model = admin_ns.model('SalesExecutive', {
     'branch_id': fields.Integer(description='Branch ID'),
 })
 
-bank_model = admin_ns.model('Bank', {
-    'id': fields.Integer(description='Bank ID'),
-    'name': fields.String(required=True, description='Bank Name'),
-})
+# Simplified models for the resources
+bank_model = admin_ns.model('Bank', {'id': fields.Integer(), 'name': fields.String(required=True)})
+branch_model = admin_ns.model('Branch', {'id': fields.Integer(), 'name': fields.String(required=True), 'bank_id': fields.Integer(), 'sort_code': fields.String()})
+paypoint_model = admin_ns.model('Paypoint', {'id': fields.Integer(), 'name': fields.String(required=True), 'location': fields.String()})
+product_model = admin_ns.model('ImpactProduct', {'id': fields.Integer(), 'name': fields.String(required=True), 'category': fields.String()})
 
-branch_model = admin_ns.model('Branch', {
-    'id': fields.Integer(description='Branch ID'),
-    'name': fields.String(required=True, description='Branch Name'),
-    'bank_id': fields.Integer(description='Bank ID'),
-    'sort_code': fields.String(description='Sort Code'),
-})
-
-paypoint_model = admin_ns.model('Paypoint', {
-    'id': fields.Integer(description='Paypoint ID'),
-    'name': fields.String(required=True, description='Paypoint Name'),
-    'location': fields.String(description='Paypoint Location'),
-})
-
-product_model = admin_ns.model('ImpactProduct', {
-    'id': fields.Integer(description='Product ID'),
-    'name': fields.String(required=True, description='Product Name'),
-    'category': fields.String(description='Product Category'),
-})
-
-# Helper function to check permissions
+# Helper function to check role permissions
 def check_role_permission(current_user, required_role):
     roles = {
         'admin': ['admin'],
@@ -56,6 +37,18 @@ def check_role_permission(current_user, required_role):
         'sales_manager': ['admin', 'manager', 'sales_manager']
     }
     return current_user['role'] in roles.get(required_role, [])
+
+# Helper function to create resources dynamically
+def create_resource(data, model_class):
+    try:
+        resource = model_class(**data)
+        db.session.add(resource)
+        db.session.commit()
+        return resource
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating resource: {e}")
+        return None
 
 # Admin resource class
 @admin_ns.route('/')
@@ -67,8 +60,10 @@ class AdminResource(Resource):
         current_user = get_jwt_identity()
 
         if not check_role_permission(current_user, 'back_office'):
+            logger.warning(f"Unauthorized access attempt by user ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
+        # Fetch all data
         users = User.query.filter_by(is_deleted=False).all()
         sales_executives = SalesExecutive.query.filter_by(is_deleted=False).all()
         banks = Bank.query.filter_by(is_deleted=False).all()
@@ -76,6 +71,7 @@ class AdminResource(Resource):
         paypoints = Paypoint.query.filter_by(is_deleted=False).all()
         products = ImpactProduct.query.filter_by(is_deleted=False).all()
 
+        logger.info(f"Data retrieved successfully by user ID {current_user['id']}")
         return jsonify({
             'users': [user.serialize() for user in users],
             'sales_executives': [se.serialize() for se in sales_executives],
@@ -93,50 +89,35 @@ class AdminResource(Resource):
         current_user = get_jwt_identity()
 
         if not check_role_permission(current_user, 'admin'):
+            logger.warning(f"Unauthorized create attempt by user ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
         data = request.json
-        if data['type'] == 'sales_executive':
-            new_sales_executive = SalesExecutive(
-                name=data['name'],
-                code=data['code'],
-                manager_id=data['manager_id'],
-                branch_id=data['branch_id']
-            )
-            db.session.add(new_sales_executive)
-        elif data['type'] == 'bank':
-            new_bank = Bank(name=data['name'])
-            db.session.add(new_bank)
-        elif data['type'] == 'branch':
-            new_branch = Branch(
-                name=data['name'],
-                bank_id=data.get('bank_id'),
-                sort_code=data.get('sort_code')
-            )
-            db.session.add(new_branch)
-        elif data['type'] == 'paypoint':
-            new_paypoint = Paypoint(name=data['name'], location=data['location'])
-            db.session.add(new_paypoint)
-        elif data['type'] == 'product':
-            new_product = ImpactProduct(name=data['name'], category=data['category'])
-            db.session.add(new_product)
-        db.session.commit()
+        model_mapping = {
+            'sales_executive': SalesExecutive,
+            'bank': Bank,
+            'branch': Branch,
+            'paypoint': Paypoint,
+            'product': ImpactProduct
+        }
+
+        resource = create_resource(data, model_mapping.get(data['type']))
+        if not resource:
+            return {'message': f"Failed to create {data['type']}"}, 500
 
         # Log the action to audit trail
         audit = AuditTrail(
             user_id=current_user['id'],
             action='CREATE',
             resource_type=data['type'],
-            resource_id=new_sales_executive.id if data['type'] == 'sales_executive' else (
-                new_bank.id if data['type'] == 'bank' else (
-                    new_branch.id if data['type'] == 'branch' else (
-                        new_paypoint.id if data['type'] == 'paypoint' else new_product.id))),
+            resource_id=resource.id,
             details=f"Created {data['type']} with details: {data}"
         )
         db.session.add(audit)
         db.session.commit()
 
-        return {'message': 'Resource added successfully'}, 201
+        logger.info(f"{data['type']} created successfully by admin ID {current_user['id']}")
+        return {'message': f"{data['type']} created successfully"}, 201
 
     @admin_ns.doc(security='Bearer Auth', responses={200: 'Updated', 403: 'Unauthorized'})
     @jwt_required()
@@ -146,43 +127,29 @@ class AdminResource(Resource):
         data = request.json
 
         if not check_role_permission(current_user, 'manager'):
+            logger.warning(f"Unauthorized update attempt by user ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
-        if data['type'] == 'sales_executive':
-            se = SalesExecutive.query.filter_by(id=data['id'], is_deleted=False).first()
-            if not se:
-                return {'message': 'Sales Executive not found'}, 404
-            se.name = data.get('name', se.name)
-            se.code = data.get('code', se.code)
-            se.manager_id = data.get('manager_id', se.manager_id)
-            se.branch_id = data.get('branch_id', se.branch_id)
-        elif data['type'] == 'bank':
-            bank = Bank.query.filter_by(id=data['id'], is_deleted=False).first()
-            if not bank:
-                return {'message': 'Bank not found'}, 404
-            bank.name = data.get('name', bank.name)
-        elif data['type'] == 'branch':
-            branch = Branch.query.filter_by(id=data['id'], is_deleted=False).first()
-            if not branch:
-                return {'message': 'Branch not found'}, 404
-            branch.name = data.get('name', branch.name)
-            branch.bank_id = data.get('bank_id', branch.bank_id)
-            branch.sort_code = data.get('sort_code', branch.sort_code)
-        elif data['type'] == 'paypoint':
-            paypoint = Paypoint.query.filter_by(id=data['id'], is_deleted=False).first()
-            if not paypoint:
-                return {'message': 'Paypoint not found'}, 404
-            paypoint.name = data.get('name', paypoint.name)
-            paypoint.location = data.get('location', paypoint.location)
-        elif data['type'] == 'product':
-            product = ImpactProduct.query.filter_by(id=data['id'], is_deleted=False).first()
-            if not product:
-                return {'message': 'Product not found'}, 404
-            product.name = data.get('name', product.name)
-            product.category = data.get('category', product.category)
+        resource_mapping = {
+            'sales_executive': SalesExecutive,
+            'bank': Bank,
+            'branch': Branch,
+            'paypoint': Paypoint,
+            'product': ImpactProduct
+        }
+
+        resource = resource_mapping.get(data['type']).query.filter_by(id=data['id'], is_deleted=False).first()
+        if not resource:
+            logger.error(f"{data['type']} ID {data['id']} not found for update")
+            return {'message': f"{data['type']} not found"}, 404
+
+        for key, value in data.items():
+            if hasattr(resource, key):
+                setattr(resource, key, value)
+
         db.session.commit()
 
-        # Log the action to audit trail
+        # Log the update to audit trail
         audit = AuditTrail(
             user_id=current_user['id'],
             action='UPDATE',
@@ -193,7 +160,8 @@ class AdminResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
-        return {'message': 'Resource updated successfully'}, 200
+        logger.info(f"{data['type']} ID {data['id']} updated by user ID {current_user['id']}")
+        return {'message': f"{data['type']} updated successfully"}, 200
 
     @admin_ns.doc(security='Bearer Auth', responses={200: 'Deleted', 403: 'Unauthorized'})
     @jwt_required()
@@ -203,36 +171,26 @@ class AdminResource(Resource):
         data = request.json
 
         if not check_role_permission(current_user, 'admin'):
+            logger.warning(f"Unauthorized delete attempt by user ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
-        if data['type'] == 'sales_executive':
-            se = SalesExecutive.query.filter_by(id=data['id'], is_deleted=False).first()
-            if not se:
-                return {'message': 'Sales Executive not found'}, 404
-            se.is_deleted = True
-        elif data['type'] == 'bank':
-            bank = Bank.query.filter_by(id=data['id'], is_deleted=False).first()
-            if not bank:
-                return {'message': 'Bank not found'}, 404
-            bank.is_deleted = True
-        elif data['type'] == 'branch':
-            branch = Branch.query.filter_by(id=data['id'], is_deleted=False).first()
-            if not branch:
-                return {'message': 'Branch not found'}, 404
-            branch.is_deleted = True
-        elif data['type'] == 'paypoint':
-            paypoint = Paypoint.query.filter_by(id=data['id'], is_deleted=False).first()
-            if not paypoint:
-                return {'message': 'Paypoint not found'}, 404
-            paypoint.is_deleted = True
-        elif data['type'] == 'product':
-            product = ImpactProduct.query.filter_by(id=data['id'], is_deleted=False).first()
-            if not product:
-                return {'message': 'Product not found'}, 404
-            product.is_deleted = True
+        resource_mapping = {
+            'sales_executive': SalesExecutive,
+            'bank': Bank,
+            'branch': Branch,
+            'paypoint': Paypoint,
+            'product': ImpactProduct
+        }
+
+        resource = resource_mapping.get(data['type']).query.filter_by(id=data['id'], is_deleted=False).first()
+        if not resource:
+            logger.error(f"{data['type']} ID {data['id']} not found for deletion")
+            return {'message': f"{data['type']} not found"}, 404
+
+        resource.is_deleted = True
         db.session.commit()
 
-        # Log the action to audit trail
+        # Log the deletion to audit trail
         audit = AuditTrail(
             user_id=current_user['id'],
             action='DELETE',
@@ -243,4 +201,5 @@ class AdminResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
-        return {'message': 'Resource deleted successfully'}, 200
+        logger.info(f"{data['type']} ID {data['id']} deleted by admin ID {current_user['id']}")
+        return {'message': f"{data['type']} deleted successfully"}, 200

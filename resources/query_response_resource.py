@@ -2,7 +2,7 @@ from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
 from models.query_model import QueryResponse, Query
 from models.audit_model import AuditTrail
-from app import db
+from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
@@ -32,7 +32,7 @@ class QueryResponseResource(Resource):
         if not query:
             return {'message': 'Query/Feedback not found'}, 404
 
-        responses = QueryResponse.query.filter_by(query_id=query_id).all()
+        responses = QueryResponse.query.filter_by(query_id=query_id, is_deleted=False).all()
 
         # Log the access to audit trail
         audit = AuditTrail(
@@ -62,14 +62,18 @@ class QueryResponseResource(Resource):
         if not data.get('response'):
             return {'message': 'Response content is required'}, 400
 
-        new_response = QueryResponse(
-            query_id=query_id,
-            user_id=current_user['id'],
-            response=data['response'],
-            created_at=datetime.utcnow()
-        )
-        db.session.add(new_response)
-        db.session.commit()
+        try:
+            new_response = QueryResponse(
+                query_id=query_id,
+                user_id=current_user['id'],
+                response=data['response'],
+                created_at=datetime.utcnow()
+            )
+            db.session.add(new_response)
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"Error creating response for query ID {query_id}: {str(e)}")
+            return {'message': 'Error creating response'}, 500
 
         # Log the response creation to audit trail
         audit = AuditTrail(
@@ -93,7 +97,7 @@ class QueryResponseByIdResource(Resource):
         """Update a specific response to a query/feedback."""
         current_user = get_jwt_identity()
 
-        response = QueryResponse.query.filter_by(id=response_id, query_id=query_id).first()
+        response = QueryResponse.query.filter_by(id=response_id, query_id=query_id, is_deleted=False).first()
         if not response:
             return {'message': 'Response not found'}, 404
 
@@ -101,10 +105,13 @@ class QueryResponseByIdResource(Resource):
             return {'message': 'Unauthorized'}, 403
 
         data = request.json
-        response.response = data.get('response', response.response)
-        response.updated_at = datetime.utcnow()
-
-        db.session.commit()
+        try:
+            response.response = data.get('response', response.response)
+            response.updated_at = datetime.utcnow()
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"Error updating response ID {response_id} for query ID {query_id}: {str(e)}")
+            return {'message': 'Error updating response'}, 500
 
         # Log the update to audit trail
         audit = AuditTrail(
@@ -117,7 +124,7 @@ class QueryResponseByIdResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
-        return response, 200
+        return response.serialize(), 200
 
     @query_response_ns.doc(security='Bearer Auth', responses={200: 'Deleted', 404: 'Response not found', 403: 'Unauthorized'})
     @jwt_required()
@@ -125,15 +132,19 @@ class QueryResponseByIdResource(Resource):
         """Soft delete a response to a query/feedback."""
         current_user = get_jwt_identity()
 
-        response = QueryResponse.query.filter_by(id=response_id, query_id=query_id).first()
+        response = QueryResponse.query.filter_by(id=response_id, query_id=query_id, is_deleted=False).first()
         if not response:
             return {'message': 'Response not found'}, 404
 
         if response.user_id != current_user['id'] and current_user['role'] != 'admin':
             return {'message': 'Unauthorized'}, 403
 
-        response.is_deleted = True
-        db.session.commit()
+        try:
+            response.is_deleted = True
+            db.session.commit()
+        except Exception as e:
+            logger.error(f"Error deleting response ID {response_id} for query ID {query_id}: {str(e)}")
+            return {'message': 'Error deleting response'}, 500
 
         # Log the deletion to audit trail
         audit = AuditTrail(

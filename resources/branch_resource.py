@@ -2,7 +2,7 @@ from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
 from models.branch_model import Branch
 from models.audit_model import AuditTrail
-from app import db
+from app import db, logger  # Import the logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
@@ -41,6 +41,7 @@ class BranchListResource(Resource):
 
         # Check if the user has permission to view branches
         if not check_role_permission(current_user, 'back_office'):
+            logger.warning(f"Unauthorized attempt to view branches by user {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
         page = request.args.get('page', 1, type=int)
@@ -53,8 +54,13 @@ class BranchListResource(Resource):
         if filter_by:
             branch_query = branch_query.filter(Branch.name.ilike(f'%{filter_by}%'))
 
-        branches = branch_query.order_by(sort_by).paginate(page, per_page, error_out=False)
+        try:
+            branches = branch_query.order_by(getattr(Branch, sort_by).desc()).paginate(page, per_page, error_out=False)
+        except AttributeError:
+            logger.error(f"Invalid sort_by field: {sort_by}")
+            return {'message': 'Invalid sorting field'}, 400
 
+        logger.info(f"Branches retrieved successfully by user {current_user['id']}")
         return {
             'branches': [branch.serialize() for branch in branches.items],
             'total': branches.total,
@@ -70,12 +76,14 @@ class BranchListResource(Resource):
         current_user = get_jwt_identity()
 
         if not check_role_permission(current_user, 'manager'):
+            logger.warning(f"Unauthorized attempt to create a branch by user {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
         data = request.json
 
         # Validation of required fields
         if not data.get('name'):
+            logger.error(f"Branch creation failed due to missing name by user {current_user['id']}")
             return {'message': 'Missing required fields'}, 400
 
         new_branch = Branch(
@@ -97,6 +105,7 @@ class BranchListResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
+        logger.info(f"Branch '{new_branch.name}' created successfully by user {current_user['id']}")
         return new_branch.serialize(), 201
 
 @branch_ns.route('/<int:branch_id>')
@@ -109,12 +118,15 @@ class BranchResource(Resource):
 
         # Check if the user has permission to view the branch
         if not check_role_permission(current_user, 'back_office'):
+            logger.warning(f"Unauthorized attempt to view branch {branch_id} by user {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
         branch = Branch.query.filter_by(id=branch_id, is_deleted=False).first()
         if not branch:
+            logger.error(f"Branch {branch_id} not found by user {current_user['id']}")
             return {'message': 'Branch not found'}, 404
 
+        logger.info(f"Branch {branch_id} retrieved successfully by user {current_user['id']}")
         return branch.serialize(), 200
 
     @branch_ns.doc(security='Bearer Auth', responses={200: 'Updated', 404: 'Branch not found', 403: 'Unauthorized'})
@@ -125,10 +137,12 @@ class BranchResource(Resource):
         current_user = get_jwt_identity()
 
         if not check_role_permission(current_user, 'manager'):
+            logger.warning(f"Unauthorized attempt to update branch {branch_id} by user {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
         branch = Branch.query.filter_by(id=branch_id, is_deleted=False).first()
         if not branch:
+            logger.error(f"Branch {branch_id} not found for update by user {current_user['id']}")
             return {'message': 'Branch not found'}, 404
 
         data = request.json
@@ -150,6 +164,7 @@ class BranchResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
+        logger.info(f"Branch {branch_id} updated successfully by user {current_user['id']}")
         return branch.serialize(), 200
 
     @branch_ns.doc(security='Bearer Auth', responses={200: 'Deleted', 404: 'Branch not found', 403: 'Unauthorized'})
@@ -159,10 +174,12 @@ class BranchResource(Resource):
         current_user = get_jwt_identity()
 
         if not check_role_permission(current_user, 'admin'):
+            logger.warning(f"Unauthorized attempt to delete branch {branch_id} by user {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
         branch = Branch.query.filter_by(id=branch_id, is_deleted=False).first()
         if not branch:
+            logger.error(f"Branch {branch_id} not found for deletion by user {current_user['id']}")
             return {'message': 'Branch not found'}, 404
 
         branch.is_deleted = True
@@ -179,4 +196,5 @@ class BranchResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
+        logger.info(f"Branch {branch_id} deleted successfully by user {current_user['id']}")
         return {'message': 'Branch deleted successfully'}, 200
