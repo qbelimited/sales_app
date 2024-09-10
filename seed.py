@@ -182,7 +182,7 @@ with app.app_context():
             db.session.commit()
         roles_dict[role_name] = role.id
 
-    additional_roles = ['Super admin']
+    additional_roles = ['Super_admin']
     for role_name in additional_roles:
         role = db.session.query(Role).filter_by(name=role_name).first()
         if not role:
@@ -244,7 +244,7 @@ with app.app_context():
             manager_name = row.get('SALE MANAGER', '').strip()
             executive_name = row.get('SALES EXECUTIVE', '').strip()
             branch_name = row.get('BRANCH', '').strip()
-            phone_number = row.get('TELEPHONE', '').strip()
+            phone_number = row.get('TELEPHONE ', '').strip()
 
             if not agent_code:
                 print(f"Skipping {executive_name} due to missing agent code.")
