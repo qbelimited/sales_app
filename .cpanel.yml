@@ -4,7 +4,7 @@ deployment:
   tasks:
     - export DEPLOY_ENVIRONMENT=production
     - export FLASK_APP=app.py
-    - export DATABASE_URL="mysql+pymysql://impapnvs_impact:Impact@2024@localhost/impapnvs_sales_app"
+    - export DATABASE_URL="mysql+pymysql://impapnvs_impact:ImpactLife1212@localhost/impapnvs_sales_app"
     - echo "Deployment started: Setting up environment variables"
 
     # Copy backend to the subdomain folder "salesback.impactlife.com.gh"
