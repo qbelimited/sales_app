@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Spinner, Alert } from 'react-bootstrap';
+import { Table, Button, Modal, Form, Spinner, Alert, Row, Col } from 'react-bootstrap';
 import api from '../services/api';  // Import the Axios instance
-import { isValidEmail } from '../utils/validators';  // Import the email validator
 
 const ManageUsersPage = ({ showToast }) => {
   const [users, setUsers] = useState([]);
@@ -15,21 +14,26 @@ const ManageUsersPage = ({ showToast }) => {
   const [filterBy, setFilterBy] = useState('');  // Filter by name
   const [perPage, setPerPage] = useState(10);  // Items per page
   const [page, setPage] = useState(1);  // Page number
+  const [totalPages, setTotalPages] = useState(1);  // Total number of pages
+  const [totalUsers, setTotalUsers] = useState(0);  // Total number of users
 
   // Fetch users from the API on component mount
   useEffect(() => {
     const fetchUsers = async () => {
       setLoading(true);  // Set loading state
       try {
-        const response = await api.get('/user', {
+        const response = await api.get('/users/', {
           params: {
             sort_by: sortBy,
-            filter_by: filterBy,
             per_page: perPage,
             page: page,
           },
         });
-        setUsers(response.data);  // Set the users from the API response
+
+        // Extract users and pagination details
+        setUsers(response.data.users || []);
+        setTotalPages(response.data.pages || 1);
+        setTotalUsers(response.data.total || 0);
       } catch (error) {
         console.error('Error fetching users:', error);
         setError('Error fetching users');
@@ -55,7 +59,7 @@ const ManageUsersPage = ({ showToast }) => {
 
   // Validate user form inputs
   const validateUser = () => {
-    if (!selectedUser.name || !selectedUser.email || !isValidEmail(selectedUser.email) || !selectedUser.role) {
+    if (!selectedUser.name || !selectedUser.email || !selectedUser.role) {
       showToast('warning', 'Please ensure all fields are filled correctly.', 'Validation Error');
       return false;
     }
@@ -68,7 +72,7 @@ const ManageUsersPage = ({ showToast }) => {
 
     setLoadingSave(true);
     try {
-      await api.put(`/user/${selectedUser.id}`, selectedUser);  // Update the user via API
+      await api.put(`/users/${selectedUser.id}`, selectedUser);  // Update the user via API
       setUsers(users.map((user) => (user.id === selectedUser.id ? selectedUser : user)));  // Update the state
       handleCloseModal();
       showToast('success', 'User updated successfully', 'Success');
@@ -85,7 +89,7 @@ const ManageUsersPage = ({ showToast }) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
       setLoadingDelete(userId);  // Set loading state for the specific user
       try {
-        await api.delete(`/user/${userId}`);  // Delete the user via API
+        await api.delete(`/users/${userId}`);  // Delete the user via API
         setUsers(users.filter((user) => user.id !== userId));  // Remove the user from the state
         showToast('success', 'User deleted successfully', 'Success');
       } catch (error) {
@@ -107,36 +111,37 @@ const ManageUsersPage = ({ showToast }) => {
       {error && <Alert variant="danger">{error}</Alert>}
 
       {/* Sorting, Filtering, Pagination Controls */}
-      <div className="mb-3">
-        <Form.Control
-          type="text"
-          placeholder="Filter by Name"
-          value={filterBy}
-          onChange={(e) => setFilterBy(e.target.value)}
-          className="mb-2"
-        />
-        <Form.Control
-          as="select"
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          className="mb-2"
-        >
-          <option value="created_at">Sort by Created Date</option>
-          <option value="name">Sort by Name</option>
-        </Form.Control>
-        <Form.Control
-          as="select"
-          value={perPage}
-          onChange={(e) => setPerPage(Number(e.target.value))}
-          className="mb-2"
-        >
-          <option value={5}>5 per page</option>
-          <option value={10}>10 per page</option>
-          <option value={20}>20 per page</option>
-        </Form.Control>
-        <Button variant="primary" onClick={() => setPage(page - 1)} disabled={page === 1}>Previous</Button>
-        <Button variant="primary" onClick={() => setPage(page + 1)}>Next</Button>
-      </div>
+      <Row className="mb-3">
+        <Col md={4}>
+          <Form.Control
+            type="text"
+            placeholder="Filter by Name"
+            value={filterBy}
+            onChange={(e) => setFilterBy(e.target.value)}
+          />
+        </Col>
+        <Col md={4}>
+          <Form.Control
+            as="select"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+          >
+            <option value="created_at">Sort by Created Date</option>
+            <option value="name">Sort by Name</option>
+          </Form.Control>
+        </Col>
+        <Col md={4}>
+          <Form.Control
+            as="select"
+            value={perPage}
+            onChange={(e) => setPerPage(Number(e.target.value))}
+          >
+            <option value={5}>5 per page</option>
+            <option value={10}>10 per page</option>
+            <option value={20}>20 per page</option>
+          </Form.Control>
+        </Col>
+      </Row>
 
       {/* Users Table */}
       <Table striped bordered hover>
@@ -149,11 +154,11 @@ const ManageUsersPage = ({ showToast }) => {
           </tr>
         </thead>
         <tbody>
-          {users.map((user) => (
+          {users.length > 0 ? users.map((user) => (
             <tr key={user.id}>
               <td>{user.name}</td>
               <td>{user.email}</td>
-              <td>{user.role}</td>
+              <td>{user.role_id}</td>
               <td>
                 <Button
                   variant="primary"
@@ -173,9 +178,33 @@ const ManageUsersPage = ({ showToast }) => {
                 </Button>
               </td>
             </tr>
-          ))}
+          )) : (
+            <tr>
+              <td colSpan="4" className="text-center">No users found</td>
+            </tr>
+          )}
         </tbody>
       </Table>
+
+      {/* Pagination Controls on the Table */}
+      <Row className="justify-content-end">
+        <Col md="auto">
+          <Button
+            variant="primary"
+            onClick={() => setPage(page - 1)}
+            disabled={page === 1}
+          >
+            Previous
+          </Button>{' '}
+          <Button
+            variant="primary"
+            onClick={() => setPage(page + 1)}
+            disabled={page === totalPages}
+          >
+            Next
+          </Button>
+        </Col>
+      </Row>
 
       {/* Edit User Modal */}
       {selectedUser && (
@@ -199,22 +228,18 @@ const ManageUsersPage = ({ showToast }) => {
                   type="email"
                   value={selectedUser.email}
                   onChange={(e) => setSelectedUser({ ...selectedUser, email: e.target.value })}
-                  isInvalid={!isValidEmail(selectedUser.email)}  // Mark as invalid if email is not valid
                 />
-                <Form.Control.Feedback type="invalid">
-                  Please provide a valid email address.
-                </Form.Control.Feedback>
               </Form.Group>
               <Form.Group className="mb-3">
                 <Form.Label>Role</Form.Label>
                 <Form.Control
                   as="select"
-                  value={selectedUser.role}
-                  onChange={(e) => setSelectedUser({ ...selectedUser, role: e.target.value })}
+                  value={selectedUser.role_id}
+                  onChange={(e) => setSelectedUser({ ...selectedUser, role_id: e.target.value })}
                 >
-                  <option value="admin">Admin</option>
-                  <option value="manager">Manager</option>
-                  <option value="user">User</option>
+                  <option value={1}>Admin</option>
+                  <option value={2}>Manager</option>
+                  <option value={3}>User</option>
                 </Form.Control>
               </Form.Group>
             </Form>

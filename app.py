@@ -18,15 +18,18 @@ load_dotenv()
 app = Flask(__name__)
 app.config.from_object('config.Config')
 
-# Enable CORS for the entire application
+# Disable strict trailing slash matching
+app.config['STRICT_SLASHES'] = False
+
+# Enable CORS globally for all routes under /api/*
 CORS(app, resources={
     r"/api/*": {
-        "origins": "*",  # Allow all origins, you can replace with specific domains for better security
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Specify allowed methods
-        "supports_credentials": True  # Allow credentials like Authorization headers
+        "origins": "*",  # Replace '*' with specific domains if needed for security
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": False  # Set to False if credentials are not needed
     }
 })
-app.config['CORS_HEADERS'] = 'Content-Type, Authorization'
 
 # Initialize Flask extensions
 db = SQLAlchemy(app)
@@ -51,10 +54,9 @@ api_version = 'v1'
 api = Api(app,
           version='1.0',
           title='Sales Recording API',
-          doc=f'/api/{api_version}/docs',
+          doc=f'/api/{api_version}/docs',  # Removed trailing slash
           security='Bearer Auth',  # Apply global security
           authorizations=authorizations)  # Add Bearer Auth to the API
-
 
 # Import resources (namespaces)
 from resources.auth_resource import auth_ns
@@ -142,52 +144,6 @@ def handle_exception(e):
     """
     app.logger.error(f'Unhandled Exception: {e}', exc_info=True)
     return jsonify({"message": "An unexpected error occurred."}), 500
-
-# JWT callback for custom error responses
-@jwt.expired_token_loader
-def expired_token_callback(jwt_header, jwt_payload):
-    """
-    Callback for handling expired JWT tokens.
-
-    Returns:
-        tuple: JSON response with error message and HTTP status code.
-    """
-    return jsonify({
-        "message": "The token has expired",
-        "error": "token_expired"
-    }), 401
-
-@jwt.invalid_token_loader
-def invalid_token_callback(error):
-    """
-    Callback for handling invalid JWT tokens.
-
-    Args:
-        error (str): The error message describing why the token is invalid.
-
-    Returns:
-        tuple: JSON response with error message and HTTP status code.
-    """
-    return jsonify({
-        "message": "Invalid token",
-        "error": "token_invalid"
-    }), 401
-
-@jwt.unauthorized_loader
-def unauthorized_callback(error):
-    """
-    Callback for handling missing JWT tokens.
-
-    Args:
-        error (str): The error message describing the issue.
-
-    Returns:
-        tuple: JSON response with error message and HTTP status code.
-    """
-    return jsonify({
-        "message": "Request does not contain an access token",
-        "error": "authorization_required"
-    }), 401
 
 # Run the Flask application
 if __name__ == "__main__":
