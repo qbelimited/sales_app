@@ -6,6 +6,7 @@ import { faTimesCircle, faCheckCircle, faExclamationTriangle, faClock } from '@f
 import moment from 'moment';
 
 const Toaster = ({ toasts, removeToast }) => {
+  // Helper function to render the appropriate icon based on the toast variant
   const renderIcon = (variant) => {
     switch (variant) {
       case 'danger':
@@ -19,13 +20,14 @@ const Toaster = ({ toasts, removeToast }) => {
     }
   };
 
+  // Helper function to render each toast with a unique key
   const renderToast = (toast) => {
     const timePassed = moment().diff(toast.time, 'seconds');
     const timeString = `${timePassed} seconds ago`;
 
     return (
       <Toast
-        key={toast.id}
+        key={toast.id} // Ensure a unique key
         className="mb-3"
         onClose={() => removeToast(toast.id)}
         autohide
@@ -48,7 +50,7 @@ const Toaster = ({ toasts, removeToast }) => {
 
   return (
     <ToastContainer position="top-end" className="p-3" style={{ zIndex: 1050 }}>
-      {toasts.map(renderToast)}
+      {toasts.map((toast) => renderToast(toast))}
     </ToastContainer>
   );
 };

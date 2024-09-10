@@ -3,7 +3,7 @@ import api from './api';
 const authService = {
   login: async (credentials) => {
     try {
-      const response = await api.post('/api/v1/auth/login', credentials);
+      const response = await api.post('/auth/login', credentials);
       const { access_token, refresh_token, user } = response.data;
 
       // Store tokens and user information in localStorage
@@ -25,18 +25,14 @@ const authService = {
       if (!accessToken) throw new Error('No access token available for logout.');
 
       // Use the correct API endpoint for logout
-      await api.post('/api/v1/auth/logout', {}, {
+      await api.post('/auth/logout', {}, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
       });
 
       // Clear tokens and user data from localStorage
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('user');
-      localStorage.removeItem('userRole');
-      localStorage.removeItem('userID');
+      authService.clearSession();
     } catch (error) {
       console.error('Logout failed:', error);
       throw new Error(error.response?.data?.message || 'Logout failed');
@@ -48,7 +44,7 @@ const authService = {
       const refreshToken = localStorage.getItem('refresh_token');
       if (!refreshToken) throw new Error('No refresh token available.');
 
-      const response = await api.post('/api/v1/auth/refresh', { refresh_token: refreshToken });
+      const response = await api.post('/auth/refresh', { refresh_token: refreshToken });
       const { access_token } = response.data;
 
       // Update access token in localStorage
@@ -80,7 +76,8 @@ const authService = {
       const decoded = JSON.parse(atob(token.split('.')[1]));
       return decoded.exp * 1000 < Date.now();
     } catch (e) {
-      return false;
+      console.error('Token expiration check failed:', e);
+      return true;
     }
   },
 

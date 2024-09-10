@@ -2,10 +2,11 @@ import axios from 'axios';
 import authService from './authService';
 
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://127.0.0.1:5000/api/v1', // Dynamic base URL
+  baseURL: process.env.REACT_APP_API_URL || 'http://127.0.0.1:5000/api/v1',  // Base URL
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true  // Ensure credentials (e.g., cookies) are sent with requests
 });
 
 let isRefreshing = false;
@@ -39,12 +40,11 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Handle 401 errors by trying to refresh the token
+    // Handle 401 Unauthorized - Token Expired
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
       if (isRefreshing) {
-        // Add to queue if a token refresh is already in progress
         return new Promise((resolve) => {
           subscribeTokenRefresh((token) => {
             originalRequest.headers.Authorization = `Bearer ${token}`;
@@ -75,28 +75,24 @@ api.interceptors.response.use(
       }
     }
 
-    // Handle 403 Forbidden error
+    // Handle 403 Forbidden
     if (error.response?.status === 403) {
       console.warn('Access forbidden: You do not have permission to access this resource.');
-      // Optionally, redirect the user to a "403 Forbidden" page or show a modal
     }
 
-    // Handle 404 Not Found error
+    // Handle 404 Not Found
     if (error.response?.status === 404) {
       console.error('Error: The requested resource could not be found.');
-      // Optionally, redirect the user to a "404 Not Found" page
     }
 
-    // Handle 422 Validation Error (Unprocessable Entity)
+    // Handle 422 Unprocessable Entity (Validation Error)
     if (error.response?.status === 422) {
       console.warn('Validation error: Check the provided data.');
-      // Optionally, you could surface the validation error messages to the user
     }
 
-    // Handle 500 Server Error
+    // Handle 500 Internal Server Error
     if (error.response?.status === 500) {
       console.error('Server error: Something went wrong on the server.');
-      // Optionally, show a global toast notification about the server error
     }
 
     return Promise.reject(error);

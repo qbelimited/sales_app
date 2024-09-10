@@ -43,30 +43,40 @@ sales_app/
                 BankManagement.js
                 BranchManagement.js
                 InceptedSales.js
+                Logout.js
                 Navbar.js
                 PaypointManagement.js
+                ProtectedRoute.js
+                QueryForm.js
+                QueryResponseForm.js
                 RolesManagement.js
                 SalesForm.js
                 SalesTable.js
+                Sidebar.css
                 Sidebar.js
                 Toaster.js
                 UserManagement.js
             pages/
-                AccessManagementPage.js
                 AdminPage.js
                 AuditTrailPage.js
-                BankManagementPage.js
                 BranchManagementPage.js
                 HomePage.js
                 InceptedSalesPage.js
                 LoginPage.js
+                LogsPage.js
+                ManageAccessPage.js
+                ManageBanksPage.js
+                ManageProductsPage.js
+                ManageUsersPage.js
                 NotFoundPage.js
                 OverallManagerPage.js
                 PaypointManagementPage.js
+                RetentionPolicyPage.js
                 RolesManagementPage.js
                 SalesPage.js
                 SessionManagementPage.js
-                UserManagementPage.js
+                UnauthorizedPage.js
+                UpdatePasswordPage.js
             services/
                 accessService.js
                 api.js
@@ -82,13 +92,15 @@ sales_app/
                 sessionService.js
                 userManagementService.js
                 userService.js
+            utils/
+                validators.js
     migrations/
         alembic.ini
         env.py
         README
         script.py.mako
         versions/
-            c60e400531e0_initial_migration.py
+            56076466046a_initial_migration.py
     models/
         access_model.py
         audit_model.py

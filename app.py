@@ -19,7 +19,7 @@ app = Flask(__name__)
 app.config.from_object('config.Config')
 
 # Enable CORS for the entire application
-CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
+CORS(app, resources={r"/api/*": {"origins": "http://localhost:3000"}}, supports_credentials=True)
 
 # Initialize Flask extensions
 db = SQLAlchemy(app)

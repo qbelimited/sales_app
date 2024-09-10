@@ -1,5 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';  // Import BrowserRouter
 import App from './App';
 
 // Import Bootstrap CSS
@@ -15,4 +16,10 @@ const container = document.getElementById('root');
 
 // Use createRoot instead of ReactDOM.render
 const root = createRoot(container);
-root.render(<App />);
+
+// Wrap App inside BrowserRouter here
+root.render(
+  <BrowserRouter>
+    <App />
+  </BrowserRouter>
+);
