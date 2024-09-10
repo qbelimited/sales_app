@@ -10,8 +10,9 @@ const authService = {
       localStorage.setItem('access_token', access_token);
       localStorage.setItem('refresh_token', refresh_token);
       localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('userRole', user.role_id);  // Store role in localStorage
 
-      return response.data; // Return user data and tokens
+      return response.data;  // Return user data and tokens
     } catch (error) {
       console.error('Login failed:', error);
       const errorMessage = error.response?.data?.message || 'Login failed';
@@ -22,10 +23,15 @@ const authService = {
   logout: async () => {
     try {
       const accessToken = localStorage.getItem('access_token');
-      if (!accessToken) throw new Error('No access token available for logout.');
+      const refreshToken = localStorage.getItem('refresh_token');
 
-      // Use the correct API endpoint for logout
-      await api.post('/auth/logout', {}, {
+      if (!accessToken) throw new Error('No access token available for logout.');
+      if (!refreshToken) throw new Error('No refresh token available for logout.');
+
+      // Send both the access token and refresh token to the logout endpoint
+      await api.post('/auth/logout', {
+        refresh_token: refreshToken,  // Include the refresh token in the request body
+      }, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
@@ -35,7 +41,8 @@ const authService = {
       authService.clearSession();
     } catch (error) {
       console.error('Logout failed:', error);
-      throw new Error(error.response?.data?.message || 'Logout failed');
+      const errorMessage = error.response?.data?.message || 'Logout failed';
+      throw new Error(errorMessage);
     }
   },
 
@@ -50,7 +57,7 @@ const authService = {
       // Update access token in localStorage
       localStorage.setItem('access_token', access_token);
 
-      return access_token; // Return the new access token
+      return access_token;  // Return the new access token
     } catch (error) {
       console.error('Token refresh failed:', error);
 
@@ -73,11 +80,11 @@ const authService = {
 
   isTokenExpired: (token) => {
     try {
-      const decoded = JSON.parse(atob(token.split('.')[1]));
-      return decoded.exp * 1000 < Date.now();
+      const decoded = JSON.parse(atob(token.split('.')[1]));  // Decode the token payload
+      return decoded.exp * 1000 < Date.now();  // Check if token is expired
     } catch (e) {
       console.error('Token expiration check failed:', e);
-      return true;
+      return true;  // Return true if token cannot be decoded or checked
     }
   },
 

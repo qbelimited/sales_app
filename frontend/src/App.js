@@ -33,7 +33,7 @@ function App() {
     }
   }, [navigate]);  // This will run only once when the component mounts
 
-  // Function to show toast messages
+  // Function to show toast messages without duplicates
   const showToast = (variant, message, heading) => {
     const newToast = {
       id: Date.now(),
@@ -42,7 +42,15 @@ function App() {
       heading,
       time: new Date(),
     };
-    setToasts((prevToasts) => [...prevToasts, newToast]);
+
+    // Check if a similar toast already exists (by message and variant)
+    const isDuplicate = toasts.some(
+      (toast) => toast.message === message && toast.variant === variant
+    );
+
+    if (!isDuplicate) {
+      setToasts((prevToasts) => [...prevToasts, newToast]);
+    }
   };
 
   // Function to remove toast
@@ -62,7 +70,7 @@ function App() {
   const handleLogout = () => {
     authService.logout()  // Call the logout function to clear tokens
       .then(() => {
-        setRole(null);
+        setRole(null);  // Set role to null to hide Navbar and Sidebar
         showToast('success', 'Logout successful', 'Goodbye');
         navigate('/login');  // Redirect to login page after successful logout
       })
@@ -73,7 +81,7 @@ function App() {
 
   return (
     <div>
-      {/* If the user is logged in (role exists), show Navbar and Sidebar */}
+      {/* Conditionally render Navbar and Sidebar based on role */}
       {role && <Navbar onLogout={handleLogout} />}
       {role && <Sidebar />}
 

@@ -19,7 +19,14 @@ app = Flask(__name__)
 app.config.from_object('config.Config')
 
 # Enable CORS for the entire application
-CORS(app, resources={r"/api/*": {"origins": "http://localhost:3000"}}, supports_credentials=True)
+CORS(app, resources={
+    r"/api/*": {
+        "origins": "*",  # Allow all origins, you can replace with specific domains for better security
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Specify allowed methods
+        "supports_credentials": True  # Allow credentials like Authorization headers
+    }
+})
+app.config['CORS_HEADERS'] = 'Content-Type, Authorization'
 
 # Initialize Flask extensions
 db = SQLAlchemy(app)
