@@ -46,7 +46,7 @@ function LoginPage({ onLogin, showToast }) {
       showToast('success', 'Login successful!', 'Success');
 
       // Redirect to the appropriate page based on role immediately after successful login
-      navigate(user.role_id == 3 ? '/manage-users' : '/sales');
+      navigate(user.role_id === 3 ? '/manage-users' : '/sales');
 
     } catch (error) {
       setError(error.message || 'Login failed');

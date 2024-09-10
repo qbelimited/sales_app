@@ -7,7 +7,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
         sale_manager: '',
         sales_executive_id: '',
         client_name: '',
-        client_id_no: '', // Move client ID to the top
+        client_id_no: '',
         policy_type: '',
         client_phone: '',
         serial_number: '',
@@ -15,9 +15,8 @@ const SalesForm = ({ saleData, onSubmit }) => {
         momo_reference_number: '',
         momo_transaction_id: '',
         first_pay_with_momo: true,
-        subsequent_pay_source_type: '',
-        bank_name: '',
-        bank_branch: '',
+        bank_id: '',
+        bank_branch_id: '',
         bank_acc_number: '',
         paypoint_name: '',
         paypoint_branch: '',
@@ -31,14 +30,18 @@ const SalesForm = ({ saleData, onSubmit }) => {
     const [errors, setErrors] = useState({});
     const [salesExecutives, setSalesExecutives] = useState([]);
     const [impactProducts, setImpactProducts] = useState([]);
+    const [banks, setBanks] = useState([]);
+    const [branches, setBranches] = useState([]);
 
     useEffect(() => {
-        fetchImpactProducts();  // Fetch available Impact Products (Policy Types) on component mount
+        fetchImpactProducts();  // Fetch available Policy Types
+        fetchBanks();  // Fetch available Banks
+
         if (saleData) {
-            setFormData(saleData); // Pre-fill the form if it's an edit
+            setFormData(saleData);  // Pre-fill the form if it's an edit
         }
 
-        // Get user’s current geolocation when the form loads
+        // Get user's geolocation when the form loads
         navigator.geolocation.getCurrentPosition(
             (position) => {
                 setFormData((prevData) => ({
@@ -53,18 +56,47 @@ const SalesForm = ({ saleData, onSubmit }) => {
         );
     }, [saleData]);
 
+    // Fetch policy types (Impact Products)
     const fetchImpactProducts = async () => {
         try {
-            const response = await axios.get('/api/v1/dropdown', {
-                params: { type: 'impact_product' }
-            });
+            const response = await axios.get('/api/v1/policy_types');
             setImpactProducts(response.data);
         } catch (error) {
-            console.error('Failed to fetch impact products:', error);
             toast.error('Failed to fetch policy types');
         }
     };
 
+    // Fetch banks
+    const fetchBanks = async () => {
+        try {
+            const response = await axios.get('/api/v1/banks');
+            setBanks(response.data);
+        } catch (error) {
+            toast.error('Failed to fetch banks');
+        }
+    };
+
+    // Fetch branches based on selected bank
+    const fetchBranches = async (bankId) => {
+        try {
+            const response = await axios.get(`/api/v1/banks/${bankId}/branches`);
+            setBranches(response.data);
+        } catch (error) {
+            toast.error('Failed to fetch branches');
+        }
+    };
+
+    // Fetch sales executives based on selected manager
+    const fetchSalesExecutives = async (managerId) => {
+        try {
+            const response = await axios.get(`/api/v1/sales_managers/${managerId}/executives`);
+            setSalesExecutives(response.data);
+        } catch (error) {
+            toast.error('Failed to fetch sales executives');
+        }
+    };
+
+    // Handle form input changes
     const handleInputChange = (e) => {
         const { name, value, type, checked } = e.target;
         setFormData({
@@ -72,9 +104,12 @@ const SalesForm = ({ saleData, onSubmit }) => {
             [name]: type === 'checkbox' ? checked : value,
         });
 
-        // Fetch sales executives if the sales manager changes
         if (name === 'sale_manager') {
-            fetchSalesExecutives(value);
+            fetchSalesExecutives(value);  // Fetch sales executives based on sales manager
+        }
+
+        if (name === 'bank_id') {
+            fetchBranches(value);  // Fetch branches when bank is selected
         }
 
         // Reset dependent fields if certain fields are changed
@@ -84,9 +119,8 @@ const SalesForm = ({ saleData, onSubmit }) => {
                 momo_reference_number: value === 'momo' ? prevData.momo_reference_number : '',
                 momo_transaction_id: value === 'momo' ? prevData.momo_transaction_id : '',
                 first_pay_with_momo: value === 'momo' ? true : false,
-                client_id_no: prevData.client_id_no,  // Retain client ID regardless of source type
-                bank_name: value !== 'momo' ? prevData.bank_name : '',
-                bank_branch: value !== 'momo' ? prevData.bank_branch : '',
+                bank_id: value !== 'momo' ? prevData.bank_id : '',
+                bank_branch_id: value !== 'momo' ? prevData.bank_branch_id : '',
                 bank_acc_number: value !== 'momo' ? prevData.bank_acc_number : '',
                 paypoint_name: value === 'paypoint' ? prevData.paypoint_name : '',
                 paypoint_branch: value === 'paypoint' ? prevData.paypoint_branch : '',
@@ -95,25 +129,13 @@ const SalesForm = ({ saleData, onSubmit }) => {
         }
     };
 
-    const fetchSalesExecutives = async (managerId) => {
-        try {
-            const response = await axios.get('/api/v1/dropdown', {
-                params: { type: 'sales_executive', manager_id: managerId }
-            });
-            setSalesExecutives(response.data);
-            setFormData((prevData) => ({ ...prevData, sales_executive_id: '' }));
-        } catch (error) {
-            console.error('Failed to fetch sales executives:', error);
-            toast.error('Failed to fetch sales executives');
-        }
-    };
-
+    // Form validation
     const validateForm = () => {
         const newErrors = {};
         if (!formData.sale_manager) newErrors.sale_manager = 'Sale manager is required';
         if (!formData.sales_executive_id) newErrors.sales_executive_id = 'Sales executive is required';
         if (!formData.client_name) newErrors.client_name = 'Client name is required';
-        if (!formData.client_id_no) newErrors.client_id_no = 'Client ID number is required'; // Make client ID required
+        if (!formData.client_id_no) newErrors.client_id_no = 'Client ID number is required';
         if (!formData.policy_type) newErrors.policy_type = 'Policy type is required';
         if (!formData.client_phone || formData.client_phone.length !== 10) newErrors.client_phone = 'Valid client phone number is required';
         if (!formData.serial_number) newErrors.serial_number = 'Serial number is required';
@@ -128,9 +150,8 @@ const SalesForm = ({ saleData, onSubmit }) => {
         // Validate for Bank transactions
         if (formData.source_type === 'bank') {
             if (!formData.first_pay_with_momo) newErrors.first_pay_with_momo = 'First payment must be with Momo for Bank businesses';
-            if (!formData.client_id_no) newErrors.client_id_no = 'Client ID is required for Bank businesses'; // Retained here but always required
-            if (!formData.bank_name) newErrors.bank_name = 'Bank name is required';
-            if (!formData.bank_branch) newErrors.bank_branch = 'Bank branch is required';
+            if (!formData.bank_id) newErrors.bank_id = 'Bank is required';
+            if (!formData.bank_branch_id) newErrors.bank_branch_id = 'Bank branch is required';
             if (!formData.bank_acc_number) newErrors.bank_acc_number = 'Bank account number is required';
             if (!formData.staff_id) newErrors.staff_id = 'Staff ID is required';
         }
@@ -145,18 +166,19 @@ const SalesForm = ({ saleData, onSubmit }) => {
         return Object.keys(newErrors).length === 0;
     };
 
+    // Handle form submission
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!validateForm()) return;
 
-        onSubmit(formData); // Call onSubmit from parent component
+        onSubmit(formData);  // Call onSubmit from parent component
 
         // Reset form after submission
         setFormData({
             sale_manager: '',
             sales_executive_id: '',
             client_name: '',
-            client_id_no: '', // Client ID reset after submission
+            client_id_no: '',
             policy_type: '',
             client_phone: '',
             serial_number: '',
@@ -164,17 +186,16 @@ const SalesForm = ({ saleData, onSubmit }) => {
             momo_reference_number: '',
             momo_transaction_id: '',
             first_pay_with_momo: true,
-            subsequent_pay_source_type: '',
-            bank_name: '',
-            bank_branch: '',
+            bank_id: '',
+            bank_branch_id: '',
             bank_acc_number: '',
             paypoint_name: '',
             paypoint_branch: '',
             staff_id: '',
             amount: '',
             customer_called: false,
-            latitude: '',  // Reset latitude after submission
-            longitude: ''  // Reset longitude after submission
+            latitude: '',  // Reset latitude
+            longitude: ''  // Reset longitude
         });
     };
 
@@ -257,7 +278,44 @@ const SalesForm = ({ saleData, onSubmit }) => {
                 {errors.policy_type && <div className="text-danger">{errors.policy_type}</div>}
             </div>
 
-            {/* Other fields... */}
+            {/* Bank Selection */}
+            <div className="form-group">
+                <label>Bank</label>
+                <select
+                    className="form-control"
+                    name="bank_id"
+                    value={formData.bank_id}
+                    onChange={handleInputChange}
+                >
+                    <option value="">Select Bank</option>
+                    {banks.map((bank) => (
+                        <option key={bank.id} value={bank.id}>
+                            {bank.name}
+                        </option>
+                    ))}
+                </select>
+                {errors.bank_id && <div className="text-danger">{errors.bank_id}</div>}
+            </div>
+
+            {/* Branch Selection */}
+            <div className="form-group">
+                <label>Branch</label>
+                <select
+                    className="form-control"
+                    name="bank_branch_id"
+                    value={formData.bank_branch_id}
+                    onChange={handleInputChange}
+                >
+                    <option value="">Select Branch</option>
+                    {branches.map((branch) => (
+                        <option key={branch.id} value={branch.id}>
+                            {branch.name}
+                        </option>
+                    ))}
+                </select>
+                {errors.bank_branch_id && <div className="text-danger">{errors.bank_branch_id}</div>}
+            </div>
+
             {/* Latitude and Longitude Fields (Hidden, but part of formData) */}
             <input type="hidden" name="latitude" value={formData.latitude} />
             <input type="hidden" name="longitude" value={formData.longitude} />

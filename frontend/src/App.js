@@ -54,14 +54,19 @@ function App() {
     showToast('success', 'Login successful', 'Welcome');
 
     // Redirect users based on role after login
-    window.location.href = userRole == 3 ? '/manage-users' : '/sales';
+    window.location.href = userRole === 3 ? '/manage-users' : '/sales';
   };
 
   const handleLogout = () => {
-    setRole(null);
-    localStorage.removeItem('userRole');  // Clear userRole from localStorage on logout
-    authService.logout();  // Call logout from authService to clear session
-    showToast('success', 'Logout successful', 'Goodbye');
+    authService.logout()  // Call the logout function to clear tokens
+      .then(() => {
+        setRole(null);
+        showToast('success', 'Logout successful', 'Goodbye');
+        window.location.href = '/login';  // Redirect to login page after successful logout
+      })
+      .catch((error) => {
+        showToast('danger', error.message || 'Logout failed', 'Error');
+      });
   };
 
   return (

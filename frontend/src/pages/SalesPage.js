@@ -17,10 +17,12 @@ function SalesPage() {
   useEffect(() => {
     const fetchSales = async () => {
       try {
-        const response = await api.get('/sales');  // Replace with your actual API endpoint
-        setSalesRecords(response.data);
+        const response = await api.get('/api/v1/sales');  // Fetch sales from backend
+        console.log(response);  // Log the entire response to inspect it
+        setSalesRecords(response.data.sales || []);  // Update with actual sales data
         setLoading(false);
       } catch (error) {
+        console.error('Error fetching sales:', error);
         showToastMessage('danger', 'Error fetching sales records.');
         setLoading(false);
       }
@@ -41,7 +43,7 @@ function SalesPage() {
     if (currentSale) {
       // Update existing sale via API
       try {
-        await api.put(`/sales/${currentSale.id}`, newSale);
+        await api.put(`/api/v1/sales/${currentSale.id}`, newSale);
         setSalesRecords(
           salesRecords.map((sale) =>
             sale.id === currentSale.id ? { ...sale, ...newSale } : sale
@@ -54,7 +56,7 @@ function SalesPage() {
     } else {
       // Add new sale via API
       try {
-        const response = await api.post('/sales', newSale);  // Send the new sale to the API
+        const response = await api.post('/api/v1/sales', newSale);  // Send the new sale to the API
         setSalesRecords([...salesRecords, { id: response.data.id, ...newSale }]);
         showToastMessage('success', 'Sale record added successfully!');
       } catch (error) {
@@ -77,7 +79,7 @@ function SalesPage() {
     if (!window.confirm('Are you sure you want to delete this sale?')) return;
 
     try {
-      await api.delete(`/sales/${saleId}`);  // Delete the sale via API
+      await api.delete(`/api/v1/sales/${saleId}`);  // Delete the sale via API
       setSalesRecords(salesRecords.filter(sale => sale.id !== saleId));
       showToastMessage('success', 'Sale record deleted successfully!');
     } catch (error) {

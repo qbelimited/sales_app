@@ -1,25 +1,25 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Table, Button, Pagination, Spinner, Form, Row, Col } from 'react-bootstrap';
+import { Table, Button, Pagination, Spinner, Form, Row, Col, Modal } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEdit, faTrash, faSort, faSortUp, faSortDown } from '@fortawesome/free-solid-svg-icons';
-import api from '../services/api';  // Import the API service
-import { debounce } from 'lodash';  // Import lodash for debouncing
-import DatePicker from 'react-datepicker'; // React Datepicker for selecting date ranges
-import 'react-datepicker/dist/react-datepicker.css'; // Datepicker CSS
+import api from '../services/api';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 
-const SalesTable = ({ onEdit, onDelete, userRole, userId }) => {
+const SalesTable = ({ userRole, userId }) => {
   const [salesRecords, setSalesRecords] = useState([]);
-  const [loading, setLoading] = useState(true); // Loading state for API calls
-  const [sortConfig, setSortConfig] = useState({ key: 'client_name', direction: 'asc' }); // Sorting state with default
-  const [page, setPage] = useState(1); // Current page for pagination
-  const [totalPages, setTotalPages] = useState(1); // Total pages available from API
-  const [filters, setFilters] = useState({ startDate: null, endDate: null, clientName: '' }); // Date range and other filters
+  const [loading, setLoading] = useState(true);
+  const [sortConfig, setSortConfig] = useState({ key: 'client_name', direction: 'asc' });
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [filters, setFilters] = useState({ startDate: null, endDate: null, clientName: '' });
+  const [showModal, setShowModal] = useState(false);
+  const [currentSale, setCurrentSale] = useState(null);
 
-  const limit = 10; // Items per page
-  const maxPageDisplay = 5; // Limit the number of pages displayed
+  const limit = 10;
+  const maxPageDisplay = 5;
 
-  // Function to fetch sales records with pagination, sorting, and filtering
-  const fetchSalesRecords = async (currentPage, sortKey, sortDirection, filterParams) => {
+  const fetchSalesRecords = useCallback(async (currentPage, sortKey, sortDirection, filterParams) => {
     setLoading(true);
     try {
       const params = {
@@ -27,56 +27,62 @@ const SalesTable = ({ onEdit, onDelete, userRole, userId }) => {
         limit,
         sort_by: sortKey,
         sort_direction: sortDirection,
-        ...filterParams, // Add filter parameters (date range and client name)
+        ...filterParams,
       };
 
-      // Check user role to filter sales based on role
       if (userRole === 'sales_manager') {
-        params.sales_manager_id = userId; // Only fetch sales by this user
+        params.sales_manager_id = userId;
       }
 
-      const response = await api.get('/sales', { params });
-      setSalesRecords(response.data.records); // Assume the API returns sales records in "records"
-      setTotalPages(response.data.total_pages); // Assume total pages are returned in "total_pages"
-      setLoading(false);
+      const response = await api.get('/api/v1/sales', { params });
+      setSalesRecords(response.data.records || []);
+      setTotalPages(response.data.total_pages || 1);
     } catch (error) {
       console.error('Error fetching sales records:', error);
+    } finally {
       setLoading(false);
     }
-  };
+  }, [userRole, userId, limit]);
 
-  // Debounced sorting function to avoid frequent API calls
-  const debouncedFetchSales = useCallback(debounce(fetchSalesRecords, 300), []);
-
-  // Handle sorting changes
   const handleSort = (key) => {
     let direction = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc'; // Toggle direction
+      direction = 'desc';
     }
     setSortConfig({ key, direction });
-    debouncedFetchSales(page, key, direction, filters); // Pass filters to API call
   };
 
-  // Handle page changes in pagination
   const handlePageChange = (pageNumber) => {
-    setPage(pageNumber);
-    fetchSalesRecords(pageNumber, sortConfig.key, sortConfig.direction, filters); // Fetch records for the selected page with filters
+    if (pageNumber >= 1 && pageNumber <= totalPages) {
+      setPage(pageNumber);
+    }
   };
 
-  // Handle date range and client name filter submission
   const handleFilterSubmit = (e) => {
     e.preventDefault();
-    fetchSalesRecords(page, sortConfig.key, sortConfig.direction, filters); // Fetch records with filters
+    fetchSalesRecords(page, sortConfig.key, sortConfig.direction, filters);
   };
 
-  // Handle input change for filters
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters((prevFilters) => ({ ...prevFilters, [name]: value }));
   };
 
-  // Get the correct icon for sorting based on the selected column
+  const handleEdit = (sale) => {
+    setCurrentSale(sale);
+    setShowModal(true);
+  };
+
+  const handleDelete = async (saleId) => {
+    if (!window.confirm('Are you sure you want to delete this sale?')) return;
+    try {
+      await api.delete(`/api/v1/sales/${saleId}`);
+      setSalesRecords(salesRecords.filter((sale) => sale.id !== saleId));
+    } catch (error) {
+      console.error('Error deleting sale:', error);
+    }
+  };
+
   const getSortIcon = (key) => {
     if (sortConfig.key === key) {
       return sortConfig.direction === 'asc' ? (
@@ -85,15 +91,13 @@ const SalesTable = ({ onEdit, onDelete, userRole, userId }) => {
         <FontAwesomeIcon icon={faSortDown} />
       );
     }
-    return <FontAwesomeIcon icon={faSort} />; // Neutral icon for sortable columns
+    return <FontAwesomeIcon icon={faSort} />;
   };
 
-  // Fetch initial data on mount and when sorting config or page changes
   useEffect(() => {
     fetchSalesRecords(page, sortConfig.key, sortConfig.direction, filters);
-  }, [page, sortConfig]);
+  }, [page, sortConfig, filters, fetchSalesRecords]);
 
-  // Generate pagination items with limited number of pages
   const renderPaginationItems = () => {
     const pages = [];
     const startPage = Math.max(1, page - Math.floor(maxPageDisplay / 2));
@@ -109,7 +113,8 @@ const SalesTable = ({ onEdit, onDelete, userRole, userId }) => {
     return pages;
   };
 
-  if (loading) {
+   // Handle loading state with Spinner
+   if (loading) {
     return (
       <div className="text-center mt-5">
         <Spinner animation="border" />
@@ -166,6 +171,7 @@ const SalesTable = ({ onEdit, onDelete, userRole, userId }) => {
         </Row>
       </Form>
 
+      {/* Sales Table */}
       <Table striped bordered hover responsive className="mt-3">
         <thead>
           <tr>
@@ -210,7 +216,7 @@ const SalesTable = ({ onEdit, onDelete, userRole, userId }) => {
           {salesRecords.length > 0 ? (
             salesRecords.map((sale, index) => (
               <tr key={sale.id}>
-                <td>{(page - 1) * limit + index + 1}</td> {/* Adjust for pagination */}
+                <td>{(page - 1) * limit + index + 1}</td>
                 <td>{sale.client_name}</td>
                 <td>{sale.client_id_no}</td>
                 <td>{sale.client_phone}</td>
@@ -227,14 +233,14 @@ const SalesTable = ({ onEdit, onDelete, userRole, userId }) => {
                     variant="warning"
                     size="sm"
                     className="me-2"
-                    onClick={() => onEdit(sale)}
+                    onClick={() => handleEdit(sale)}
                   >
                     <FontAwesomeIcon icon={faEdit} />
                   </Button>
                   <Button
                     variant="danger"
                     size="sm"
-                    onClick={() => onDelete(sale.id)}
+                    onClick={() => handleDelete(sale.id)}
                   >
                     <FontAwesomeIcon icon={faTrash} />
                   </Button>
@@ -259,6 +265,31 @@ const SalesTable = ({ onEdit, onDelete, userRole, userId }) => {
         <Pagination.Next onClick={() => handlePageChange(page + 1)} disabled={page === totalPages} />
         <Pagination.Last onClick={() => handlePageChange(totalPages)} disabled={page === totalPages} />
       </Pagination>
+
+      {/* Modal for Viewing/Editing Sale */}
+      <Modal show={showModal} onHide={() => setShowModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Edit Sale</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {/* Add your form for editing sale here */}
+          <Form>
+            <Form.Group controlId="editClientName">
+              <Form.Label>Client Name</Form.Label>
+              <Form.Control type="text" value={currentSale?.client_name || ''} readOnly />
+            </Form.Group>
+            {/* Add other fields here */}
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowModal(false)}>
+            Close
+          </Button>
+          <Button variant="primary" onClick={() => {/* Handle save logic here */}}>
+            Save Changes
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 };

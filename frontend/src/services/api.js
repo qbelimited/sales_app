@@ -33,7 +33,7 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Response interceptor for handling token expiration and other errors
+// Response interceptor for handling token expiration, refresh, and other errors
 api.interceptors.response.use(
   (response) => response,  // Return the response directly if no error
   async (error) => {
@@ -44,6 +44,7 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       if (isRefreshing) {
+        // Add to queue if a token refresh is already in progress
         return new Promise((resolve) => {
           subscribeTokenRefresh((token) => {
             originalRequest.headers.Authorization = `Bearer ${token}`;
@@ -66,21 +67,36 @@ api.interceptors.response.use(
       } catch (refreshError) {
         isRefreshing = false;
         console.error('Token refresh failed:', refreshError);
+
+        // Log the user out and redirect to the login page
         authService.logout();
-        window.location.href = '/login'; // Redirect to login page
+        window.location.href = '/login';
         return Promise.reject(refreshError);
       }
     }
 
-    // Optional: Handle other common HTTP errors here (e.g., 403, 500)
+    // Handle 403 Forbidden error
     if (error.response?.status === 403) {
-      console.warn('Access forbidden');
-      // Optionally, trigger an action like redirecting to a forbidden page
+      console.warn('Access forbidden: You do not have permission to access this resource.');
+      // Optionally, redirect the user to a "403 Forbidden" page or show a modal
     }
 
+    // Handle 404 Not Found error
+    if (error.response?.status === 404) {
+      console.error('Error: The requested resource could not be found.');
+      // Optionally, redirect the user to a "404 Not Found" page
+    }
+
+    // Handle 422 Validation Error (Unprocessable Entity)
+    if (error.response?.status === 422) {
+      console.warn('Validation error: Check the provided data.');
+      // Optionally, you could surface the validation error messages to the user
+    }
+
+    // Handle 500 Server Error
     if (error.response?.status === 500) {
-      console.error('Server error');
-      // Notify users about server issues
+      console.error('Server error: Something went wrong on the server.');
+      // Optionally, show a global toast notification about the server error
     }
 
     return Promise.reject(error);

@@ -3,15 +3,15 @@ import api from './api';
 const authService = {
   login: async (credentials) => {
     try {
-      const response = await api.post('/auth/login', credentials);
+      const response = await api.post('/api/v1/auth/login', credentials);
       const { access_token, refresh_token, user } = response.data;
 
       // Store tokens and user information in localStorage
       localStorage.setItem('access_token', access_token);
       localStorage.setItem('refresh_token', refresh_token);
-      localStorage.setItem('user', JSON.stringify(user));  // Store user data
+      localStorage.setItem('user', JSON.stringify(user));
 
-      return response.data;  // Return user data and tokens
+      return response.data; // Return user data and tokens
     } catch (error) {
       console.error('Login failed:', error);
       const errorMessage = error.response?.data?.message || 'Login failed';
@@ -24,7 +24,8 @@ const authService = {
       const accessToken = localStorage.getItem('access_token');
       if (!accessToken) throw new Error('No access token available for logout.');
 
-      await api.post('/auth/logout', {}, {
+      // Use the correct API endpoint for logout
+      await api.post('/api/v1/auth/logout', {}, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
@@ -47,15 +48,19 @@ const authService = {
       const refreshToken = localStorage.getItem('refresh_token');
       if (!refreshToken) throw new Error('No refresh token available.');
 
-      const response = await api.post('/auth/refresh', { refresh_token: refreshToken });
+      const response = await api.post('/api/v1/auth/refresh', { refresh_token: refreshToken });
       const { access_token } = response.data;
 
       // Update access token in localStorage
       localStorage.setItem('access_token', access_token);
 
-      return access_token;  // Return the new access token
+      return access_token; // Return the new access token
     } catch (error) {
       console.error('Token refresh failed:', error);
+
+      // If the refresh token fails, logout the user and clear session
+      authService.clearSession();
+
       const errorMessage = error.response?.data?.message || 'Token refresh failed';
       throw new Error(errorMessage);
     }
@@ -78,6 +83,15 @@ const authService = {
       return false;
     }
   },
+
+  clearSession: () => {
+    // Clear tokens and user data from localStorage
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('userID');
+  }
 };
 
 export default authService;
