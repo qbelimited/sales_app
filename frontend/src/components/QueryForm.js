@@ -7,8 +7,8 @@ import { debounce } from 'lodash';  // Import lodash for debouncing
 import DatePicker from 'react-datepicker'; // React Datepicker for selecting date ranges
 import 'react-datepicker/dist/react-datepicker.css'; // Datepicker CSS
 
-const SalesTable = ({ onEdit, onDelete, userRole, userId }) => {
-  const [salesRecords, setSalesRecords] = useState([]);
+const QueryForm = ({ onEdit, onDelete, userRole, userId }) => {
+  const [queryRecords, setQueryRecords] = useState([]);
   const [loading, setLoading] = useState(true); // Loading state for API calls
   const [sortConfig, setSortConfig] = useState({ key: 'client_name', direction: 'asc' }); // Sorting state with default
   const [page, setPage] = useState(1); // Current page for pagination
@@ -18,8 +18,8 @@ const SalesTable = ({ onEdit, onDelete, userRole, userId }) => {
   const limit = 10; // Items per page
   const maxPageDisplay = 5; // Limit the number of pages displayed
 
-  // Function to fetch sales records with pagination, sorting, and filtering
-  const fetchSalesRecords = async (currentPage, sortKey, sortDirection, filterParams) => {
+  // Function to fetch query records with pagination, sorting, and filtering
+  const fetchQueryRecords = async (currentPage, sortKey, sortDirection, filterParams) => {
     setLoading(true);
     try {
       const params = {
@@ -30,23 +30,23 @@ const SalesTable = ({ onEdit, onDelete, userRole, userId }) => {
         ...filterParams, // Add filter parameters (date range and client name)
       };
 
-      // Check user role to filter sales based on role
-      if (userRole === 'sales_manager') {
-        params.sales_manager_id = userId; // Only fetch sales by this user
+      // Check user role to filter queries based on role
+      if (userRole === 'query_manager') {
+        params.query_manager_id = userId; // Only fetch queries by this user
       }
 
-      const response = await api.get('/sales', { params });
-      setSalesRecords(response.data.records); // Assume the API returns sales records in "records"
+      const response = await api.get('/queries', { params });
+      setQueryRecords(response.data.records); // Assume the API returns query records in "records"
       setTotalPages(response.data.total_pages); // Assume total pages are returned in "total_pages"
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching sales records:', error);
+      console.error('Error fetching query records:', error);
       setLoading(false);
     }
   };
 
   // Debounced sorting function to avoid frequent API calls
-  const debouncedFetchSales = useCallback(debounce(fetchSalesRecords, 300), []);
+  const debouncedFetchQueries = useCallback(debounce(fetchQueryRecords, 300), []);
 
   // Handle sorting changes
   const handleSort = (key) => {
@@ -55,19 +55,19 @@ const SalesTable = ({ onEdit, onDelete, userRole, userId }) => {
       direction = 'desc'; // Toggle direction
     }
     setSortConfig({ key, direction });
-    debouncedFetchSales(page, key, direction, filters); // Pass filters to API call
+    debouncedFetchQueries(page, key, direction, filters); // Pass filters to API call
   };
 
   // Handle page changes in pagination
   const handlePageChange = (pageNumber) => {
     setPage(pageNumber);
-    fetchSalesRecords(pageNumber, sortConfig.key, sortConfig.direction, filters); // Fetch records for the selected page with filters
+    fetchQueryRecords(pageNumber, sortConfig.key, sortConfig.direction, filters); // Fetch records for the selected page with filters
   };
 
   // Handle date range and client name filter submission
   const handleFilterSubmit = (e) => {
     e.preventDefault();
-    fetchSalesRecords(page, sortConfig.key, sortConfig.direction, filters); // Fetch records with filters
+    fetchQueryRecords(page, sortConfig.key, sortConfig.direction, filters); // Fetch records with filters
   };
 
   // Handle input change for filters
@@ -90,7 +90,7 @@ const SalesTable = ({ onEdit, onDelete, userRole, userId }) => {
 
   // Fetch initial data on mount and when sorting config or page changes
   useEffect(() => {
-    fetchSalesRecords(page, sortConfig.key, sortConfig.direction, filters);
+    fetchQueryRecords(page, sortConfig.key, sortConfig.direction, filters);
   }, [page, sortConfig]);
 
   // Generate pagination items with limited number of pages
@@ -119,7 +119,7 @@ const SalesTable = ({ onEdit, onDelete, userRole, userId }) => {
 
   return (
     <div className="mt-5">
-      <h2>Current Sales</h2>
+      <h2>Current Queries</h2>
 
       {/* Filter Section */}
       <Form onSubmit={handleFilterSubmit} className="mb-4">
@@ -176,65 +176,41 @@ const SalesTable = ({ onEdit, onDelete, userRole, userId }) => {
             <th onClick={() => handleSort('client_id_no')}>
               Client ID {getSortIcon('client_id_no')}
             </th>
-            <th onClick={() => handleSort('client_phone')}>
-              Phone {getSortIcon('client_phone')}
-            </th>
-            <th onClick={() => handleSort('amount')}>
-              Amount {getSortIcon('amount')}
-            </th>
-            <th onClick={() => handleSort('policy_type_name')}>
-              Policy Type {getSortIcon('policy_type_name')}
-            </th>
-            <th onClick={() => handleSort('serial_number')}>
-              Serial Number {getSortIcon('serial_number')}
-            </th>
-            <th onClick={() => handleSort('sale_manager')}>
-              Sales Manager {getSortIcon('sale_manager')}
-            </th>
-            <th onClick={() => handleSort('sales_executive_name')}>
-              Sales Executive {getSortIcon('sales_executive_name')}
-            </th>
-            <th onClick={() => handleSort('source_type')}>
-              Source Type {getSortIcon('source_type')}
+            <th onClick={() => handleSort('query_type')}>
+              Query Type {getSortIcon('query_type')}
             </th>
             <th onClick={() => handleSort('status')}>
               Status {getSortIcon('status')}
             </th>
-            <th onClick={() => handleSort('date_of_sale')}>
-              Date of Sale {getSortIcon('date_of_sale')}
+            <th onClick={() => handleSort('date_of_query')}>
+              Date of Query {getSortIcon('date_of_query')}
             </th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {salesRecords.length > 0 ? (
-            salesRecords.map((sale, index) => (
-              <tr key={sale.id}>
+          {queryRecords.length > 0 ? (
+            queryRecords.map((query, index) => (
+              <tr key={query.id}>
                 <td>{(page - 1) * limit + index + 1}</td> {/* Adjust for pagination */}
-                <td>{sale.client_name}</td>
-                <td>{sale.client_id_no}</td>
-                <td>{sale.client_phone}</td>
-                <td>{sale.amount}</td>
-                <td>{sale.policy_type_name}</td>
-                <td>{sale.serial_number}</td>
-                <td>{sale.sale_manager}</td>
-                <td>{sale.sales_executive_name}</td>
-                <td>{sale.source_type}</td>
-                <td>{sale.status}</td>
-                <td>{new Date(sale.date_of_sale).toLocaleDateString()}</td>
+                <td>{query.client_name}</td>
+                <td>{query.client_id_no}</td>
+                <td>{query.query_type}</td>
+                <td>{query.status}</td>
+                <td>{new Date(query.date_of_query).toLocaleDateString()}</td>
                 <td>
                   <Button
                     variant="warning"
                     size="sm"
                     className="me-2"
-                    onClick={() => onEdit(sale)}
+                    onClick={() => onEdit(query)}
                   >
                     <FontAwesomeIcon icon={faEdit} />
                   </Button>
                   <Button
                     variant="danger"
                     size="sm"
-                    onClick={() => onDelete(sale.id)}
+                    onClick={() => onDelete(query.id)}
                   >
                     <FontAwesomeIcon icon={faTrash} />
                   </Button>
@@ -243,8 +219,8 @@ const SalesTable = ({ onEdit, onDelete, userRole, userId }) => {
             ))
           ) : (
             <tr>
-              <td colSpan="13" className="text-center">
-                No sales records available.
+              <td colSpan="7" className="text-center">
+                No query records available.
               </td>
             </tr>
           )}
@@ -263,4 +239,4 @@ const SalesTable = ({ onEdit, onDelete, userRole, userId }) => {
   );
 };
 
-export default SalesTable;
+export default QueryForm;

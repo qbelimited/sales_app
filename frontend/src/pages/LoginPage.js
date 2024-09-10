@@ -1,52 +1,56 @@
-// src/pages/LoginPage.js
 import React, { useState } from 'react';
 import { Button, Spinner, Card, Form, Container, Row, Col } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import authService from '../services/authService';  // Use authService for login
+import { isValidEmail } from '../utils/validators';  // Utility for email validation
 
 function LoginPage({ onLogin, showToast }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
   const handleLogin = async () => {
+    // Client-side validation before making the API request
     if (!email || !password) {
       showToast('warning', 'Please fill in all fields', 'Missing Fields');
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      showToast('warning', 'Please enter a valid email address', 'Invalid Email');
       return;
     }
 
     setLoading(true);
 
     try {
-      const response = await axios.post('http://127.0.0.1:5000/api/v1/auth/login', {
+      // Use the authService to handle login
+      const { access_token, refresh_token, user } = await authService.login({
         email,
         password,
       });
 
-      if (response.status === 200) {
-        const { access_token, refresh_token, user } = response.data;
+      // Store tokens and user info in localStorage for persistence
+      localStorage.setItem('accessToken', access_token);  // Store access token
+      localStorage.setItem('refreshToken', refresh_token);  // Store refresh token
+      localStorage.setItem('userRole', user.role_id);  // Store user role
+      localStorage.setItem('userID', user.id);         // Store user ID
+      localStorage.setItem('user', JSON.stringify(user));  // Store user details
 
-        // Store tokens and user info
-        localStorage.setItem('accessToken', access_token);
-        localStorage.setItem('refreshToken', refresh_token);
-        localStorage.setItem('userRole', user.role_id);
-        localStorage.setItem('userID', user.id);
-        localStorage.setItem('user', JSON.stringify(user));
+      // Call the onLogin function to set the role in the App state
+      onLogin(user.role_id);
 
-        // Call the onLogin function to set the role in the App state
-        onLogin(user.role_id);
+      // Show success toast
+      showToast('success', 'Login successful!', 'Success');
 
-        // Show success toast
-        showToast('success', 'Login successful!', 'Success');
+      // Redirect to the appropriate page based on role immediately after successful login
+      navigate(user.role_id == 3 ? '/manage-users' : '/sales');
 
-        // Redirect to the sales page after login
-        setTimeout(() => {
-          navigate('/sales');
-        }, 500);  // Delay for toast to display before redirection
-      }
     } catch (error) {
-      showToast('danger', error.response?.data?.message || 'Login failed!', 'Error');
+      setError(error.message || 'Login failed');
+      showToast('danger', error.message || 'Login failed!', 'Error');
     } finally {
       setLoading(false);
     }
@@ -81,6 +85,8 @@ function LoginPage({ onLogin, showToast }) {
                     required
                   />
                 </Form.Group>
+
+                {error && <div className="text-danger text-center mb-3">{error}</div>}
 
                 <div className="d-grid">
                   <Button variant="primary" size="lg" onClick={handleLogin} disabled={loading}>

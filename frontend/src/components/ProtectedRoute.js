@@ -7,7 +7,8 @@ const ProtectedRoute = ({ children, allowedRoles, userRole }) => {
     return <Navigate to="/login" />;
   }
 
-  if (!allowedRoles.includes(userRole)) {
+  // Check if the user's role is in the allowedRoles array
+  if (!allowedRoles.includes(parseInt(userRole))) {
     // If the user doesn't have the required role, redirect to a "Not Authorized" page
     return <Navigate to="/unauthorized" />;
   }

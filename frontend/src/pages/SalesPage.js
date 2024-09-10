@@ -1,36 +1,69 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import SalesForm from '../components/SalesForm';
 import SalesTable from '../components/SalesTable';
-import { Button, Toast, ToastContainer } from 'react-bootstrap';
+import { Button, Toast, ToastContainer, Spinner } from 'react-bootstrap';
+import api from '../services/api';  // Import Axios instance or your API service
 
 function SalesPage() {
   const [salesRecords, setSalesRecords] = useState([]);
+  const [loading, setLoading] = useState(true);  // Loading state for fetching data
   const [showForm, setShowForm] = useState(false); // State to control form visibility
   const [currentSale, setCurrentSale] = useState(null); // State to track the sale being edited
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [toastVariant, setToastVariant] = useState(''); // success or danger for toast feedback
 
+  // Fetch sales records from API on component mount
+  useEffect(() => {
+    const fetchSales = async () => {
+      try {
+        const response = await api.get('/sales');  // Replace with your actual API endpoint
+        setSalesRecords(response.data);
+        setLoading(false);
+      } catch (error) {
+        showToastMessage('danger', 'Error fetching sales records.');
+        setLoading(false);
+      }
+    };
+
+    fetchSales();
+  }, []);
+
+  // Reusable function to show toast messages
+  const showToastMessage = (variant, message) => {
+    setToastMessage(message);
+    setToastVariant(variant);
+    setShowToast(true);
+  };
+
   // Function to handle form submission (for both new sale and edit)
-  const handleFormSubmit = (newSale) => {
+  const handleFormSubmit = async (newSale) => {
     if (currentSale) {
-      // Update existing sale
-      setSalesRecords(
-        salesRecords.map((sale) =>
-          sale.id === currentSale.id ? { ...sale, ...newSale } : sale
-        )
-      );
-      setToastMessage('Sale record updated successfully!');
+      // Update existing sale via API
+      try {
+        await api.put(`/sales/${currentSale.id}`, newSale);
+        setSalesRecords(
+          salesRecords.map((sale) =>
+            sale.id === currentSale.id ? { ...sale, ...newSale } : sale
+          )
+        );
+        showToastMessage('success', 'Sale record updated successfully!');
+      } catch (error) {
+        showToastMessage('danger', 'Error updating sale record.');
+      }
     } else {
-      // Add new sale
-      setSalesRecords([...salesRecords, { id: salesRecords.length + 1, ...newSale }]);
-      setToastMessage('Sale record added successfully!');
+      // Add new sale via API
+      try {
+        const response = await api.post('/sales', newSale);  // Send the new sale to the API
+        setSalesRecords([...salesRecords, { id: response.data.id, ...newSale }]);
+        showToastMessage('success', 'Sale record added successfully!');
+      } catch (error) {
+        showToastMessage('danger', 'Error adding new sale record.');
+      }
     }
 
     setShowForm(false);
     setCurrentSale(null); // Clear the current sale after submission
-    setToastVariant('success');
-    setShowToast(true);
   };
 
   // Function to handle editing a sale
@@ -40,12 +73,26 @@ function SalesPage() {
   };
 
   // Function to handle deleting a sale
-  const handleDelete = (saleId) => {
-    setSalesRecords(salesRecords.filter(sale => sale.id !== saleId));
-    setToastMessage('Sale record deleted successfully!');
-    setToastVariant('danger');
-    setShowToast(true);
+  const handleDelete = async (saleId) => {
+    if (!window.confirm('Are you sure you want to delete this sale?')) return;
+
+    try {
+      await api.delete(`/sales/${saleId}`);  // Delete the sale via API
+      setSalesRecords(salesRecords.filter(sale => sale.id !== saleId));
+      showToastMessage('success', 'Sale record deleted successfully!');
+    } catch (error) {
+      showToastMessage('danger', 'Error deleting sale record.');
+    }
   };
+
+  // Show loading spinner while fetching data
+  if (loading) {
+    return (
+      <div className="text-center mt-5">
+        <Spinner animation="border" />
+      </div>
+    );
+  }
 
   return (
     <div className="container mt-5">

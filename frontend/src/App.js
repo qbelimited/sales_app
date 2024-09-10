@@ -14,6 +14,7 @@ import ManageBanksPage from './pages/ManageBanksPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import BranchManagementPage from './pages/BranchManagementPage';
 import Toaster from './components/Toaster';  // Global Toaster component
+import authService from './services/authService';     // Import the auth service
 
 function App() {
   const [role, setRole] = useState(null);
@@ -22,8 +23,11 @@ function App() {
   // On mount, check if the user is already logged in by checking localStorage
   useEffect(() => {
     const savedRole = localStorage.getItem('userRole');
-    if (savedRole) {
+    if (savedRole && authService.isLoggedIn()) { // Check if the user is logged in and token is valid
       setRole(savedRole);
+    } else {
+      setRole(null); // Clear role if not logged in
+      localStorage.removeItem('userRole');  // Ensure that we clear invalid sessions
     }
   }, []);  // This will run only once when the component mounts
 
@@ -48,11 +52,15 @@ function App() {
     setRole(userRole);
     localStorage.setItem('userRole', userRole);  // Store role in localStorage after login
     showToast('success', 'Login successful', 'Welcome');
+
+    // Redirect users based on role after login
+    window.location.href = userRole == 3 ? '/manage-users' : '/sales';
   };
 
   const handleLogout = () => {
     setRole(null);
     localStorage.removeItem('userRole');  // Clear userRole from localStorage on logout
+    authService.logout();  // Call logout from authService to clear session
     showToast('success', 'Logout successful', 'Goodbye');
   };
 
@@ -72,7 +80,7 @@ function App() {
             <Route
               path="/sales"
               element={
-                <ProtectedRoute allowedRoles={['user', 'admin']} userRole={role}>
+                <ProtectedRoute allowedRoles={[1, 3, 4]} userRole={parseInt(role)}>
                   <SalesPage showToast={showToast} />
                 </ProtectedRoute>
               }
@@ -80,7 +88,7 @@ function App() {
             <Route
               path="/audit-trail"
               element={
-                <ProtectedRoute allowedRoles={['manager', 'admin']} userRole={role}>
+                <ProtectedRoute allowedRoles={[2, 3]} userRole={parseInt(role)}>
                   <AuditTrailPage showToast={showToast} />
                 </ProtectedRoute>
               }
@@ -88,7 +96,7 @@ function App() {
             <Route
               path="/manage-access"
               element={
-                <ProtectedRoute allowedRoles={['admin']} userRole={role}>
+                <ProtectedRoute allowedRoles={[3]} userRole={parseInt(role)}>
                   <ManageAccessPage showToast={showToast} />
                 </ProtectedRoute>
               }
@@ -96,7 +104,7 @@ function App() {
             <Route
               path="/logs"
               element={
-                <ProtectedRoute allowedRoles={['admin']} userRole={role}>
+                <ProtectedRoute allowedRoles={[3]} userRole={parseInt(role)}>
                   <LogsPage showToast={showToast} />
                 </ProtectedRoute>
               }
@@ -104,7 +112,7 @@ function App() {
             <Route
               path="/retention-policy"
               element={
-                <ProtectedRoute allowedRoles={['admin']} userRole={role}>
+                <ProtectedRoute allowedRoles={[3]} userRole={parseInt(role)}>
                   <RetentionPolicyPage showToast={showToast} />
                 </ProtectedRoute>
               }
@@ -112,7 +120,7 @@ function App() {
             <Route
               path="/manage-users"
               element={
-                <ProtectedRoute allowedRoles={['manager', 'admin']} userRole={role}>
+                <ProtectedRoute allowedRoles={[2, 3]} userRole={parseInt(role)}>
                   <ManageUsersPage showToast={showToast} />
                 </ProtectedRoute>
               }
@@ -120,7 +128,7 @@ function App() {
             <Route
               path="/manage-products"
               element={
-                <ProtectedRoute allowedRoles={['manager', 'admin']} userRole={role}>
+                <ProtectedRoute allowedRoles={[2, 3]} userRole={parseInt(role)}>
                   <ManageProductsPage showToast={showToast} />
                 </ProtectedRoute>
               }
@@ -128,7 +136,7 @@ function App() {
             <Route
               path="/banks/:bankId/branches"
               element={
-                <ProtectedRoute allowedRoles={['manager', 'admin']} userRole={role}>
+                <ProtectedRoute allowedRoles={[2, 3]} userRole={parseInt(role)}>
                   <BranchManagementPage showToast={showToast} />
                 </ProtectedRoute>
               }
@@ -136,7 +144,7 @@ function App() {
             <Route
               path="/manage-banks"
               element={
-                <ProtectedRoute allowedRoles={['manager', 'admin']} userRole={role}>
+                <ProtectedRoute allowedRoles={[2, 3]} userRole={parseInt(role)}>
                   <ManageBanksPage showToast={showToast} />
                 </ProtectedRoute>
               }

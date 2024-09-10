@@ -62,11 +62,22 @@ const authService = {
   },
 
   getAccessToken: () => {
-    const token = localStorage.getItem('access_token');
-    return token ? token : null;  // Return the token or null if it doesn't exist
+    return localStorage.getItem('access_token') || null;
   },
 
-  isLoggedIn: () => !!localStorage.getItem('access_token'),  // Check if logged in by checking if access_token exists
+  isLoggedIn: () => {
+    const token = localStorage.getItem('access_token');
+    return !!token && !authService.isTokenExpired(token);  // Check if logged in and token is not expired
+  },
+
+  isTokenExpired: (token) => {
+    try {
+      const decoded = JSON.parse(atob(token.split('.')[1]));
+      return decoded.exp * 1000 < Date.now();
+    } catch (e) {
+      return false;
+    }
+  },
 };
 
 export default authService;
