@@ -1,0 +1,44 @@
+# Deployment configuration for the Sales App
+
+deployment:
+  tasks:
+    - export DEPLOY_ENVIRONMENT=production
+    - export FLASK_APP=app.py
+    - echo "Deployment started: Setting up environment variables"
+
+    # Install Python dependencies
+    - run:
+        command: |
+          python3 -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt
+
+    # Set up the front-end build process
+    - run:
+        command: |
+          echo "Building the frontend"
+          cd frontend
+          npm install
+          npm run build
+          cd ..
+
+    # Move the frontend build to a public directory (if required for your setup)
+    - run:
+        command: |
+          echo "Moving frontend build to the appropriate directory"
+          mv frontend/build/* public_html/
+
+    # Set up the database migrations (Alembic)
+    - run:
+        command: |
+          echo "Applying database migrations"
+          source venv/bin/activate
+          alembic upgrade head
+
+    # Finalize deployment
+    - run:
+        command: |
+          echo "Deployment finished successfully"
+
+    # Restart the application to apply changes
+    - restart_web_server
