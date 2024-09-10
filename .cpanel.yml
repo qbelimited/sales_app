@@ -4,16 +4,26 @@ deployment:
   tasks:
     - export DEPLOY_ENVIRONMENT=production
     - export FLASK_APP=app.py
+    - export DATABASE_URL="mysql+pymysql://impapnvs_impact:Impact@2024@localhost/impapnvs_sales_app"
     - echo "Deployment started: Setting up environment variables"
 
-    # Install Python dependencies
+    # Copy backend to the subdomain folder "salesback.impactlife.com.gh"
     - run:
         command: |
+          echo "Copying backend files to salesback.impactlife.com.gh"
+          mkdir -p ~/salesback.impactlife.com.gh
+          rsync -av --exclude frontend --exclude public_html --exclude .git . ~/salesback.impactlife.com.gh/
+
+    # Install Python dependencies in the backend folder
+    - run:
+        command: |
+          echo "Installing backend dependencies"
+          cd ~/salesback.impactlife.com.gh
           python3 -m venv venv
           source venv/bin/activate
           pip install -r requirements.txt
 
-    # Set up the front-end build process
+    # Set up the frontend build process
     - run:
         command: |
           echo "Building the frontend"
@@ -22,16 +32,18 @@ deployment:
           npm run build
           cd ..
 
-    # Move the frontend build to a public directory (if required for your setup)
+    # Copy the frontend to the subdomain folder "salesapp.impactlife.com.gh"
     - run:
         command: |
-          echo "Moving frontend build to the appropriate directory"
-          mv frontend/build/* public_html/
+          echo "Copying frontend build to salesapp.impactlife.com.gh"
+          mkdir -p ~/salesapp.impactlife.com.gh
+          rsync -av frontend/build/ ~/salesapp.impactlife.com.gh/
 
-    # Set up the database migrations (Alembic)
+    # Apply database migrations (Alembic) in the backend folder
     - run:
         command: |
           echo "Applying database migrations"
+          cd ~/salesback.impactlife.com.gh
           source venv/bin/activate
           alembic upgrade head
 
@@ -40,5 +52,5 @@ deployment:
         command: |
           echo "Deployment finished successfully"
 
-    # Restart the application to apply changes
+    # Restart the web server to apply changes
     - restart_web_server
