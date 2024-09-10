@@ -59,7 +59,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
     // Fetch policy types (Impact Products)
     const fetchImpactProducts = async () => {
         try {
-            const response = await axios.get('/api/v1/policy_types');
+            const response = await axios.get('/policy_types');
             setImpactProducts(response.data);
         } catch (error) {
             toast.error('Failed to fetch policy types');
@@ -69,7 +69,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
     // Fetch banks
     const fetchBanks = async () => {
         try {
-            const response = await axios.get('/api/v1/banks');
+            const response = await axios.get('/banks');
             setBanks(response.data);
         } catch (error) {
             toast.error('Failed to fetch banks');
@@ -79,7 +79,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
     // Fetch branches based on selected bank
     const fetchBranches = async (bankId) => {
         try {
-            const response = await axios.get(`/api/v1/banks/${bankId}/branches`);
+            const response = await axios.get(`/banks/${bankId}/branches`);
             setBranches(response.data);
         } catch (error) {
             toast.error('Failed to fetch branches');
@@ -89,7 +89,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
     // Fetch sales executives based on selected manager
     const fetchSalesExecutives = async (managerId) => {
         try {
-            const response = await axios.get(`/api/v1/sales_managers/${managerId}/executives`);
+            const response = await axios.get(`/sales_managers/${managerId}/executives`);
             setSalesExecutives(response.data);
         } catch (error) {
             toast.error('Failed to fetch sales executives');

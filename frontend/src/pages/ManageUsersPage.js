@@ -21,7 +21,7 @@ const ManageUsersPage = ({ showToast }) => {
     const fetchUsers = async () => {
       setLoading(true);  // Set loading state
       try {
-        const response = await api.get('/users', {
+        const response = await api.get('/user', {
           params: {
             sort_by: sortBy,
             filter_by: filterBy,
@@ -68,7 +68,7 @@ const ManageUsersPage = ({ showToast }) => {
 
     setLoadingSave(true);
     try {
-      await api.put(`/users/${selectedUser.id}`, selectedUser);  // Update the user via API
+      await api.put(`/user/${selectedUser.id}`, selectedUser);  // Update the user via API
       setUsers(users.map((user) => (user.id === selectedUser.id ? selectedUser : user)));  // Update the state
       handleCloseModal();
       showToast('success', 'User updated successfully', 'Success');
@@ -85,7 +85,7 @@ const ManageUsersPage = ({ showToast }) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
       setLoadingDelete(userId);  // Set loading state for the specific user
       try {
-        await api.delete(`/users/${userId}`);  // Delete the user via API
+        await api.delete(`/user/${userId}`);  // Delete the user via API
         setUsers(users.filter((user) => user.id !== userId));  // Remove the user from the state
         showToast('success', 'User deleted successfully', 'Success');
       } catch (error) {

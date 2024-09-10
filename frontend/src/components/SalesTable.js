@@ -34,7 +34,7 @@ const SalesTable = ({ userRole, userId }) => {
         params.sales_manager_id = userId;
       }
 
-      const response = await api.get('/api/v1/sales', { params });
+      const response = await api.get('/sales', { params });
       setSalesRecords(response.data.records || []);
       setTotalPages(response.data.total_pages || 1);
     } catch (error) {
@@ -76,7 +76,7 @@ const SalesTable = ({ userRole, userId }) => {
   const handleDelete = async (saleId) => {
     if (!window.confirm('Are you sure you want to delete this sale?')) return;
     try {
-      await api.delete(`/api/v1/sales/${saleId}`);
+      await api.delete(`/sales/${saleId}`);
       setSalesRecords(salesRecords.filter((sale) => sale.id !== saleId));
     } catch (error) {
       console.error('Error deleting sale:', error);
