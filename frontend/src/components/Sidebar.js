@@ -1,11 +1,24 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTachometerAlt, faFileAlt, faChartLine, faUsers, faExclamationTriangle, faUserTie, faBuilding, faFileInvoice, faLock, faDatabase, faTools } from '@fortawesome/free-solid-svg-icons';
+import {
+  faTachometerAlt,
+  faFileAlt,
+  faChartLine,
+  faUsers,
+  faExclamationTriangle,
+  faUserTie,
+  faBuilding,
+  faFileInvoice,
+  faLock,
+  faDatabase,
+  faTools,
+  faUserCog // Icon for user management
+} from '@fortawesome/free-solid-svg-icons';
 import './Sidebar.css';  // Import the custom CSS
 
 function Sidebar() {
-  const userRole = localStorage.getItem('userRole');  // Get the user's role from localStorage
+  const userRoleId = parseInt(localStorage.getItem('userRole'), 10);  // Get the user's role ID from localStorage
 
   return (
     <div className="sidebar">
@@ -47,17 +60,12 @@ function Sidebar() {
           </Link>
         </li>
 
-        {/* Managers and Admins */}
-        {(userRole === 'manager' || userRole === 'admin') && (
+        {/* Back_office (role_id = 1) and Managers (role_id = 2) and Admin (role_id = 3) */}
+        {(userRoleId === 1 || userRoleId === 2 || userRoleId === 3) && (
           <>
             <li>
               <Link to="/audit-trail">
                 <FontAwesomeIcon icon={faFileAlt} /> Audit Trail
-              </Link>
-            </li>
-            <li>
-              <Link to="/update-user-info">
-                <FontAwesomeIcon icon={faUsers} /> Update User Information
               </Link>
             </li>
             <li>
@@ -88,9 +96,14 @@ function Sidebar() {
           </>
         )}
 
-        {/* Admin Only */}
-        {userRole === 'admin' && (
+        {/* Admin (role_id = 3) Only */}
+        {userRoleId === 3 && (
           <>
+            <li>
+              <Link to="/manage-users">
+                <FontAwesomeIcon icon={faUserCog} /> User Management
+              </Link>
+            </li>
             <li>
               <Link to="/logs">
                 <FontAwesomeIcon icon={faDatabase} /> Logs

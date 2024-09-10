@@ -1,105 +1,143 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Table, Button, Pagination, Spinner, Form, Row, Col, Modal } from 'react-bootstrap';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faEdit, faTrash, faSort, faSortUp, faSortDown } from '@fortawesome/free-solid-svg-icons';
+import api from '../services/api';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import SalesForm from '../components/SalesForm';
-import SalesTable from '../components/SalesTable';
-import { Button, Toast, ToastContainer, Spinner, Row, Col, Form } from 'react-bootstrap';
-import api from '../services/api';  // Import Axios instance or your API service
 
-function SalesPage() {
+const SalesPage = () => {
   const [salesRecords, setSalesRecords] = useState([]);
-  const [loading, setLoading] = useState(true);  // Loading state for fetching data
-  const [showForm, setShowForm] = useState(false); // State to control form visibility
-  const [currentSale, setCurrentSale] = useState(null); // State to track the sale being edited
-  const [showToast, setShowToast] = useState(false);
-  const [toastMessage, setToastMessage] = useState('');
-  const [toastVariant, setToastVariant] = useState(''); // success or danger for toast feedback
-  const [sortBy, setSortBy] = useState('created_at');  // Sort by field
-  const [perPage, setPerPage] = useState(10);  // Items per page
-  const [page, setPage] = useState(1);  // Page number
-  const [totalPages, setTotalPages] = useState(1);  // Total number of pages
+  const [loading, setLoading] = useState(true);
+  const [sortConfig, setSortConfig] = useState({ key: 'client_name', direction: 'asc' });
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [filters, setFilters] = useState({ startDate: null, endDate: null, clientName: '' });
+  const [showModal, setShowModal] = useState(false);
+  const [currentSale, setCurrentSale] = useState(null); // Track sale to edit or add
 
-  // Fetch sales records from API on component mount
-  useEffect(() => {
-    const fetchSales = async () => {
-      setLoading(true);
-      try {
-        const response = await api.get('/sales/', {
-          params: {
-            sort_by: sortBy,
-            per_page: perPage,
-            page: page,
-          },
-        });
-        console.log(response);  // Log the entire response to inspect it
-        setSalesRecords(response.data.sales || []);  // Update with actual sales data
-        setTotalPages(response.data.pages || 1);  // Update total pages from API response
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching sales:', error);
-        showToastMessage('danger', 'Error fetching sales records.');
-        setLoading(false);
-      }
-    };
+  const limit = 10;
+  const maxPageDisplay = 5;
 
-    fetchSales();
-  }, [sortBy, perPage, page]);  // Re-fetch sales when sorting, per page, or page changes
+  const fetchSalesRecords = useCallback(async (currentPage, sortKey, sortDirection, filterParams) => {
+    setLoading(true);
+    try {
+      const params = {
+        page: currentPage,
+        limit,
+        sort_by: sortKey,
+        sort_direction: sortDirection,
+        ...filterParams,
+      };
 
-  // Reusable function to show toast messages
-  const showToastMessage = (variant, message) => {
-    setToastMessage(message);
-    setToastVariant(variant);
-    setShowToast(true);
-  };
-
-  // Function to handle form submission (for both new sale and edit)
-  const handleFormSubmit = async (newSale) => {
-    if (currentSale) {
-      // Update existing sale via API
-      try {
-        await api.put(`/sales/${currentSale.id}`, newSale);
-        setSalesRecords(
-          salesRecords.map((sale) =>
-            sale.id === currentSale.id ? { ...sale, ...newSale } : sale
-          )
-        );
-        showToastMessage('success', 'Sale record updated successfully!');
-      } catch (error) {
-        showToastMessage('danger', 'Error updating sale record.');
-      }
-    } else {
-      // Add new sale via API
-      try {
-        const response = await api.post('/sales/', newSale);  // Send the new sale to the API
-        setSalesRecords([...salesRecords, { id: response.data.id, ...newSale }]);
-        showToastMessage('success', 'Sale record added successfully!');
-      } catch (error) {
-        showToastMessage('danger', 'Error adding new sale record.');
-      }
+      const response = await api.get('/sales/', { params });
+      setSalesRecords(response.data.records || []);
+      setTotalPages(response.data.total_pages || 1);
+    } catch (error) {
+      console.error('Error fetching sales records:', error);
+    } finally {
+      setLoading(false);
     }
+  }, []);
 
-    setShowForm(false);
-    setCurrentSale(null); // Clear the current sale after submission
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
   };
 
-  // Function to handle editing a sale
+  const handlePageChange = (pageNumber) => {
+    if (pageNumber >= 1 && pageNumber <= totalPages) {
+      setPage(pageNumber);
+    }
+  };
+
+  const handleFilterSubmit = (e) => {
+    e.preventDefault();
+    fetchSalesRecords(page, sortConfig.key, sortConfig.direction, filters);
+  };
+
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setFilters((prevFilters) => ({ ...prevFilters, [name]: value }));
+  };
+
   const handleEdit = (sale) => {
-    setCurrentSale(sale); // Set the sale to be edited
-    setShowForm(true); // Show the form with sale data
+    setCurrentSale(sale);
+    setShowModal(true);
   };
 
-  // Function to handle deleting a sale
   const handleDelete = async (saleId) => {
     if (!window.confirm('Are you sure you want to delete this sale?')) return;
-
     try {
-      await api.delete(`/sales/${saleId}`);  // Delete the sale via API
-      setSalesRecords(salesRecords.filter(sale => sale.id !== saleId));
-      showToastMessage('success', 'Sale record deleted successfully!');
+      await api.delete(`/sales/${saleId}`);
+      setSalesRecords(salesRecords.filter((sale) => sale.id !== saleId));
     } catch (error) {
-      showToastMessage('danger', 'Error deleting sale record.');
+      console.error('Error deleting sale:', error);
     }
   };
 
-  // Show loading spinner while fetching data
+  const getSortIcon = (key) => {
+    if (sortConfig.key === key) {
+      return sortConfig.direction === 'asc' ? (
+        <FontAwesomeIcon icon={faSortUp} />
+      ) : (
+        <FontAwesomeIcon icon={faSortDown} />
+      );
+    }
+    return <FontAwesomeIcon icon={faSort} />;
+  };
+
+  // Handle form submission for creating or editing sales records
+  const handleFormSubmit = async (newSaleData) => {
+    if (currentSale) {
+      // Update the existing sale
+      try {
+        const response = await api.put(`/sales/${currentSale.id}`, newSaleData);
+        setSalesRecords(
+          salesRecords.map((sale) =>
+            sale.id === currentSale.id ? { ...sale, ...response.data } : sale
+          )
+        );
+      } catch (error) {
+        console.error('Error updating sale record:', error);
+      }
+    } else {
+      // Create a new sale
+      try {
+        const response = await api.post('/sales/', newSaleData);
+        setSalesRecords([...salesRecords, response.data]); // Add the new sale
+      } catch (error) {
+        console.error('Error adding new sale record:', error);
+      }
+    }
+
+    setShowModal(false); // Close the modal after submission
+    setCurrentSale(null); // Clear the current sale
+  };
+
+  useEffect(() => {
+    fetchSalesRecords(page, sortConfig.key, sortConfig.direction, filters);
+  }, [page, sortConfig, filters, fetchSalesRecords]);
+
+  const renderPaginationItems = () => {
+    const pages = [];
+    const startPage = Math.max(1, page - Math.floor(maxPageDisplay / 2));
+    const endPage = Math.min(totalPages, startPage + maxPageDisplay - 1);
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(
+        <Pagination.Item key={i} active={i === page} onClick={() => handlePageChange(i)}>
+          {i}
+        </Pagination.Item>
+      );
+    }
+    return pages;
+  };
+
   if (loading) {
     return (
       <div className="text-center mt-5">
@@ -110,96 +148,161 @@ function SalesPage() {
 
   return (
     <div className="container mt-5">
-      <div className="row justify-content-center">
-        <div className="col-md-8">
-          <h1 className="text-center mb-4">Sales Records</h1>
+      <Row className="mb-3">
+        <Col>
+          <h2 className="text-left">Sales Records</h2>
+        </Col>
+        <Col className="text-right">
+          {/* Button to open the SalesForm modal */}
+          <Button onClick={() => setShowModal(true)} variant="primary" className="mb-3">
+            Make Sale
+          </Button>
+        </Col>
+      </Row>
 
-          {/* Sorting and Pagination Controls */}
-          <Row className="mb-3">
-            <Col md={6}>
+      {/* Filter Section */}
+      <Form onSubmit={handleFilterSubmit} className="mb-4">
+        <Row>
+          <Col>
+            <Form.Group controlId="filterStartDate">
+              <Form.Label>Start Date</Form.Label>
+              <DatePicker
+                selected={filters.startDate}
+                onChange={(date) => setFilters((prev) => ({ ...prev, startDate: date }))}
+                className="form-control"
+                isClearable
+              />
+            </Form.Group>
+          </Col>
+          <Col>
+            <Form.Group controlId="filterEndDate">
+              <Form.Label>End Date</Form.Label>
+              <DatePicker
+                selected={filters.endDate}
+                onChange={(date) => setFilters((prev) => ({ ...prev, endDate: date }))}
+                className="form-control"
+                isClearable
+              />
+            </Form.Group>
+          </Col>
+          <Col>
+            <Form.Group controlId="filterClientName">
+              <Form.Label>Client Name</Form.Label>
               <Form.Control
-                as="select"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-              >
-                <option value="created_at">Sort by Created Date</option>
-                <option value="name">Sort by Name</option>
-              </Form.Control>
-            </Col>
-            <Col md={6}>
-              <Form.Control
-                as="select"
-                value={perPage}
-                onChange={(e) => setPerPage(Number(e.target.value))}
-              >
-                <option value={5}>5 per page</option>
-                <option value={10}>10 per page</option>
-                <option value={20}>20 per page</option>
-              </Form.Control>
-            </Col>
-          </Row>
+                type="text"
+                name="clientName"
+                value={filters.clientName}
+                onChange={handleFilterChange}
+                placeholder="Enter client name"
+              />
+            </Form.Group>
+          </Col>
+          <Col className="align-self-end">
+            <Button variant="primary" type="submit">
+              Filter
+            </Button>
+          </Col>
+        </Row>
+      </Form>
 
-          {/* Button to show the SalesForm */}
-          {!showForm && (
-            <div className="text-center mb-4">
-              <Button onClick={() => setShowForm(true)} variant="primary">
-                Add New Sale
-              </Button>
-            </div>
+      {/* Sales Table */}
+      <Table striped bordered hover responsive className="mt-3">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th onClick={() => handleSort('client_name')}>
+              Client Name {getSortIcon('client_name')}
+            </th>
+            <th onClick={() => handleSort('amount')}>
+              Amount {getSortIcon('amount')}
+            </th>
+            <th onClick={() => handleSort('policy_type_name')}>
+              Policy Type {getSortIcon('policy_type_name')}
+            </th>
+            <th onClick={() => handleSort('serial_number')}>
+              Serial Number {getSortIcon('serial_number')}
+            </th>
+            <th onClick={() => handleSort('sales_executive_name')}>
+              Sales Executive {getSortIcon('sales_executive_name')}
+            </th>
+            <th onClick={() => handleSort('source_type')}>
+              Source Type {getSortIcon('source_type')}
+            </th>
+            <th onClick={() => handleSort('status')}>
+              Status {getSortIcon('status')}
+            </th>
+            <th onClick={() => handleSort('created_at')}>
+              Date {getSortIcon('created_at')}
+            </th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {salesRecords.length > 0 ? (
+            salesRecords.map((sale, index) => (
+              <tr key={sale.id}>
+                <td>{(page - 1) * limit + index + 1}</td>
+                <td>{sale.client_name}</td>
+                <td>{sale.amount}</td>
+                <td>{sale.policy_type_name}</td>
+                <td>{sale.serial_number}</td>
+                <td>{sale.sales_executive_name}</td>
+                <td>{sale.source_type}</td>
+                <td>{sale.status}</td>
+                <td>{new Date(sale.created_at).toLocaleDateString()}</td>
+                <td>
+                  <Button
+                    variant="warning"
+                    size="sm"
+                    className="me-2"
+                    onClick={() => handleEdit(sale)}
+                  >
+                    <FontAwesomeIcon icon={faEdit} />
+                  </Button>
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    onClick={() => handleDelete(sale.id)}
+                  >
+                    <FontAwesomeIcon icon={faTrash} />
+                  </Button>
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan="10" className="text-center">
+                No sales records available.
+              </td>
+            </tr>
           )}
+        </tbody>
+      </Table>
 
-          {/* Conditionally render SalesForm */}
-          {showForm && (
-            <SalesForm
-              onSubmit={handleFormSubmit}
-              initialData={currentSale}
-              onCancel={() => setShowForm(false)}
-            />
-          )}
+      {/* Pagination Component */}
+      <Pagination className="justify-content-center mt-4">
+        <Pagination.First onClick={() => handlePageChange(1)} disabled={page === 1} />
+        <Pagination.Prev onClick={() => handlePageChange(page - 1)} disabled={page === 1} />
+        {renderPaginationItems()}
+        <Pagination.Next onClick={() => handlePageChange(page + 1)} disabled={page === totalPages} />
+        <Pagination.Last onClick={() => handlePageChange(totalPages)} disabled={page === totalPages} />
+      </Pagination>
 
-          {/* Sales Table */}
-          <SalesTable
-            salesRecords={salesRecords}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
+      {/* Modal for Adding or Editing Sale */}
+      <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>{currentSale ? 'Edit Sale' : 'Add New Sale'}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <SalesForm
+            onSubmit={handleFormSubmit}
+            initialData={currentSale}
+            onCancel={() => setShowModal(false)}
           />
-
-          {/* Pagination Controls */}
-          <Row className="justify-content-end">
-            <Col md="auto">
-              <Button
-                variant="primary"
-                onClick={() => setPage(page - 1)}
-                disabled={page === 1}
-              >
-                Previous
-              </Button>{' '}
-              <Button
-                variant="primary"
-                onClick={() => setPage(page + 1)}
-                disabled={page === totalPages}
-              >
-                Next
-              </Button>
-            </Col>
-          </Row>
-
-          {/* Toast Notification */}
-          <ToastContainer position="top-end" className="p-3">
-            <Toast
-              onClose={() => setShowToast(false)}
-              show={showToast}
-              delay={3000}
-              autohide
-              bg={toastVariant} // success or danger for toast feedback
-            >
-              <Toast.Body>{toastMessage}</Toast.Body>
-            </Toast>
-          </ToastContainer>
-        </div>
-      </div>
+        </Modal.Body>
+      </Modal>
     </div>
   );
-}
+};
 
 export default SalesPage;
