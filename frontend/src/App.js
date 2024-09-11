@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Route, Routes, Navigate, useNavigate } from 'react-router-dom';  // Import useNavigate
+import { Route, Routes, Navigate, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import LoginPage from './pages/LoginPage';
@@ -13,13 +13,13 @@ import ManageProductsPage from './pages/ManageProductsPage';
 import ManageBanksPage from './pages/ManageBanksPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import BranchManagementPage from './pages/BranchManagementPage';
-import Toaster from './components/Toaster';  // Global Toaster component
-import authService from './services/authService';  // Import the auth service
+import Toaster from './components/Toaster';
+import authService from './services/authService';
 
 function App() {
   const [role, setRole] = useState(null);
   const [toasts, setToasts] = useState([]);  // Global toast state
-  const navigate = useNavigate();  // Define the useNavigate hook
+  const navigate = useNavigate();
 
   // On mount, check if the user is already logged in by checking localStorage
   useEffect(() => {
@@ -61,7 +61,6 @@ function App() {
   const handleLogin = (userRole) => {
     setRole(userRole);
     localStorage.setItem('userRole', userRole);  // Store role in localStorage after login
-    showToast('success', 'Login successful', 'Welcome');
 
     // Use navigate for redirect instead of window.location.href
     navigate(userRole === 3 ? '/manage-users' : '/sales');
@@ -81,16 +80,13 @@ function App() {
 
   return (
     <div>
-      {/* Conditionally render Navbar and Sidebar based on role */}
       {role && <Navbar onLogout={handleLogout} />}
       {role && <Sidebar />}
 
       <div style={{ marginLeft: role ? '250px' : '0' }}>
         <Routes>
-          {/* Public route */}
           <Route path="/login" element={<LoginPage onLogin={handleLogin} showToast={showToast} />} />
 
-          {/* Protected routes */}
           <Route
             path="/sales"
             element={
@@ -163,8 +159,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-
-          {/* Redirect any unknown paths */}
           <Route path="*" element={<Navigate to={role ? "/sales" : "/login"} />} />
         </Routes>
       </div>

@@ -213,7 +213,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
     if (!formData.policy_type_id) newErrors.policy_type_id = 'Policy type is required';
     if (!formData.client_phone || formData.client_phone.length !== 10) newErrors.client_phone = 'Valid client phone number is required';
     if (!formData.serial_number) newErrors.serial_number = 'Serial number is required';
-    if (!formData.amount) newErrors.amount = 'Amount is required';
+    if (!formData.amount || typeof formData.amount === 'number' || !isNaN(formData.amount)) newErrors.amount = 'Amount is required and has to be a number';
 
     // Validate for Momo transactions
     if (formData.source_type === 'momo') {
@@ -229,10 +229,30 @@ const SalesForm = ({ saleData, onSubmit }) => {
     }
 
     // Validate for Bank transactions
-    if (formData.subsequent_pay_source_type === 'bank') {
+    if (formData.source_type === 'bank' ||formData.subsequent_pay_source_type === 'bank') {
       if (!formData.bank_id) newErrors.bank_id = 'Bank is required';
       if (!formData.bank_branch_id) newErrors.bank_branch_id = 'Bank branch is required';
-      if (!formData.bank_acc_number) newErrors.bank_acc_number = 'Bank account number is required';
+      if (!formData.bank_acc_number) {
+        newErrors.bank_acc_number = 'Bank account number is required';
+      } else {
+        const length = formData.bank_acc_number.length;
+        const bankName = formData.bank_name || '';
+
+        // Bank-specific validation
+        if (bankName.includes('UBA') && length !== 14) {
+          newErrors.bank_acc_number = 'UBA account number must be 14 digits';
+        }
+        else if ((bankName.includes('Zenith') || bankName.includes('Absa')) && length !== 10) {
+          newErrors.bank_acc_number = 'Zenith or Absa account number must be 10 digits';
+        }
+        else if (bankName.includes('SG') && length !== 12 && length !== 13) {
+          newErrors.bank_acc_number = 'SG account number must be 12 or 13 digits';
+        }
+        else if (length !== 13 && length !== 16) {
+          newErrors.bank_acc_number = 'Account number must be 13 or 16 digits';
+        }
+      }
+      return newErrors;
     }
 
     setErrors(newErrors);
@@ -306,7 +326,20 @@ const SalesForm = ({ saleData, onSubmit }) => {
       </div>
 
       <div className="form-group">
-        <label>Client ID Number</label>
+        <label>Client Phone Number</label>
+        <input
+          type="text"
+          className="form-control"
+          name="client_phone"
+          value={formData.client_phone}
+          onChange={handleInputChange}
+          disabled={!isGeolocationEnabled}
+        />
+        {errors.client_phone && <div className="text-danger">{errors.client_phone}</div>}
+      </div>
+
+      <div className="form-group">
+        <label>Client Ghana Card ID Number</label>
         <input
           type="text"
           className="form-control"
