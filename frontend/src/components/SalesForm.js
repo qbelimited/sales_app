@@ -16,8 +16,8 @@ const SalesForm = ({ saleData, onSubmit }) => {
     momo_transaction_id: '',
     first_pay_with_momo: false,  // Checkbox for first payment with Momo
     subsequent_pay_source_type: '',  // Subsequent payment method (paypoint or bank)
-    bank_id: '',
-    bank_branch_id: '',
+    bank_name: '',
+    bank_branch: '',
     bank_acc_number: '',
     paypoint_name: '',
     paypoint_branch: '',
@@ -25,8 +25,8 @@ const SalesForm = ({ saleData, onSubmit }) => {
     policy_type_id: '',
     amount: '',
     customer_called: false,  // Checkbox for whether customer was called
-    latitude: '',
-    longitude: ''
+    geolocation_latitude: '',
+    geolocation_geolocation_longitude: ''
   });
 
   const [errors, setErrors] = useState({});
@@ -55,8 +55,8 @@ const SalesForm = ({ saleData, onSubmit }) => {
         setIsGeolocationEnabled(true);
         setFormData((prevData) => ({
           ...prevData,
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
+          geolocation_latitude: position.coords.geolocation_latitude,
+          geolocation_geolocation_longitude: position.coords.geolocation_geolocation_longitude,
         }));
       },
       (error) => {
@@ -70,10 +70,10 @@ const SalesForm = ({ saleData, onSubmit }) => {
   const fetchBranches = async (bankId) => {
     try {
       if (bankId) {  // Ensure bankId is not empty or undefined
-        const response = await api.get('http://localhost:5000/api/v1/dropdown/', {
+        const response = await api.get('/dropdown/', {
           params: {
             type: 'branch',
-            bank_id: bankId,
+            bank_name: bankId,
             per_page: 1000,
             page: 1,
           },
@@ -91,7 +91,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
   // Fetch sales executives based on selected sales manager
   const fetchSalesExecutives = async (managerId) => {
     try {
-      const response = await api.get('http://localhost:5000/api/v1/dropdown/', {
+      const response = await api.get('/dropdown/', {
         params: {
           type: 'sales_executive',
           manager_id: managerId,
@@ -108,7 +108,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
   // Fetch sales managers (users with role ID 4)
   const fetchSalesManagers = async () => {
     try {
-      const response = await api.get('http://localhost:5000/api/v1/dropdown/', {
+      const response = await api.get('/dropdown/', {
         params: {
           type: 'users_with_roles',
           role_id: 4,
@@ -125,7 +125,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
   // Fetch Paypoints
   const fetchPaypoints = async () => {
     try {
-      const response = await api.get('http://localhost:5000/api/v1/dropdown/', {
+      const response = await api.get('/dropdown/', {
         params: {
           type: 'paypoint',
           per_page: 1000,
@@ -142,7 +142,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
   // Fetch Banks
   const fetchBanks = async () => {
     try {
-      const response = await api.get('http://localhost:5000/api/v1/dropdown/', {
+      const response = await api.get('/dropdown/', {
         params: {
           type: 'bank',
           per_page: 1000,
@@ -159,7 +159,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
   // Fetch Impact Products
   const fetchImpactProducts = async () => {
     try {
-      const response = await api.get('http://localhost:5000/api/v1/dropdown/', {
+      const response = await api.get('/dropdown/', {
         params: {
           type: 'impact_product',
           per_page: 1000,
@@ -183,7 +183,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
       fetchSalesExecutives(value);  // Fetch sales executives when sales manager is selected
     }
 
-    if (name === 'bank_id') {
+    if (name === 'bank_name') {
       fetchBranches(value);  // Fetch branches when bank is selected
     }
 
@@ -193,8 +193,8 @@ const SalesForm = ({ saleData, onSubmit }) => {
         ...prevData,
         momo_reference_number: value === 'momo' ? prevData.momo_reference_number : '',
         momo_transaction_id: value === 'momo' ? prevData.momo_transaction_id : '',
-        bank_id: value !== 'momo' ? prevData.bank_id : '',
-        bank_branch_id: value !== 'momo' ? prevData.bank_branch_id : '',
+        bank_name: value !== 'momo' ? prevData.bank_name : '',
+        bank_branch: value !== 'momo' ? prevData.bank_branch : '',
         bank_acc_number: value !== 'momo' ? prevData.bank_acc_number : '',
         paypoint_name: value === 'paypoint' ? prevData.paypoint_name : '',
         paypoint_branch: value === 'paypoint' ? prevData.paypoint_branch : '',
@@ -204,8 +204,10 @@ const SalesForm = ({ saleData, onSubmit }) => {
     }
   };
 
+
   const validateForm = () => {
     const newErrors = {};
+
     if (!formData.sale_manager_id) newErrors.sale_manager_id = 'Sale manager is required';
     if (!formData.sales_executive_id) newErrors.sales_executive_id = 'Sales executive is required';
     if (!formData.client_name) newErrors.client_name = 'Client name is required';
@@ -213,7 +215,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
     if (!formData.policy_type_id) newErrors.policy_type_id = 'Policy type is required';
     if (!formData.client_phone || formData.client_phone.length !== 10) newErrors.client_phone = 'Valid client phone number is required';
     if (!formData.serial_number) newErrors.serial_number = 'Serial number is required';
-    if (!formData.amount || typeof formData.amount === 'number' || !isNaN(formData.amount)) newErrors.amount = 'Amount is required and has to be a number';
+    if (!formData.amount) newErrors.amount = 'Amount is required and has to be a number';
 
     // Validate for Momo transactions
     if (formData.source_type === 'momo') {
@@ -229,9 +231,9 @@ const SalesForm = ({ saleData, onSubmit }) => {
     }
 
     // Validate for Bank transactions
-    if (formData.source_type === 'bank' ||formData.subsequent_pay_source_type === 'bank') {
-      if (!formData.bank_id) newErrors.bank_id = 'Bank is required';
-      if (!formData.bank_branch_id) newErrors.bank_branch_id = 'Bank branch is required';
+    if (formData.source_type === 'bank' || formData.subsequent_pay_source_type === 'bank') {
+      if (!formData.bank_name) newErrors.bank_name = 'Bank is required';
+      if (!formData.bank_branch) newErrors.bank_branch = 'Bank branch is required';
       if (!formData.bank_acc_number) {
         newErrors.bank_acc_number = 'Bank account number is required';
       } else {
@@ -241,22 +243,18 @@ const SalesForm = ({ saleData, onSubmit }) => {
         // Bank-specific validation
         if (bankName.includes('UBA') && length !== 14) {
           newErrors.bank_acc_number = 'UBA account number must be 14 digits';
-        }
-        else if ((bankName.includes('Zenith') || bankName.includes('Absa')) && length !== 10) {
+        } else if ((bankName.includes('Zenith') || bankName.includes('Absa')) && length !== 10) {
           newErrors.bank_acc_number = 'Zenith or Absa account number must be 10 digits';
-        }
-        else if (bankName.includes('SG') && length !== 12 && length !== 13) {
+        } else if (bankName.includes('SG') && length !== 12 && length !== 13) {
           newErrors.bank_acc_number = 'SG account number must be 12 or 13 digits';
-        }
-        else if (length !== 13 && length !== 16) {
+        } else if (length !== 13 && length !== 16) {
           newErrors.bank_acc_number = 'Account number must be 13 or 16 digits';
         }
       }
-      return newErrors;
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return Object.keys(newErrors).length === 0;  // Ensure that this return occurs after all checks
   };
 
   const handleSubmit = async (e) => {
@@ -269,17 +267,15 @@ const SalesForm = ({ saleData, onSubmit }) => {
       // Submit the form data via API
       const response = await api.post('/sales/', formData);
 
-      // Check if the response status is successful (201 Created)
       if (response.status === 201) {
-        console.log('Form submitted successfully:', response.data);
-        // showToast('success', 'Sale submitted successfully', 'Success');
+        toast.success('Sale submitted successfully');
+        onSubmit(response.data);  // Call the onSubmit prop after successful submission
       } else {
-        alert('Failed to create sale. Please try again.');
+        throw new Error('Failed to create sale. Please try again.');
       }
     } catch (error) {
-      // Handle any errors that occur during the request
       console.error('Error submitting form:', error);
-      // showToast('danger', 'Failed to submit the sale. Please try again.', 'Error');
+      toast.error('Failed to submit the sale. Please try again.');
     }
   };
 
@@ -369,24 +365,6 @@ const SalesForm = ({ saleData, onSubmit }) => {
         {errors.client_id_no && <div className="text-danger">{errors.client_id_no}</div>}
       </div>
 
-      {/* Collection Platform */}
-      <div className="form-group">
-        <label>Collection Platform</label>
-        <select
-          className="form-control"
-          name="collection_platform"
-          value={formData.collection_platform}
-          onChange={handleInputChange}
-          disabled={!isGeolocationEnabled}
-        >
-          <option value="">Please select</option>
-          <option value="Transflow">Transflow</option>
-          <option value="Hubtel">Hubtel</option>
-          <option value="company Momo number">Company Momo Number</option>
-        </select>
-        {errors.collection_platform && <div className="text-danger">{errors.collection_platform}</div>}
-      </div>
-
       {/* Source Type (Momo, Bank, PayPoint) */}
       <div className="form-group">
         <label>Pay Source</label>
@@ -432,6 +410,24 @@ const SalesForm = ({ saleData, onSubmit }) => {
               disabled={!isGeolocationEnabled}
             />
             {errors.momo_transaction_id && <div className="text-danger">{errors.momo_transaction_id}</div>}
+          </div>
+
+          {/* Collection Platform */}
+          <div className="form-group">
+            <label>Collection Platform</label>
+            <select
+              className="form-control"
+              name="collection_platform"
+              value={formData.collection_platform}
+              onChange={handleInputChange}
+              disabled={!isGeolocationEnabled}
+            >
+              <option value="">Please select</option>
+              <option value="Transflow">Transflow</option>
+              <option value="Hubtel">Hubtel</option>
+              <option value="company Momo number">Company Momo Number</option>
+            </select>
+            {errors.collection_platform && <div className="text-danger">{errors.collection_platform}</div>}
           </div>
 
           <div className="form-check">
@@ -496,8 +492,8 @@ const SalesForm = ({ saleData, onSubmit }) => {
             <label>Bank</label>
             <select
               className="form-control"
-              name="bank_id"
-              value={formData.bank_id}
+              name="bank_name"
+              value={formData.bank_name}
               onChange={handleInputChange}
               disabled={!isGeolocationEnabled}
             >
@@ -508,7 +504,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
                 </option>
               ))}
             </select>
-            {errors.bank_id && <div className="text-danger">{errors.bank_id}</div>}
+            {errors.bank_name && <div className="text-danger">{errors.bank_name}</div>}
           </div>
 
           {/* Branch Selection - Updates when a bank is selected */}
@@ -516,8 +512,8 @@ const SalesForm = ({ saleData, onSubmit }) => {
             <label>Bank Branch</label>
             <select
               className="form-control"
-              name="bank_branch_id"
-              value={formData.bank_branch_id}
+              name="bank_branch"
+              value={formData.bank_branch}
               onChange={handleInputChange}
               disabled={!isGeolocationEnabled}
             >
@@ -528,7 +524,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
                 </option>
               ))}
             </select>
-            {errors.bank_branch_id && <div className="text-danger">{errors.bank_branch_id}</div>}
+            {errors.bank_branch && <div className="text-danger">{errors.bank_branch}</div>}
           </div>
 
           <div className="form-group">
@@ -630,8 +626,8 @@ const SalesForm = ({ saleData, onSubmit }) => {
             <label>Bank</label>
             <select
               className="form-control"
-              name="bank_id"
-              value={formData.bank_id}
+              name="bank_name"
+              value={formData.bank_name}
               onChange={handleInputChange}
               disabled={!isGeolocationEnabled}
             >
@@ -642,7 +638,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
                 </option>
               ))}
             </select>
-            {errors.bank_id && <div className="text-danger">{errors.bank_id}</div>}
+            {errors.bank_name && <div className="text-danger">{errors.bank_name}</div>}
           </div>
 
           {/* Branch Selection - Updates when a bank is selected */}
@@ -650,8 +646,8 @@ const SalesForm = ({ saleData, onSubmit }) => {
             <label>Bank Branch</label>
             <select
               className="form-control"
-              name="bank_branch_id"
-              value={formData.bank_branch_id}
+              name="bank_branch"
+              value={formData.bank_branch}
               onChange={handleInputChange}
               disabled={!isGeolocationEnabled}
             >
@@ -662,7 +658,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
                 </option>
               ))}
             </select>
-            {errors.bank_branch_id && <div className="text-danger">{errors.bank_branch_id}</div>}
+            {errors.bank_branch && <div className="text-danger">{errors.bank_branch}</div>}
           </div>
 
           <div className="form-group">

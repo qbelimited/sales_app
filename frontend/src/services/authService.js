@@ -1,22 +1,34 @@
 import api from './api';
+import { toast } from 'react-toastify';
 
 const authService = {
   login: async (credentials) => {
     try {
       const response = await api.post('/auth/login', credentials);
-      const { access_token, refresh_token, user } = response.data;
 
-      // Store tokens and user information in localStorage
-      localStorage.setItem('access_token', access_token);
-      localStorage.setItem('refresh_token', refresh_token);
-      localStorage.setItem('user', JSON.stringify(user));
-      localStorage.setItem('userRole', user.role_id);  // Store role in localStorage
+      // Ensure response and response.data are not undefined
+      if (response && response.data) {
+        const { access_token, refresh_token, user } = response.data;
 
-      return response.data;  // Return user data and tokens
+        // Check if access_token and refresh_token exist before storing
+        if (access_token && refresh_token) {
+          localStorage.setItem('access_token', access_token);
+          localStorage.setItem('refresh_token', refresh_token);
+          localStorage.setItem('user', JSON.stringify(user));
+          localStorage.setItem('userRole', user.role_id);  // Store role in localStorage
+
+          toast.success('Login successful');
+          return response.data;  // Return user data and tokens
+        } else {
+          // Handle case where tokens are missing in the response
+          throw new Error('Missing access or refresh token in response.');
+        }
+      } else {
+        throw new Error('Invalid response from server');
+      }
     } catch (error) {
       console.error('Login failed:', error);
-      const errorMessage = error.response?.data?.message || 'Login failed';
-      throw new Error(errorMessage);
+      toast.error('Login failed. Please check your credentials or try again later.');
     }
   },
 
@@ -26,30 +38,24 @@ const authService = {
       const refreshToken = localStorage.getItem('refresh_token');
 
       if (!accessToken && !refreshToken) {
-        // If tokens are missing, clear session and show error
         authService.clearSession();
-        throw new Error('Already logged out.');
+        toast.error('Already logged out.');
+        return;
       }
 
-      // Send both the access token and refresh token to the logout endpoint
       await api.post('/auth/logout', {
-        refresh_token: refreshToken,  // Include the refresh token in the request body
+        refresh_token: refreshToken,
       }, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
       });
 
-      // Clear tokens and user data from localStorage
       authService.clearSession();
     } catch (error) {
       console.error('Logout failed:', error);
-
-      // Clear session even if logout fails
       authService.clearSession();
-
-      const errorMessage = error.response?.data?.message || 'Logout failed';
-      throw new Error(errorMessage);
+      toast.error('Logout failed');
     }
   },
 
@@ -59,20 +65,23 @@ const authService = {
       if (!refreshToken) throw new Error('No refresh token available.');
 
       const response = await api.post('/auth/refresh', { refresh_token: refreshToken });
-      const { access_token } = response.data;
 
-      // Update access token in localStorage
-      localStorage.setItem('access_token', access_token);
+      if (response && response.data) {
+        const { access_token } = response.data;
 
-      return access_token;  // Return the new access token
+        if (access_token) {
+          localStorage.setItem('access_token', access_token);
+          return access_token;
+        } else {
+          throw new Error('Missing access token in response.');
+        }
+      } else {
+        throw new Error('Invalid response from server');
+      }
     } catch (error) {
       console.error('Token refresh failed:', error);
-
-      // If the refresh token fails, logout the user and clear session
       authService.clearSession();
-
-      const errorMessage = error.response?.data?.message || 'Token refresh failed';
-      throw new Error(errorMessage);
+      toast.error('Token refresh failed. Please log in again.');
     }
   },
 
@@ -83,23 +92,19 @@ const authService = {
   isLoggedIn: async () => {
     const token = localStorage.getItem('access_token');
 
-    // Check if token exists and is not expired
     if (token && !authService.isTokenExpired(token)) {
       return true;
     } else if (token && authService.isTokenExpired(token)) {
       try {
-        // Attempt to refresh the token
         await authService.refreshToken();
         return true;
       } catch (error) {
-        // If refresh fails, log out and throw the expired message
         authService.logout();
-        throw new Error('Signature is expired. Please log in again.');
+        toast.error('Session expired. Please log in again.');
       }
     } else {
-      // If token is invalid or missing, log out
       authService.logout();
-      throw new Error('You are not logged in. Please log in.');
+      toast.error('You are not logged in. Please log in.');
     }
   },
 
@@ -109,17 +114,15 @@ const authService = {
       return decoded.exp * 1000 < Date.now();  // Check if token is expired
     } catch (e) {
       console.error('Token expiration check failed:', e);
-      return true;  // Return true if token cannot be decoded or checked
+      return true;
     }
   },
 
   clearSession: () => {
-    // Clear tokens and user data from localStorage
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
     localStorage.removeItem('userRole');
-    localStorage.removeItem('userID');
   }
 };
 

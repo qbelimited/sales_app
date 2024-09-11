@@ -12,16 +12,29 @@ sales_ns = Namespace('sales', description='Sales operations')
 
 # Define models for Swagger documentation
 sale_model = sales_ns.model('Sale', {
-    'id': fields.Integer(description='Sale ID'),
-    'sale_manager': fields.String(required=True, description='Sale Manager'),
+    'sale_manager_id': fields.String(required=True, description='Sale Manager ID'),
     'sales_executive_id': fields.Integer(required=True, description='Sales Executive ID'),
-    'branch_id': fields.Integer(required=True, description='Branch ID'),
+    'client_name': fields.String(required=True, description='Client Name'),
+    'client_id_no': fields.String(required=True, description='Client ID Number'),
     'client_phone': fields.String(required=True, description='Client Phone Number'),
-    'bank_name': fields.String(description='Bank Name'),
-    'bank_branch': fields.String(description='Bank Branch'),
-    'bank_acc_number': fields.String(description='Bank Account Number'),
+    'serial_number': fields.String(required=True, description='Serial Number'),
+    'collection_platform': fields.String(required=False, description='Collection Platform'),
+    'source_type': fields.String(required=False, description='Source Type'),
+    'momo_reference_number': fields.String(required=False, description='Momo Reference Number'),
+    'momo_transaction_id': fields.String(required=False, description='Momo Transaction ID'),
+    'first_pay_with_momo': fields.Boolean(required=False, description='First Pay with Momo'),
+    'subsequent_pay_source_type': fields.String(required=False, description='Subsequent Payment Source Type'),
+    'bank_name': fields.Integer(required=False, description='Bank ID'),
+    'bank_branch': fields.Integer(required=False, description='Bank Branch ID'),
+    'bank_acc_number': fields.String(required=False, description='Bank Account Number'),
+    'paypoint_name': fields.String(required=False, description='Paypoint Name'),
+    'paypoint_branch': fields.String(required=False, description='Paypoint Branch'),
+    'staff_id': fields.String(required=False, description='Staff ID'),
+    'policy_type_id': fields.Integer(required=True, description='Policy Type ID'),
     'amount': fields.Float(required=True, description='Sale Amount'),
-    'geolocation': fields.String(description='Geolocation Coordinates')
+    'customer_called': fields.Boolean(required=False, description='Customer Called'),
+    'geolocation_latitude': fields.Float(required=False, description='geolocation_latitude'),
+    'geolocation_longitude': fields.Float(required=False, description='geolocation_longitude'),
 })
 
 @sales_ns.route('/')
@@ -107,23 +120,38 @@ class SaleListResource(Resource):
         data = request.json
 
         # Validate that required fields are present
-        required_fields = ['sale_manager', 'sales_executive_id', 'branch_id', 'client_phone', 'amount']
+        required_fields = ['sale_manager_id', 'sales_executive_id', 'client_phone', 'amount']
         for field in required_fields:
             if field not in data:
                 return {'message': f'Missing required field: {field}'}, 400
 
         new_sale = Sale(
             user_id=current_user['id'],
-            sale_manager=data['sale_manager'],
-            sales_executive_id=data['sales_executive_id'],
-            branch_id=data['branch_id'],
-            client_phone=data['client_phone'],
-            bank_name=data.get('bank_name'),
-            bank_branch=data.get('bank_branch'),
-            bank_acc_number=data.get('bank_acc_number'),
-            amount=data['amount'],
-            geolocation=data.get('geolocation')
+            sale_manager_id=data.get('sale_manager_id'),  # sale_manager_id correctly referenced
+            sales_executive_id=data.get('sales_executive_id'),
+            client_name=data.get('client_name'),
+            client_id_no=data.get('client_id_no'),
+            client_phone=data.get('client_phone'),
+            serial_number=data.get('serial_number'),
+            collection_platform=data.get('collection_platform'),  # Optional
+            source_type=data.get('source_type'),  # Optional
+            momo_reference_number=data.get('momo_reference_number'),  # Optional
+            momo_transaction_id=data.get('momo_transaction_id'),  # Optional
+            first_pay_with_momo=data.get('first_pay_with_momo'),  # Optional
+            subsequent_pay_source_type=data.get('subsequent_pay_source_type'),  # Optional
+            bank_name=data.get('bank_name'),  # Optional
+            bank_branch=data.get('bank_branch'),  # Optional
+            bank_acc_number=data.get('bank_acc_number'),  # Optional
+            paypoint_name=data.get('paypoint_name'),  # Optional
+            paypoint_branch=data.get('paypoint_branch'),  # Optional
+            staff_id=data.get('staff_id'),  # Optional
+            policy_type_id=data.get('policy_type_id'),  # Required
+            amount=data.get('amount'),  # Required
+            customer_called=data.get('customer_called'),  # Optional
+            geolocation_latitude=data.get('geolocation_latitude'),  # Optional
+            geolocation_longitude=data.get('geolocation_longitude')  # Optional
         )
+
         db.session.add(new_sale)
         db.session.commit()
 

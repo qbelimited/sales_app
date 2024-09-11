@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Table, Spinner, Row, Col, Button, Form, Modal } from 'react-bootstrap';
 import { FaSort, FaSortUp, FaSortDown } from 'react-icons/fa';
 import api from '../services/api';
+import { toast } from 'react-toastify';
 
 const TableWithPagination = ({ endpoint, columns, title }) => {
   const [data, setData] = useState([]);
@@ -84,10 +85,10 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
       try {
         await api.delete(`/users/${userId}`);
         setData(data.filter(user => user.id !== userId)); // Remove the user from the list
-        alert('User deleted successfully');
+        toast.success('User deleted successfully');
       } catch (error) {
         console.error('Error deleting user:', error);
-        alert('Error deleting user');
+        toast.error('Error deleting user');
       }
     }
   };
@@ -100,7 +101,7 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
       setShowEditModal(false);  // Close modal
     } catch (error) {
       console.error('Error updating user:', error);
-      alert('Error updating user');
+      toast.error('Error updating user');
     }
   };
 
