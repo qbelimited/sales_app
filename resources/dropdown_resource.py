@@ -12,6 +12,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 # Define a namespace for dropdown-related operations
 dropdown_ns = Namespace('dropdown', description='Dropdown operations')
 
+
 # Helper function to check role permissions
 def check_role_permission(current_user, required_role):
     roles = {
@@ -58,7 +59,7 @@ sales_manager_model = dropdown_ns.model('SalesManager', {
 class DropdownResource(Resource):
     @dropdown_ns.doc(security='Bearer Auth')
     @jwt_required()
-    @dropdown_ns.param('type', 'The type of dropdown to retrieve (bank, branch, sales_executive, impact_product, sales_manager)', required=True)
+    @dropdown_ns.param('type', 'The type of dropdown to retrieve (bank, branch, sales_executive, impact_product, users_with_roles)', required=True)
     @dropdown_ns.param('bank_id', 'The bank ID for branch filtering (required for branch dropdown)', type='integer')
     @dropdown_ns.param('manager_id', 'The manager ID for sales executive filtering (required for sales executive dropdown)', type='integer')
     @dropdown_ns.param('branch_id', 'The branch ID for sales executive filtering (optional for sales executive dropdown)', type='integer')
@@ -91,8 +92,8 @@ class DropdownResource(Resource):
                 return self.get_sales_executives(manager_id, branch_id, page, per_page)
             elif dropdown_type == 'impact_product':
                 return self.get_impact_products(page, per_page)
-            elif dropdown_type == 'sales_manager':
-                return self.get_sales_managers(page, per_page)
+            elif dropdown_type == 'users_with_roles':
+                return self.get_users_with_roles(page, per_page)
             else:
                 logger.error(f"Invalid dropdown type: {dropdown_type}")
                 return {"message": "Invalid dropdown type"}, 400
@@ -127,11 +128,16 @@ class DropdownResource(Resource):
         logger.info(f"Impact products retrieved for dropdown, total: {products.total}")
         return jsonify([product.serialize() for product in products.items])
 
-    def get_sales_managers(self, page, per_page):
-        """Retrieve sales managers (users with role 'sales_manager') for dropdown."""
-        sales_managers = User.query.filter_by(role_id='sales_manager', is_deleted=False).paginate(page=page, per_page=per_page, error_out=False)
-        logger.info(f"Sales managers retrieved for dropdown, total: {sales_managers.total}")
-        return jsonify([{'id': manager.id, 'name': manager.name, 'email': manager.email} for manager in sales_managers.items])
+    def get_users_with_roles(self, page, per_page):
+        """Retrieve all users and their roles for dropdown."""
+        users = User.query.filter_by(is_deleted=False).paginate(page=page, per_page=per_page, error_out=False)
+        logger.info(f"Users with roles retrieved for dropdown, total: {users.total}")
+        return jsonify([{
+            'id': user.id,
+            'name': user.name,
+            'email': user.email,
+            'role': user.role.serialize()
+        } for user in users.items])
 
     # Log the dropdown access to the audit trail
     def log_audit(self, current_user, dropdown_type):
