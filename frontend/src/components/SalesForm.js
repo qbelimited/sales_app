@@ -261,8 +261,26 @@ const SalesForm = ({ saleData, onSubmit }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validate the form first
     if (!validateForm()) return;
-    onSubmit(formData);
+
+    try {
+      // Submit the form data via API
+      const response = await api.post('/sales/', formData);
+
+      // Check if the response status is successful (201 Created)
+      if (response.status === 201) {
+        console.log('Form submitted successfully:', response.data);
+        // showToast('success', 'Sale submitted successfully', 'Success');
+      } else {
+        alert('Failed to create sale. Please try again.');
+      }
+    } catch (error) {
+      // Handle any errors that occur during the request
+      console.error('Error submitting form:', error);
+      // showToast('danger', 'Failed to submit the sale. Please try again.', 'Error');
+    }
   };
 
   return (
