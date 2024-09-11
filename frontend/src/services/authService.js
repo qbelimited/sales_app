@@ -26,6 +26,7 @@ const authService = {
       const refreshToken = localStorage.getItem('refresh_token');
 
       if (!accessToken && !refreshToken) {
+        // If tokens are missing, clear session and show error
         authService.clearSession();
         throw new Error('Already logged out.');
       }
@@ -43,6 +44,10 @@ const authService = {
       authService.clearSession();
     } catch (error) {
       console.error('Logout failed:', error);
+
+      // Clear session even if logout fails
+      authService.clearSession();
+
       const errorMessage = error.response?.data?.message || 'Logout failed';
       throw new Error(errorMessage);
     }
@@ -79,9 +84,9 @@ const authService = {
     const token = localStorage.getItem('access_token');
 
     // Check if token exists and is not expired
-    if (!!token && !authService.isTokenExpired(token)) {
+    if (token && !authService.isTokenExpired(token)) {
       return true;
-    } else if (authService.isTokenExpired(token)) {
+    } else if (token && authService.isTokenExpired(token)) {
       try {
         // Attempt to refresh the token
         await authService.refreshToken();
@@ -92,7 +97,7 @@ const authService = {
         throw new Error('Signature is expired. Please log in again.');
       }
     } else {
-      // If token is invalid, log out
+      // If token is invalid or missing, log out
       authService.logout();
       throw new Error('You are not logged in. Please log in.');
     }
