@@ -25,8 +25,10 @@ const authService = {
       const accessToken = localStorage.getItem('access_token');
       const refreshToken = localStorage.getItem('refresh_token');
 
-      if (!accessToken) throw new Error('No access token available for logout.');
-      if (!refreshToken) throw new Error('No refresh token available for logout.');
+      if (!accessToken && !refreshToken) {
+        authService.clearSession();
+        throw new Error('Already logged out.');
+      }
 
       // Send both the access token and refresh token to the logout endpoint
       await api.post('/auth/logout', {
@@ -73,9 +75,27 @@ const authService = {
     return localStorage.getItem('access_token') || null;
   },
 
-  isLoggedIn: () => {
+  isLoggedIn: async () => {
     const token = localStorage.getItem('access_token');
-    return !!token && !authService.isTokenExpired(token);  // Check if logged in and token is not expired
+
+    // Check if token exists and is not expired
+    if (!!token && !authService.isTokenExpired(token)) {
+      return true;
+    } else if (authService.isTokenExpired(token)) {
+      try {
+        // Attempt to refresh the token
+        await authService.refreshToken();
+        return true;
+      } catch (error) {
+        // If refresh fails, log out and throw the expired message
+        authService.logout();
+        throw new Error('Signature is expired. Please log in again.');
+      }
+    } else {
+      // If token is invalid, log out
+      authService.logout();
+      throw new Error('You are not logged in. Please log in.');
+    }
   },
 
   isTokenExpired: (token) => {

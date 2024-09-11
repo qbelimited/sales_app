@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { toast } from 'react-toastify';
+import api from '../services/api';
 
 const SalesForm = ({ saleData, onSubmit }) => {
   const [formData, setFormData] = useState({
@@ -34,12 +34,16 @@ const SalesForm = ({ saleData, onSubmit }) => {
   const [impactProducts, setImpactProducts] = useState([]);
   const [banks, setBanks] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [paypoints, setPaypoints] = useState([]);
+  const [salesManagers, setSalesManagers] = useState([]);
   const [isGeolocationEnabled, setIsGeolocationEnabled] = useState(false);
 
   // Fetch data for dropdowns using the API
   useEffect(() => {
-    fetchDropdownData('impact_product', setImpactProducts);
-    fetchDropdownData('bank', setBanks);
+    fetchBanks();
+    fetchImpactProducts();
+    fetchSalesManagers();
+    fetchPaypoints();
 
     if (saleData) {
       setFormData(saleData);
@@ -62,30 +66,109 @@ const SalesForm = ({ saleData, onSubmit }) => {
     );
   }, [saleData]);
 
-  const fetchDropdownData = async (type, setter) => {
-    try {
-      const response = await axios.get(`/dropdown?type=${type}`);
-      setter(response.data);
-    } catch (error) {
-      toast.error(`Failed to fetch ${type} data`);
-    }
-  };
-
+  // Fetch branches based on selected bank
   const fetchBranches = async (bankId) => {
     try {
-      const response = await axios.get(`/dropdown?type=branch&bank_id=${bankId}`);
-      setBranches(response.data);
+      if (bankId) {  // Ensure bankId is not empty or undefined
+        const response = await api.get('http://localhost:5000/api/v1/dropdown/', {
+          params: {
+            type: 'branch',
+            bank_id: bankId,
+            per_page: 1000,
+            page: 1,
+          },
+        });
+        setBranches(response.data);  // Set branches to state
+      } else {
+        setBranches([]);  // Clear branches if no bank is selected
+      }
     } catch (error) {
       toast.error('Failed to fetch branches');
+      console.error('Error fetching branches:', error);
     }
   };
 
+  // Fetch sales executives based on selected sales manager
   const fetchSalesExecutives = async (managerId) => {
     try {
-      const response = await axios.get(`/dropdown?type=sales_executive&manager_id=${managerId}`);
+      const response = await api.get('http://localhost:5000/api/v1/dropdown/', {
+        params: {
+          type: 'sales_executive',
+          manager_id: managerId,
+          per_page: 1000,
+          page: 1,
+        },
+      });
       setSalesExecutives(response.data);
     } catch (error) {
       toast.error('Failed to fetch sales executives');
+    }
+  };
+
+  // Fetch sales managers (users with role ID 4)
+  const fetchSalesManagers = async () => {
+    try {
+      const response = await api.get('http://localhost:5000/api/v1/dropdown/', {
+        params: {
+          type: 'users_with_roles',
+          role_id: 4,
+          per_page: 1000,
+          page: 1,
+        },
+      });
+      setSalesManagers(response.data);
+    } catch (error) {
+      toast.error('Failed to fetch sales managers');
+    }
+  };
+
+  // Fetch Paypoints
+  const fetchPaypoints = async () => {
+    try {
+      const response = await api.get('http://localhost:5000/api/v1/dropdown/', {
+        params: {
+          type: 'paypoint',
+          per_page: 1000,
+          page: 1,
+        },
+      });
+      setPaypoints(response.data);
+    } catch (error) {
+      toast.error('Failed to fetch paypoints');
+    }
+  };
+
+
+  // Fetch Banks
+  const fetchBanks = async () => {
+    try {
+      const response = await api.get('http://localhost:5000/api/v1/dropdown/', {
+        params: {
+          type: 'bank',
+          per_page: 1000,
+          page: 1,
+        },
+      });
+      setBanks(response.data);
+    } catch (error) {
+      toast.error('Failed to fetch banks');
+    }
+  };
+
+
+  // Fetch Impact Products
+  const fetchImpactProducts = async () => {
+    try {
+      const response = await api.get('http://localhost:5000/api/v1/dropdown/', {
+        params: {
+          type: 'impact_product',
+          per_page: 1000,
+          page: 1,
+        },
+      });
+      setImpactProducts(response.data);
+    } catch (error) {
+      toast.error('Failed to fetch impact products');
     }
   };
 
@@ -97,11 +180,11 @@ const SalesForm = ({ saleData, onSubmit }) => {
     });
 
     if (name === 'sale_manager_id') {
-      fetchSalesExecutives(value);
+      fetchSalesExecutives(value);  // Fetch sales executives when sales manager is selected
     }
 
     if (name === 'bank_id') {
-      fetchBranches(value);
+      fetchBranches(value);  // Fetch branches when bank is selected
     }
 
     // Handle form dynamically when source type or first_pay_with_momo changes
@@ -179,7 +262,11 @@ const SalesForm = ({ saleData, onSubmit }) => {
           disabled={!isGeolocationEnabled}
         >
           <option value="">Select Sale Manager</option>
-          {/* Map sale managers here */}
+          {salesManagers.map((sm) => (
+            <option key={sm.id} value={sm.id}>
+              {sm.name}
+            </option>
+          ))}
         </select>
         {errors.sale_manager_id && <div className="text-danger">{errors.sale_manager_id}</div>}
       </div>
@@ -241,7 +328,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
           onChange={handleInputChange}
           disabled={!isGeolocationEnabled}
         >
-          <option value="options">Please select</option>
+          <option value="">Please select</option>
           <option value="Transflow">Transflow</option>
           <option value="Hubtel">Hubtel</option>
           <option value="company Momo number">Company Momo Number</option>
@@ -250,22 +337,22 @@ const SalesForm = ({ saleData, onSubmit }) => {
       </div>
 
       {/* Source Type (Momo, Bank, PayPoint) */}
-    <div className="form-group">
+      <div className="form-group">
         <label>Pay Source</label>
         <select
-            className="form-control"
-            name="source_type"
-            value={formData.source_type}
-            onChange={handleInputChange}
-            disabled={!isGeolocationEnabled}
+          className="form-control"
+          name="source_type"
+          value={formData.source_type}
+          onChange={handleInputChange}
+          disabled={!isGeolocationEnabled}
         >
-            <option value="options">Please select</option>
-            <option value="momo">Momo</option>
-            <option value="bank">Bank</option>
-            <option value="paypoint">PayPoint</option>
+          <option value="">Please select</option>
+          <option value="momo">Momo</option>
+          <option value="bank">Bank</option>
+          <option value="paypoint">PayPoint</option>
         </select>
         {errors.source_type && <div className="text-danger">{errors.source_type}</div>}
-    </div>
+      </div>
 
       {/* Momo Transaction Fields */}
       {formData.source_type === 'momo' && (
@@ -318,14 +405,21 @@ const SalesForm = ({ saleData, onSubmit }) => {
         <>
           <div className="form-group">
             <label>PayPoint Name</label>
-            <input
+            <select
               type="text"
               className="form-control"
               name="paypoint_name"
               value={formData.paypoint_name}
               onChange={handleInputChange}
               disabled={!isGeolocationEnabled}
-            />
+            >
+              <option value="">Select Paypoint</option>
+              {paypoints.map((ppy) => (
+                <option key={ppy.id} value={ppy.id}>
+                  {ppy.name}
+                </option>
+              ))}
+            </select>
             {errors.paypoint_name && <div className="text-danger">{errors.paypoint_name}</div>}
           </div>
 
@@ -366,6 +460,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
             {errors.bank_id && <div className="text-danger">{errors.bank_id}</div>}
           </div>
 
+          {/* Branch Selection - Updates when a bank is selected */}
           <div className="form-group">
             <label>Bank Branch</label>
             <select
@@ -400,7 +495,27 @@ const SalesForm = ({ saleData, onSubmit }) => {
         </>
       )}
 
-      {/* Subsequent Payment */}
+      {/* Impact Products Dropdown (previously missing) */}
+      <div className="form-group">
+        <label>Policy Type (Impact Product)</label>
+        <select
+          className="form-control"
+          name="policy_type_id"
+          value={formData.policy_type_id}
+          onChange={handleInputChange}
+          disabled={!isGeolocationEnabled}
+        >
+          <option value="">Select Product</option>
+          {impactProducts.map((product) => (
+            <option key={product.id} value={product.id}>
+              {product.name}
+            </option>
+          ))}
+        </select>
+        {errors.policy_type_id && <div className="text-danger">{errors.policy_type_id}</div>}
+      </div>
+
+      {/* Subsequent Payment Dropdown */}
       {formData.first_pay_with_momo && (
         <div className="form-group">
           <label>Subsequent Payment Method</label>
@@ -419,19 +534,26 @@ const SalesForm = ({ saleData, onSubmit }) => {
         </div>
       )}
 
-      {/* PayPoint Fields */}
+      {/* PayPoint Fields for Subsequent Payment */}
       {formData.subsequent_pay_source_type === 'paypoint' && (
         <>
           <div className="form-group">
             <label>PayPoint Name</label>
-            <input
+            <select
               type="text"
               className="form-control"
               name="paypoint_name"
               value={formData.paypoint_name}
               onChange={handleInputChange}
               disabled={!isGeolocationEnabled}
-            />
+            >
+              <option value="">Select Paypoint</option>
+              {paypoints.map((ppy) => (
+                <option key={ppy.id} value={ppy.id}>
+                  {ppy.name}
+                </option>
+              ))}
+            </select>
             {errors.paypoint_name && <div className="text-danger">{errors.paypoint_name}</div>}
           </div>
 
@@ -450,7 +572,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
         </>
       )}
 
-      {/* Bank Fields */}
+      {/* Bank Fields for Subsequent Payment */}
       {formData.subsequent_pay_source_type === 'bank' && (
         <>
           <div className="form-group">
@@ -472,6 +594,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
             {errors.bank_id && <div className="text-danger">{errors.bank_id}</div>}
           </div>
 
+          {/* Branch Selection - Updates when a bank is selected */}
           <div className="form-group">
             <label>Bank Branch</label>
             <select
@@ -507,7 +630,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
       )}
 
       {/* Staff ID */}
-      {(formData.source_type === 'paypoint' || formData.source_type === 'bank' ||formData.subsequent_pay_source_type === 'paypoint' || formData.subsequent_pay_source_type === 'bank') && (
+      {(formData.source_type === 'paypoint' || formData.source_type === 'bank' || formData.subsequent_pay_source_type === 'paypoint' || formData.subsequent_pay_source_type === 'bank') && (
         <div className="form-group">
           <label>Staff Number</label>
           <input
@@ -550,6 +673,10 @@ const SalesForm = ({ saleData, onSubmit }) => {
           disabled={!isGeolocationEnabled}
         />
         {errors.amount && <div className="text-danger">{errors.amount}</div>}
+      </div>
+
+      <div style={{ color: 'red', fontSize: '11px'}}>
+        <em>Premium amounts are strictly in Ghana Cedis (GHS)</em>
       </div>
 
       <button type="submit" className="btn btn-primary mt-3" disabled={!isGeolocationEnabled}>

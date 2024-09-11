@@ -1,11 +1,11 @@
 from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
-from models.bank_model import Bank
-from models.branch_model import Branch
+from models.bank_model import Bank, BankBranch
 from models.sales_executive_model import SalesExecutive
 from models.impact_product_model import ImpactProduct
 from models.user_model import User
 from models.audit_model import AuditTrail
+from models.paypoint_model import Paypoint
 from app import db, logger  # Import logger for logging
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
@@ -29,7 +29,7 @@ bank_model = dropdown_ns.model('Bank', {
     'name': fields.String(required=True, description='Bank Name'),
 })
 
-branch_model = dropdown_ns.model('Branch', {
+branch_model = dropdown_ns.model('BankBranch', {
     'id': fields.Integer(description='Branch ID'),
     'name': fields.String(required=True, description='Branch Name'),
     'bank_id': fields.Integer(description='Bank ID'),
@@ -54,6 +54,12 @@ sales_manager_model = dropdown_ns.model('SalesManager', {
     'email': fields.String(description='Sales Manager Email')
 })
 
+paypoint_model = dropdown_ns.model('Paypoint', {
+    'id': fields.Integer(description='Paypoint ID'),
+    'name': fields.String(required=True, description='Paypoint Name'),
+    'location': fields.String(description='Paypoint Location'),
+})
+
 # Extend the Dropdown API for additional dropdowns
 @dropdown_ns.route('/')
 class DropdownResource(Resource):
@@ -70,7 +76,7 @@ class DropdownResource(Resource):
         current_user = get_jwt_identity()  # Fetch current user from JWT
         dropdown_type = request.args.get('type')  # Fetch dropdown type from query parameter
         page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 10, type=int)
+        per_page = request.args.get('per_page', 1000, type=int)
 
         if not dropdown_type:
             logger.error("Dropdown type is missing")
@@ -94,6 +100,8 @@ class DropdownResource(Resource):
                 return self.get_impact_products(page, per_page)
             elif dropdown_type == 'users_with_roles':
                 return self.get_users_with_roles(page, per_page)
+            elif dropdown_type == 'paypoint':
+                return self.get_paypoints(page, per_page)
             else:
                 logger.error(f"Invalid dropdown type: {dropdown_type}")
                 return {"message": "Invalid dropdown type"}, 400
@@ -109,7 +117,7 @@ class DropdownResource(Resource):
 
     def get_branches(self, bank_id, page, per_page):
         """Retrieve branches for dropdown."""
-        branches = Branch.query.filter_by(bank_id=bank_id, is_deleted=False).paginate(page=page, per_page=per_page, error_out=False)
+        branches = BankBranch.query.filter_by(bank_id=bank_id, is_deleted=False).paginate(page=page, per_page=per_page, error_out=False)
         logger.info(f"Branches retrieved for bank ID {bank_id}, total: {branches.total}")
         return jsonify([branch.serialize() for branch in branches.items])
 
@@ -138,6 +146,12 @@ class DropdownResource(Resource):
             'email': user.email,
             'role': user.role.serialize()
         } for user in users.items])
+
+    def get_paypoints(self, page, per_page):
+        """Retrieve active paypoints for dropdown."""
+        paypoints = Paypoint.query.filter_by(is_deleted=False).paginate(page=page, per_page=per_page, error_out=False)
+        logger.info(f"Paypoints retrieved for dropdown, total: {paypoints.total}")
+        return jsonify([paypoint.serialize() for paypoint in paypoints.items])
 
     # Log the dropdown access to the audit trail
     def log_audit(self, current_user, dropdown_type):
