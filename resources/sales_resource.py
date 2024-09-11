@@ -12,7 +12,7 @@ sales_ns = Namespace('sales', description='Sales operations')
 
 # Define models for Swagger documentation
 sale_model = sales_ns.model('Sale', {
-    'sale_manager_id': fields.String(required=True, description='Sale Manager ID'),
+    'sale_manager_id': fields.Integer(required=True, description='Sale Manager ID'),
     'sales_executive_id': fields.Integer(required=True, description='Sales Executive ID'),
     'client_name': fields.String(required=True, description='Client Name'),
     'client_id_no': fields.String(required=True, description='Client ID Number'),
@@ -24,8 +24,8 @@ sale_model = sales_ns.model('Sale', {
     'momo_transaction_id': fields.String(required=False, description='Momo Transaction ID'),
     'first_pay_with_momo': fields.Boolean(required=False, description='First Pay with Momo'),
     'subsequent_pay_source_type': fields.String(required=False, description='Subsequent Payment Source Type'),
-    'bank_name': fields.Integer(required=False, description='Bank ID'),
-    'bank_branch': fields.Integer(required=False, description='Bank Branch ID'),
+    'bank_name': fields.String(required=False, description='Bank Name'),
+    'bank_branch': fields.String(required=False, description='Bank Branch Name'),
     'bank_acc_number': fields.String(required=False, description='Bank Account Number'),
     'paypoint_name': fields.String(required=False, description='Paypoint Name'),
     'paypoint_branch': fields.String(required=False, description='Paypoint Branch'),
@@ -208,16 +208,32 @@ class SaleDetailResource(Resource):
             return {'message': 'Sale not found'}, 404
 
         data = request.json
-        sale.sale_manager = data.get('sale_manager', sale.sale_manager)
+        sale.sale_manager_id = data.get('sale_manager_id', sale.sale_manager_id)  # Updated to reference sale_manager_id
         sale.sales_executive_id = data.get('sales_executive_id', sale.sales_executive_id)
-        sale.branch_id = data.get('branch_id', sale.branch_id)
+        sale.client_name = data.get('client_name', sale.client_name)  # Added client_name
+        sale.client_id_no = data.get('client_id_no', sale.client_id_no)  # Added client_id_no
         sale.client_phone = data.get('client_phone', sale.client_phone)
-        sale.bank_name = data.get('bank_name', sale.bank_name)
-        sale.bank_branch = data.get('bank_branch', sale.bank_branch)
-        sale.bank_acc_number = data.get('bank_acc_number', sale.bank_acc_number)
-        sale.amount = data.get('amount', sale.amount)
-        sale.updated_at = datetime.utcnow()
-        sale.status = 'updated'
+        sale.serial_number = data.get('serial_number', sale.serial_number)  # Added serial_number
+        sale.collection_platform = data.get('collection_platform', sale.collection_platform)  # Optional
+        sale.source_type = data.get('source_type', sale.source_type)  # Optional
+        sale.momo_reference_number = data.get('momo_reference_number', sale.momo_reference_number)  # Optional
+        sale.momo_transaction_id = data.get('momo_transaction_id', sale.momo_transaction_id)  # Optional
+        sale.first_pay_with_momo = data.get('first_pay_with_momo', sale.first_pay_with_momo)  # Optional
+        sale.subsequent_pay_source_type = data.get('subsequent_pay_source_type', sale.subsequent_pay_source_type)  # Optional
+        sale.bank_name = data.get('bank_name', sale.bank_name)  # Optional
+        sale.bank_branch = data.get('bank_branch', sale.bank_branch)  # Optional
+        sale.bank_acc_number = data.get('bank_acc_number', sale.bank_acc_number)  # Optional
+        sale.paypoint_name = data.get('paypoint_name', sale.paypoint_name)  # Optional
+        sale.paypoint_branch = data.get('paypoint_branch', sale.paypoint_branch)  # Optional
+        sale.staff_id = data.get('staff_id', sale.staff_id)  # Optional
+        sale.policy_type_id = data.get('policy_type_id', sale.policy_type_id)  # Required
+        sale.amount = data.get('amount', sale.amount)  # Required
+        sale.customer_called = data.get('customer_called', sale.customer_called)  # Optional
+        sale.geolocation_latitude = data.get('geolocation_latitude', sale.geolocation_latitude)  # Optional
+        sale.geolocation_longitude = data.get('geolocation_longitude', sale.geolocation_longitude)  # Optional
+        sale.updated_at = datetime.utcnow()  # Ensure updated_at is set
+        sale.status = 'updated'  # Reflect that the sale is updated
+
 
         db.session.commit()
 

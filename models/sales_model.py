@@ -62,7 +62,7 @@ class Sale(db.Model):
 
     @validates('collection_platform')
     def validate_collection_platform(self, _, value):
-        allowed_platforms = ['Transflow', 'Hubtel', 'company Momo number']
+        allowed_platforms = ['', 'Transflow', 'Hubtel', 'company Momo number']
         if value not in allowed_platforms:
             raise ValueError(f"Invalid collection platform. Must be one of {allowed_platforms}.")
         return value
@@ -116,7 +116,7 @@ class Sale(db.Model):
             'paypoint_name': self.paypoint_name,
             'paypoint_branch': self.paypoint_branch,
             'staff_id': self.staff_id,
-            'policy_type': self.policy_type.serialize(),  # Serialize the policy type
+            'policy_type': self.policy_type,  # Serialize the policy type
             'amount': self.amount,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,

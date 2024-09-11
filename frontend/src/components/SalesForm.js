@@ -26,7 +26,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
     amount: '',
     customer_called: false,  // Checkbox for whether customer was called
     geolocation_latitude: '',
-    geolocation_geolocation_longitude: ''
+    geolocation_longitude: ''
   });
 
   const [errors, setErrors] = useState({});
@@ -55,8 +55,8 @@ const SalesForm = ({ saleData, onSubmit }) => {
         setIsGeolocationEnabled(true);
         setFormData((prevData) => ({
           ...prevData,
-          geolocation_latitude: position.coords.geolocation_latitude,
-          geolocation_geolocation_longitude: position.coords.geolocation_geolocation_longitude,
+          geolocation_latitude: position.coords.latitude,
+          geolocation_longitude: position.coords.longitude,
         }));
       },
       (error) => {
@@ -174,9 +174,16 @@ const SalesForm = ({ saleData, onSubmit }) => {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
+    let parsedValue = value;
+
+    // Convert specific fields to integers
+    if (['amount', 'policy_type_id', 'sales_executive_id', 'sale_manager_id'].includes(name)) {
+      parsedValue = value ? parseInt(value, 10) : '';  // Ensure value is converted to an integer or empty string
+    }
+
     setFormData({
       ...formData,
-      [name]: type === 'checkbox' ? checked : value,
+      [name]: type === 'checkbox' ? checked : parsedValue,
     });
 
     if (name === 'sale_manager_id') {
@@ -264,8 +271,16 @@ const SalesForm = ({ saleData, onSubmit }) => {
     if (!validateForm()) return;
 
     try {
+      // Convert specific fields to numbers if needed before sending to API
+      const sanitizedFormData = {
+        ...formData,
+        amount: parseInt(formData.amount, 10),  // Convert to number
+        policy_type_id: parseInt(formData.policy_type_id, 10),  // Convert to integer
+        sales_executive_id: parseInt(formData.sales_executive_id, 10),  // Convert to integer
+        sale_manager_id: parseInt(formData.sale_manager_id, 10),  // Convert to integer
+      };
       // Submit the form data via API
-      const response = await api.post('/sales/', formData);
+      const response = await api.post('/sales/', sanitizedFormData);
 
       if (response.status === 201) {
         toast.success('Sale submitted successfully');
@@ -353,7 +368,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
       </div>
 
       <div className="form-group">
-        <label>Client Ghana Card ID Number</label>
+        <label>Client Ghana Card ID No. ("no hyphens" - e.g. 'GHA123435555')</label>
         <input
           type="text"
           className="form-control"
@@ -560,6 +575,19 @@ const SalesForm = ({ saleData, onSubmit }) => {
           ))}
         </select>
         {errors.policy_type_id && <div className="text-danger">{errors.policy_type_id}</div>}
+      </div>
+
+      {/* Policy Form Serial Number (previously missing) */}
+      <div className="form-group">
+        <label>Policy Form Serial Number</label>
+        <input
+          className="form-control"
+          name="serial_number"
+          value={formData.serial_number}
+          onChange={handleInputChange}
+          disabled={!isGeolocationEnabled}
+        />
+        {errors.serial_number && <div className="text-danger">{errors.serial_number}</div>}
       </div>
 
       {/* Subsequent Payment Dropdown */}

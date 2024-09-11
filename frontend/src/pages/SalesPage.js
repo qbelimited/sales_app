@@ -23,15 +23,15 @@ const SalesPage = () => {
   const fetchSalesRecords = useCallback(async (currentPage, sortKey, sortDirection, filterParams) => {
     setLoading(true);
     try {
-      const params = {
-        page: currentPage,
-        limit,
-        sort_by: sortKey,
-        sort_direction: sortDirection,
-        ...filterParams,
-      };
+      // const params = {
+      //   page: currentPage,
+      //   limit,
+      //   sort_by: sortKey,
+      //   sort_direction: sortDirection,
+      //   ...filterParams,
+      // };
 
-      const response = await api.get('/sales/', { params });
+      const response = await api.get('/sales/');
       setSalesRecords(response.data.records || []);
       setTotalPages(response.data.total_pages || 1);
     } catch (error) {
