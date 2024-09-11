@@ -15,7 +15,7 @@ sale_model = sales_ns.model('Sale', {
     'sale_manager_id': fields.Integer(required=True, description='Sale Manager ID'),
     'sales_executive_id': fields.Integer(required=True, description='Sales Executive ID'),
     'client_name': fields.String(required=True, description='Client Name'),
-    'client_id_no': fields.String(required=True, description='Client ID Number'),
+    'client_id_no': fields.String(required=False, description='Client ID Number'),
     'client_phone': fields.String(required=True, description='Client Phone Number'),
     'serial_number': fields.String(required=True, description='Serial Number'),
     'collection_platform': fields.String(required=False, description='Collection Platform'),
@@ -24,8 +24,8 @@ sale_model = sales_ns.model('Sale', {
     'momo_transaction_id': fields.String(required=False, description='Momo Transaction ID'),
     'first_pay_with_momo': fields.Boolean(required=False, description='First Pay with Momo'),
     'subsequent_pay_source_type': fields.String(required=False, description='Subsequent Payment Source Type'),
-    'bank_name': fields.String(required=False, description='Bank Name'),
-    'bank_branch': fields.String(required=False, description='Bank Branch Name'),
+    'bank_id': fields.Integer(required=False, description='Bank ID'),
+    'bank_branch_id': fields.Integer(required=False, description='Bank Branch ID'),
     'bank_acc_number': fields.String(required=False, description='Bank Account Number'),
     'paypoint_name': fields.String(required=False, description='Paypoint Name'),
     'paypoint_branch': fields.String(required=False, description='Paypoint Branch'),
@@ -33,8 +33,8 @@ sale_model = sales_ns.model('Sale', {
     'policy_type_id': fields.Integer(required=True, description='Policy Type ID'),
     'amount': fields.Float(required=True, description='Sale Amount'),
     'customer_called': fields.Boolean(required=False, description='Customer Called'),
-    'geolocation_latitude': fields.Float(required=False, description='geolocation_latitude'),
-    'geolocation_longitude': fields.Float(required=False, description='geolocation_longitude'),
+    'geolocation_latitude': fields.Float(required=False, description='Geolocation Latitude'),
+    'geolocation_longitude': fields.Float(required=False, description='Geolocation Longitude')
 })
 
 @sales_ns.route('/')
@@ -64,7 +64,7 @@ class SaleListResource(Resource):
 
         if filter_by:
             sales_query = sales_query.filter(or_(
-                Sale.sale_manager.ilike(f'%{filter_by}%'),
+                Sale.client_name.ilike(f'%{filter_by}%'),
                 Sale.client_phone.ilike(f'%{filter_by}%')
             ))
 
@@ -78,7 +78,7 @@ class SaleListResource(Resource):
             sales_query = sales_query.filter(Sale.sales_executive_id == sales_executive_id)
 
         if branch_id:
-            sales_query = sales_query.filter(Sale.branch_id == branch_id)
+            sales_query = sales_query.filter(Sale.bank_branch_id == branch_id)
 
         if min_amount:
             sales_query = sales_query.filter(Sale.amount >= min_amount)
@@ -119,38 +119,41 @@ class SaleListResource(Resource):
         current_user = get_jwt_identity()
         data = request.json
 
-        # Validate that required fields are present
-        required_fields = ['sale_manager_id', 'sales_executive_id', 'client_phone', 'amount']
+        # Validate required fields
+        required_fields = ['sales_executive_id', 'client_phone', 'amount', 'sale_manager_id', 'policy_type_id']
         for field in required_fields:
             if field not in data:
                 return {'message': f'Missing required field: {field}'}, 400
 
         new_sale = Sale(
             user_id=current_user['id'],
-            sale_manager_id=data.get('sale_manager_id'),  # sale_manager_id correctly referenced
+            sale_manager_id=data.get('sale_manager_id'),
             sales_executive_id=data.get('sales_executive_id'),
             client_name=data.get('client_name'),
             client_id_no=data.get('client_id_no'),
             client_phone=data.get('client_phone'),
             serial_number=data.get('serial_number'),
-            collection_platform=data.get('collection_platform'),  # Optional
-            source_type=data.get('source_type'),  # Optional
-            momo_reference_number=data.get('momo_reference_number'),  # Optional
-            momo_transaction_id=data.get('momo_transaction_id'),  # Optional
-            first_pay_with_momo=data.get('first_pay_with_momo'),  # Optional
-            subsequent_pay_source_type=data.get('subsequent_pay_source_type'),  # Optional
-            bank_name=data.get('bank_name'),  # Optional
-            bank_branch=data.get('bank_branch'),  # Optional
-            bank_acc_number=data.get('bank_acc_number'),  # Optional
-            paypoint_name=data.get('paypoint_name'),  # Optional
-            paypoint_branch=data.get('paypoint_branch'),  # Optional
-            staff_id=data.get('staff_id'),  # Optional
-            policy_type_id=data.get('policy_type_id'),  # Required
-            amount=data.get('amount'),  # Required
-            customer_called=data.get('customer_called'),  # Optional
-            geolocation_latitude=data.get('geolocation_latitude'),  # Optional
-            geolocation_longitude=data.get('geolocation_longitude')  # Optional
+            collection_platform=data.get('collection_platform'),
+            source_type=data.get('source_type'),
+            momo_reference_number=data.get('momo_reference_number'),
+            momo_transaction_id=data.get('momo_transaction_id'),
+            first_pay_with_momo=data.get('first_pay_with_momo'),
+            subsequent_pay_source_type=data.get('subsequent_pay_source_type'),
+            bank_id=data.get('bank_id'),
+            bank_branch_id=data.get('bank_branch_id'),
+            bank_acc_number=data.get('bank_acc_number'),
+            paypoint_name=data.get('paypoint_name'),
+            paypoint_branch=data.get('paypoint_branch'),
+            staff_id=data.get('staff_id'),
+            policy_type_id=data.get('policy_type_id'),
+            amount=data.get('amount'),
+            customer_called=data.get('customer_called'),
+            geolocation_latitude=data.get('geolocation_latitude'),
+            geolocation_longitude=data.get('geolocation_longitude')
         )
+
+        # Check for duplicates and handle accordingly
+        new_sale.check_duplicate()
 
         db.session.add(new_sale)
         db.session.commit()
@@ -208,32 +211,31 @@ class SaleDetailResource(Resource):
             return {'message': 'Sale not found'}, 404
 
         data = request.json
-        sale.sale_manager_id = data.get('sale_manager_id', sale.sale_manager_id)  # Updated to reference sale_manager_id
+        sale.sale_manager_id = data.get('sale_manager_id', sale.sale_manager_id)
         sale.sales_executive_id = data.get('sales_executive_id', sale.sales_executive_id)
-        sale.client_name = data.get('client_name', sale.client_name)  # Added client_name
-        sale.client_id_no = data.get('client_id_no', sale.client_id_no)  # Added client_id_no
+        sale.client_name = data.get('client_name', sale.client_name)
+        sale.client_id_no = data.get('client_id_no', sale.client_id_no)
         sale.client_phone = data.get('client_phone', sale.client_phone)
-        sale.serial_number = data.get('serial_number', sale.serial_number)  # Added serial_number
-        sale.collection_platform = data.get('collection_platform', sale.collection_platform)  # Optional
-        sale.source_type = data.get('source_type', sale.source_type)  # Optional
-        sale.momo_reference_number = data.get('momo_reference_number', sale.momo_reference_number)  # Optional
-        sale.momo_transaction_id = data.get('momo_transaction_id', sale.momo_transaction_id)  # Optional
-        sale.first_pay_with_momo = data.get('first_pay_with_momo', sale.first_pay_with_momo)  # Optional
-        sale.subsequent_pay_source_type = data.get('subsequent_pay_source_type', sale.subsequent_pay_source_type)  # Optional
-        sale.bank_name = data.get('bank_name', sale.bank_name)  # Optional
-        sale.bank_branch = data.get('bank_branch', sale.bank_branch)  # Optional
-        sale.bank_acc_number = data.get('bank_acc_number', sale.bank_acc_number)  # Optional
-        sale.paypoint_name = data.get('paypoint_name', sale.paypoint_name)  # Optional
-        sale.paypoint_branch = data.get('paypoint_branch', sale.paypoint_branch)  # Optional
-        sale.staff_id = data.get('staff_id', sale.staff_id)  # Optional
-        sale.policy_type_id = data.get('policy_type_id', sale.policy_type_id)  # Required
-        sale.amount = data.get('amount', sale.amount)  # Required
-        sale.customer_called = data.get('customer_called', sale.customer_called)  # Optional
-        sale.geolocation_latitude = data.get('geolocation_latitude', sale.geolocation_latitude)  # Optional
-        sale.geolocation_longitude = data.get('geolocation_longitude', sale.geolocation_longitude)  # Optional
-        sale.updated_at = datetime.utcnow()  # Ensure updated_at is set
-        sale.status = 'updated'  # Reflect that the sale is updated
-
+        sale.serial_number = data.get('serial_number', sale.serial_number)
+        sale.collection_platform = data.get('collection_platform', sale.collection_platform)
+        sale.source_type = data.get('source_type', sale.source_type)
+        sale.momo_reference_number = data.get('momo_reference_number', sale.momo_reference_number)
+        sale.momo_transaction_id = data.get('momo_transaction_id', sale.momo_transaction_id)
+        sale.first_pay_with_momo = data.get('first_pay_with_momo', sale.first_pay_with_momo)
+        sale.subsequent_pay_source_type = data.get('subsequent_pay_source_type', sale.subsequent_pay_source_type)
+        sale.bank_id = data.get('bank_id', sale.bank_id)
+        sale.bank_branch_id = data.get('bank_branch_id', sale.bank_branch_id)
+        sale.bank_acc_number = data.get('bank_acc_number', sale.bank_acc_number)
+        sale.paypoint_name = data.get('paypoint_name', sale.paypoint_name)
+        sale.paypoint_branch = data.get('paypoint_branch', sale.paypoint_branch)
+        sale.staff_id = data.get('staff_id', sale.staff_id)
+        sale.policy_type_id = data.get('policy_type_id', sale.policy_type_id)
+        sale.amount = data.get('amount', sale.amount)
+        sale.customer_called = data.get('customer_called', sale.customer_called)
+        sale.geolocation_latitude = data.get('geolocation_latitude', sale.geolocation_latitude)
+        sale.geolocation_longitude = data.get('geolocation_longitude', sale.geolocation_longitude)
+        sale.updated_at = datetime.utcnow()
+        sale.status = 'updated'
 
         db.session.commit()
 

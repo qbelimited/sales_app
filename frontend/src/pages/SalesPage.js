@@ -13,33 +13,54 @@ const SalesPage = () => {
   const [sortConfig, setSortConfig] = useState({ key: 'client_name', direction: 'asc' });
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [filters, setFilters] = useState({ startDate: null, endDate: null, clientName: '' });
+  const [filters, setFilters] = useState({ startDate: null, endDate: null, clientName: '', bankId: '', branchId: '' });
   const [showModal, setShowModal] = useState(false);
-  const [currentSale, setCurrentSale] = useState(null); // Track sale to edit or add
+  const [currentSale, setCurrentSale] = useState(null);
+  const [banks, setBanks] = useState([]);
+  const [branches, setBranches] = useState([]);
 
   const limit = 10;
   const maxPageDisplay = 5;
 
+  // Fetch banks and branches data
+  const fetchBanks = async () => {
+    try {
+      const response = await api.get('/banks/'); // Assuming you have an endpoint for fetching banks
+      setBanks(response.data);
+    } catch (error) {
+      console.error('Error fetching banks:', error);
+    }
+  };
+
+  const fetchBranches = async (bankId) => {
+    try {
+      const response = await api.get(`/banks/${bankId}/branches`); // Assuming you have an endpoint for fetching branches by bank
+      setBranches(response.data);
+    } catch (error) {
+      console.error('Error fetching branches:', error);
+    }
+  };
+
   const fetchSalesRecords = useCallback(async (currentPage, sortKey, sortDirection, filterParams) => {
     setLoading(true);
     try {
-      // const params = {
-      //   page: currentPage,
-      //   limit,
-      //   sort_by: sortKey,
-      //   sort_direction: sortDirection,
-      //   ...filterParams,
-      // };
+      const params = {
+        page: currentPage,
+        limit,
+        sort_by: sortKey,
+        sort_direction: sortDirection,
+        ...filterParams,
+      };
 
-      const response = await api.get('/sales/');
-      setSalesRecords(response.data.records || []);
-      setTotalPages(response.data.total_pages || 1);
+      const response = await api.get('/sales/', { params });
+      setSalesRecords(response.data.sales || []);
+      setTotalPages(response.data.pages || 1);
     } catch (error) {
       console.error('Error fetching sales records:', error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [limit]);
 
   const handleSort = (key) => {
     let direction = 'asc';
@@ -63,6 +84,9 @@ const SalesPage = () => {
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters((prevFilters) => ({ ...prevFilters, [name]: value }));
+    if (name === 'bankId') {
+      fetchBranches(value); // Load branches when a bank is selected
+    }
   };
 
   const handleEdit = (sale) => {
@@ -91,10 +115,8 @@ const SalesPage = () => {
     return <FontAwesomeIcon icon={faSort} />;
   };
 
-  // Handle form submission for creating or editing sales records
   const handleFormSubmit = async (newSaleData) => {
     if (currentSale) {
-      // Update the existing sale
       try {
         const response = await api.put(`/sales/${currentSale.id}`, newSaleData);
         setSalesRecords(
@@ -106,21 +128,21 @@ const SalesPage = () => {
         console.error('Error updating sale record:', error);
       }
     } else {
-      // Create a new sale
       try {
         const response = await api.post('/sales/', newSaleData);
-        setSalesRecords([...salesRecords, response.data]); // Add the new sale
+        setSalesRecords([...salesRecords, response.data]);
       } catch (error) {
         console.error('Error adding new sale record:', error);
       }
     }
 
-    setShowModal(false); // Close the modal after submission
-    setCurrentSale(null); // Clear the current sale
+    setShowModal(false);
+    setCurrentSale(null);
   };
 
   useEffect(() => {
     fetchSalesRecords(page, sortConfig.key, sortConfig.direction, filters);
+    fetchBanks(); // Load banks on component mount
   }, [page, sortConfig, filters, fetchSalesRecords]);
 
   const renderPaginationItems = () => {
@@ -153,14 +175,12 @@ const SalesPage = () => {
           <h2 className="text-left">Sales Records</h2>
         </Col>
         <Col className="text-right">
-          {/* Button to open the SalesForm modal */}
           <Button onClick={() => setShowModal(true)} variant="primary" className="mb-3">
             Make Sale
           </Button>
         </Col>
       </Row>
 
-      {/* Filter Section */}
       <Form onSubmit={handleFilterSubmit} className="mb-4">
         <Row>
           <Col>
@@ -197,6 +217,32 @@ const SalesPage = () => {
               />
             </Form.Group>
           </Col>
+          <Col>
+            <Form.Group controlId="filterBank">
+              <Form.Label>Bank</Form.Label>
+              <Form.Control as="select" name="bankId" value={filters.bankId} onChange={handleFilterChange}>
+                <option value="">Select Bank</option>
+                {banks.map((bank) => (
+                  <option key={bank.id} value={bank.id}>
+                    {bank.name}
+                  </option>
+                ))}
+              </Form.Control>
+            </Form.Group>
+          </Col>
+          <Col>
+            <Form.Group controlId="filterBranch">
+              <Form.Label>Branch</Form.Label>
+              <Form.Control as="select" name="branchId" value={filters.branchId} onChange={handleFilterChange}>
+                <option value="">Select Branch</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </Form.Control>
+            </Form.Group>
+          </Col>
           <Col className="align-self-end">
             <Button variant="primary" type="submit">
               Filter
@@ -205,7 +251,6 @@ const SalesPage = () => {
         </Row>
       </Form>
 
-      {/* Sales Table */}
       <Table striped bordered hover responsive className="mt-3">
         <thead>
           <tr>
@@ -216,14 +261,14 @@ const SalesPage = () => {
             <th onClick={() => handleSort('amount')}>
               Amount {getSortIcon('amount')}
             </th>
-            <th onClick={() => handleSort('policy_type_name')}>
-              Policy Type {getSortIcon('policy_type_name')}
+            <th onClick={() => handleSort('policy_type')}>
+              Policy Type {getSortIcon('policy_type')}
             </th>
             <th onClick={() => handleSort('serial_number')}>
               Serial Number {getSortIcon('serial_number')}
             </th>
-            <th onClick={() => handleSort('sales_executive_name')}>
-              Sales Executive {getSortIcon('sales_executive_name')}
+            <th onClick={() => handleSort('sales_executive')}>
+              Sales Executive {getSortIcon('sales_executive')}
             </th>
             <th onClick={() => handleSort('source_type')}>
               Source Type {getSortIcon('source_type')}
@@ -244,9 +289,9 @@ const SalesPage = () => {
                 <td>{(page - 1) * limit + index + 1}</td>
                 <td>{sale.client_name}</td>
                 <td>{sale.amount}</td>
-                <td>{sale.policy_type_name}</td>
+                <td>{sale.policy_type.name}</td>
                 <td>{sale.serial_number}</td>
-                <td>{sale.sales_executive_name}</td>
+                <td>{sale.sales_executive.name}</td>
                 <td>{sale.source_type}</td>
                 <td>{sale.status}</td>
                 <td>{new Date(sale.created_at).toLocaleDateString()}</td>
@@ -279,7 +324,6 @@ const SalesPage = () => {
         </tbody>
       </Table>
 
-      {/* Pagination Component */}
       <Pagination className="justify-content-center mt-4">
         <Pagination.First onClick={() => handlePageChange(1)} disabled={page === 1} />
         <Pagination.Prev onClick={() => handlePageChange(page - 1)} disabled={page === 1} />
@@ -288,7 +332,6 @@ const SalesPage = () => {
         <Pagination.Last onClick={() => handlePageChange(totalPages)} disabled={page === totalPages} />
       </Pagination>
 
-      {/* Modal for Adding or Editing Sale */}
       <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
         <Modal.Header closeButton>
           <Modal.Title>{currentSale ? 'Edit Sale' : 'Add New Sale'}</Modal.Title>
@@ -296,7 +339,7 @@ const SalesPage = () => {
         <Modal.Body>
           <SalesForm
             onSubmit={handleFormSubmit}
-            initialData={currentSale}
+            saleData={currentSale}
             onCancel={() => setShowModal(false)}
           />
         </Modal.Body>

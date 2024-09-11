@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import api from '../services/api';
 
-const SalesForm = ({ saleData, onSubmit }) => {
+const SalesForm = ({ saleData, onSubmit, onCancel }) => {
   const [formData, setFormData] = useState({
     sale_manager_id: '',
     sales_executive_id: '',
@@ -10,12 +10,12 @@ const SalesForm = ({ saleData, onSubmit }) => {
     client_id_no: '',
     client_phone: '',
     serial_number: '',
-    collection_platform: '',  // Default collection platform
-    source_type: '',  // Default first payment type
+    collection_platform: '',
+    source_type: '',
     momo_reference_number: '',
     momo_transaction_id: '',
-    first_pay_with_momo: false,  // Checkbox for first payment with Momo
-    subsequent_pay_source_type: '',  // Subsequent payment method (paypoint or bank)
+    first_pay_with_momo: false,
+    subsequent_pay_source_type: '',
     bank_name: '',
     bank_branch: '',
     bank_acc_number: '',
@@ -24,9 +24,12 @@ const SalesForm = ({ saleData, onSubmit }) => {
     staff_id: '',
     policy_type_id: '',
     amount: '',
-    customer_called: false,  // Checkbox for whether customer was called
+    customer_called: false,
     geolocation_latitude: '',
-    geolocation_longitude: ''
+    geolocation_longitude: '',
+    momo_first_premium: false,
+    is_deleted: false,  // Soft delete support
+    status: 'submitted',
   });
 
   const [errors, setErrors] = useState({});
@@ -38,7 +41,6 @@ const SalesForm = ({ saleData, onSubmit }) => {
   const [salesManagers, setSalesManagers] = useState([]);
   const [isGeolocationEnabled, setIsGeolocationEnabled] = useState(false);
 
-  // Fetch data for dropdowns using the API
   useEffect(() => {
     fetchBanks();
     fetchImpactProducts();
@@ -49,7 +51,7 @@ const SalesForm = ({ saleData, onSubmit }) => {
       setFormData(saleData);
     }
 
-    // Get user's geolocation when the form loads
+    // Get geolocation
     navigator.geolocation.getCurrentPosition(
       (position) => {
         setIsGeolocationEnabled(true);
@@ -59,45 +61,31 @@ const SalesForm = ({ saleData, onSubmit }) => {
           geolocation_longitude: position.coords.longitude,
         }));
       },
-      (error) => {
+      () => {
         toast.error('Please enable location services to proceed.');
         setIsGeolocationEnabled(false);
       }
     );
   }, [saleData]);
 
-  // Fetch branches based on selected bank
+  // Fetch dropdown data for various fields
   const fetchBranches = async (bankId) => {
     try {
-      if (bankId) {  // Ensure bankId is not empty or undefined
-        const response = await api.get('/dropdown/', {
-          params: {
-            type: 'branch',
-            bank_name: bankId,
-            per_page: 1000,
-            page: 1,
-          },
-        });
-        setBranches(response.data);  // Set branches to state
+      if (bankId) {
+        const response = await api.get(`/banks/${bankId}/branches`);
+        setBranches(response.data);
       } else {
-        setBranches([]);  // Clear branches if no bank is selected
+        setBranches([]);
       }
     } catch (error) {
       toast.error('Failed to fetch branches');
-      console.error('Error fetching branches:', error);
     }
   };
 
-  // Fetch sales executives based on selected sales manager
   const fetchSalesExecutives = async (managerId) => {
     try {
       const response = await api.get('/dropdown/', {
-        params: {
-          type: 'sales_executive',
-          manager_id: managerId,
-          per_page: 1000,
-          page: 1,
-        },
+        params: { type: 'sales_executive', manager_id: managerId },
       });
       setSalesExecutives(response.data);
     } catch (error) {
@@ -105,16 +93,10 @@ const SalesForm = ({ saleData, onSubmit }) => {
     }
   };
 
-  // Fetch sales managers (users with role ID 4)
   const fetchSalesManagers = async () => {
     try {
       const response = await api.get('/dropdown/', {
-        params: {
-          type: 'users_with_roles',
-          role_id: 4,
-          per_page: 1000,
-          page: 1,
-        },
+        params: { type: 'users_with_roles', role_id: 4 },
       });
       setSalesManagers(response.data);
     } catch (error) {
@@ -122,15 +104,10 @@ const SalesForm = ({ saleData, onSubmit }) => {
     }
   };
 
-  // Fetch Paypoints
   const fetchPaypoints = async () => {
     try {
       const response = await api.get('/dropdown/', {
-        params: {
-          type: 'paypoint',
-          per_page: 1000,
-          page: 1,
-        },
+        params: { type: 'paypoint' },
       });
       setPaypoints(response.data);
     } catch (error) {
@@ -138,34 +115,18 @@ const SalesForm = ({ saleData, onSubmit }) => {
     }
   };
 
-
-  // Fetch Banks
   const fetchBanks = async () => {
     try {
-      const response = await api.get('/dropdown/', {
-        params: {
-          type: 'bank',
-          per_page: 1000,
-          page: 1,
-        },
-      });
+      const response = await api.get('/banks/');
       setBanks(response.data);
     } catch (error) {
       toast.error('Failed to fetch banks');
     }
   };
 
-
-  // Fetch Impact Products
   const fetchImpactProducts = async () => {
     try {
-      const response = await api.get('/dropdown/', {
-        params: {
-          type: 'impact_product',
-          per_page: 1000,
-          page: 1,
-        },
-      });
+      const response = await api.get('/impact-products/');
       setImpactProducts(response.data);
     } catch (error) {
       toast.error('Failed to fetch impact products');
@@ -174,43 +135,35 @@ const SalesForm = ({ saleData, onSubmit }) => {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    let parsedValue = value;
-
-    // Convert specific fields to integers
-    if (['amount', 'policy_type_id', 'sales_executive_id', 'sale_manager_id'].includes(name)) {
-      parsedValue = value ? parseInt(value, 10) : '';  // Ensure value is converted to an integer or empty string
-    }
-
-    setFormData({
-      ...formData,
-      [name]: type === 'checkbox' ? checked : parsedValue,
-    });
+    setFormData((prevData) => ({
+      ...prevData,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
 
     if (name === 'sale_manager_id') {
-      fetchSalesExecutives(value);  // Fetch sales executives when sales manager is selected
+      fetchSalesExecutives(value);
     }
 
     if (name === 'bank_name') {
-      fetchBranches(value);  // Fetch branches when bank is selected
+      fetchBranches(value);
     }
 
-    // Handle form dynamically when source type or first_pay_with_momo changes
     if (name === 'source_type') {
+      const isMomo = value === 'momo';
       setFormData((prevData) => ({
         ...prevData,
-        momo_reference_number: value === 'momo' ? prevData.momo_reference_number : '',
-        momo_transaction_id: value === 'momo' ? prevData.momo_transaction_id : '',
-        bank_name: value !== 'momo' ? prevData.bank_name : '',
-        bank_branch: value !== 'momo' ? prevData.bank_branch : '',
-        bank_acc_number: value !== 'momo' ? prevData.bank_acc_number : '',
+        momo_reference_number: isMomo ? prevData.momo_reference_number : '',
+        momo_transaction_id: isMomo ? prevData.momo_transaction_id : '',
+        bank_name: !isMomo ? prevData.bank_name : '',
+        bank_branch: !isMomo ? prevData.bank_branch : '',
+        bank_acc_number: !isMomo ? prevData.bank_acc_number : '',
         paypoint_name: value === 'paypoint' ? prevData.paypoint_name : '',
         paypoint_branch: value === 'paypoint' ? prevData.paypoint_branch : '',
-        staff_id: value !== 'momo' ? prevData.staff_id : '',
-        subsequent_pay_source_type: value !== 'momo' ? '' : prevData.subsequent_pay_source_type,
+        staff_id: !isMomo ? prevData.staff_id : '',
+        subsequent_pay_source_type: !isMomo ? '' : prevData.subsequent_pay_source_type,
       }));
     }
   };
-
 
   const validateForm = () => {
     const newErrors = {};
@@ -222,13 +175,12 @@ const SalesForm = ({ saleData, onSubmit }) => {
     if (!formData.policy_type_id) newErrors.policy_type_id = 'Policy type is required';
     if (!formData.client_phone || formData.client_phone.length !== 10) newErrors.client_phone = 'Valid client phone number is required';
     if (!formData.serial_number) newErrors.serial_number = 'Serial number is required';
-    if (!formData.amount) newErrors.amount = 'Amount is required and has to be a number';
+    if (!formData.amount) newErrors.amount = 'Amount is required';
 
     // Validate for Momo transactions
     if (formData.source_type === 'momo') {
       if (!formData.momo_reference_number) newErrors.momo_reference_number = 'Momo reference number is required';
       if (!formData.momo_transaction_id) newErrors.momo_transaction_id = 'Momo transaction ID is required';
-      if (!formData.first_pay_with_momo && !formData.subsequent_pay_source_type) newErrors.subsequent_pay_source_type = 'Subsequent payment method is required';
     }
 
     // Validate for PayPoint transactions
@@ -261,36 +213,22 @@ const SalesForm = ({ saleData, onSubmit }) => {
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;  // Ensure that this return occurs after all checks
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validate the form first
     if (!validateForm()) return;
 
     try {
-      // Convert specific fields to numbers if needed before sending to API
-      const sanitizedFormData = {
+      const sanitizedData = {
         ...formData,
-        amount: parseInt(formData.amount, 10),  // Convert to number
-        policy_type_id: parseInt(formData.policy_type_id, 10),  // Convert to integer
-        sales_executive_id: parseInt(formData.sales_executive_id, 10),  // Convert to integer
-        sale_manager_id: parseInt(formData.sale_manager_id, 10),  // Convert to integer
+        amount: parseFloat(formData.amount),
       };
-      // Submit the form data via API
-      const response = await api.post('/sales/', sanitizedFormData);
-
-      if (response.status === 201) {
-        toast.success('Sale submitted successfully');
-        onSubmit(response.data);  // Call the onSubmit prop after successful submission
-      } else {
-        throw new Error('Failed to create sale. Please try again.');
-      }
+      await onSubmit(sanitizedData);
     } catch (error) {
-      console.error('Error submitting form:', error);
-      toast.error('Failed to submit the sale. Please try again.');
+      toast.error('Failed to submit the sale');
     }
   };
 
@@ -754,8 +692,11 @@ const SalesForm = ({ saleData, onSubmit }) => {
         <em>Premium amounts are strictly in Ghana Cedis (GHS)</em>
       </div>
 
-      <button type="submit" className="btn btn-primary mt-3" disabled={!isGeolocationEnabled}>
+      <button type="submit" className="btn btn-primary mt-3">
         Submit Sale
+      </button>
+      <button type="button" className="btn btn-secondary mt-3 ml-2" onClick={onCancel}>
+        Cancel
       </button>
     </form>
   );
