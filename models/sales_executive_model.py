@@ -9,13 +9,13 @@ sales_executive_branches = db.Table('sales_executive_branches',
 )
 
 class SalesExecutive(db.Model):
-    __tablename__ = 'sales_executive'  # Explicitly set the table name
+    __tablename__ = 'sales_executive'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(150), nullable=False, index=True)
     code = db.Column(db.String(100), unique=True, nullable=False, index=True)
     manager_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
-    phone_number = db.Column(db.String(10), nullable=True, unique=True, index=True)  # Optionally ensure uniqueness
+    phone_number = db.Column(db.String(10), nullable=True, unique=True, index=True)  # Ensure uniqueness if necessary
     is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
@@ -26,11 +26,13 @@ class SalesExecutive(db.Model):
 
     @validates('phone_number')
     def validate_phone_number(self, _, phone_number):
-        if phone_number and len(phone_number) != 10:
-            raise ValueError("Phone number must be 10 digits")
+        """Ensure phone number is exactly 10 digits and numeric."""
+        if phone_number and (len(phone_number) != 10 or not phone_number.isdigit()):
+            raise ValueError("Phone number must be 10 digits and numeric")
         return phone_number
 
     def serialize(self):
+        """Return serialized data for a sales executive."""
         return {
             'id': self.id,
             'name': self.name,
@@ -40,7 +42,7 @@ class SalesExecutive(db.Model):
             'is_deleted': self.is_deleted,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'branches': [branch.id for branch in self.branches]  # Serialize branch IDs associated with this sales executive
+            'branches': [branch.serialize() for branch in self.branches]  # Serialize detailed branch info
         }
 
     @staticmethod
@@ -50,3 +52,34 @@ class SalesExecutive(db.Model):
             return SalesExecutive.query.filter_by(is_deleted=False).paginate(page=page, per_page=per_page).items
         except Exception as e:
             raise ValueError(f"Error fetching active sales executives: {e}")
+
+    @staticmethod
+    def get_sales_executives_by_manager(manager_id, page=1, per_page=10):
+        """Retrieve active sales executives under a specific manager."""
+        try:
+            return SalesExecutive.query.filter_by(manager_id=manager_id, is_deleted=False).paginate(page=page, per_page=per_page).items
+        except Exception as e:
+            raise ValueError(f"Error fetching sales executives by manager: {e}")
+
+    @staticmethod
+    def get_sales_executives_by_branch(branch_id, page=1, per_page=10):
+        """Retrieve active sales executives for a specific branch."""
+        try:
+            return SalesExecutive.query.join(SalesExecutive.branches).filter_by(id=branch_id).filter(SalesExecutive.is_deleted == False).paginate(page=page, per_page=per_page).items
+        except Exception as e:
+            raise ValueError(f"Error fetching sales executives by branch: {e}")
+
+    @staticmethod
+    def soft_delete_sales_executive(executive_id):
+        """Soft delete a sales executive by setting the is_deleted flag."""
+        try:
+            executive = SalesExecutive.query.filter_by(id=executive_id, is_deleted=False).first()
+            if executive:
+                executive.is_deleted = True
+                db.session.commit()
+                return True
+            else:
+                return False
+        except Exception as e:
+            db.session.rollback()
+            raise ValueError(f"Error soft deleting sales executive: {e}")

@@ -1,7 +1,7 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom';  // Import BrowserRouter
-import App from './App';
+import { BrowserRouter } from 'react-router-dom';
+import RootApp from './App';  // Import RootApp instead of App
 
 // Import Bootstrap CSS
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -17,9 +17,9 @@ const container = document.getElementById('root');
 // Use createRoot instead of ReactDOM.render
 const root = createRoot(container);
 
-// Wrap App inside BrowserRouter here
+// Wrap RootApp inside BrowserRouter here
 root.render(
   <BrowserRouter>
-    <App />
+    <RootApp />
   </BrowserRouter>
 );

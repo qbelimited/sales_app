@@ -9,6 +9,7 @@ from models.impact_product_model import ImpactProduct
 from models.audit_model import AuditTrail
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy.exc import SQLAlchemyError
 
 # Define a namespace for admin-related operations
 admin_ns = Namespace('admin', description='Admin operations')
@@ -38,47 +39,75 @@ def check_role_permission(current_user, required_role):
     }
     return current_user['role'].lower() in roles.get(required_role, [])
 
-# Helper function to create resources dynamically
+# Helper function to create resources dynamically with validation
 def create_resource(data, model_class):
     try:
         resource = model_class(**data)
         db.session.add(resource)
         db.session.commit()
         return resource
-    except Exception as e:
+    except SQLAlchemyError as e:
         db.session.rollback()
-        logger.error(f"Error creating resource: {e}")
+        logger.error(f"Database error creating resource: {e}")
         return None
+    except TypeError as e:
+        logger.error(f"Type error: {e}")
+        return None
+
+# Helper function to update resource fields dynamically
+def update_resource(resource, data):
+    for key, value in data.items():
+        if hasattr(resource, key):
+            setattr(resource, key, value)
+    return resource
 
 # Admin resource class
 @admin_ns.route('/')
 class AdminResource(Resource):
+
     @admin_ns.doc(security='Bearer Auth')
     @jwt_required()
+    @admin_ns.param('page', 'Page number for pagination', type='integer', default=1)
+    @admin_ns.param('per_page', 'Number of items per page', type='integer', default=10)
     def get(self):
-        """Retrieve all data based on the user's role."""
+        """Retrieve all data based on the user's role with pagination and audit trail logging."""
         current_user = get_jwt_identity()
 
         if not check_role_permission(current_user, 'back_office'):
             logger.warning(f"Unauthorized access attempt by user ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
-        # Fetch all data
-        users = User.query.filter_by(is_deleted=False).all()
-        sales_executives = SalesExecutive.query.filter_by(is_deleted=False).all()
-        banks = Bank.query.filter_by(is_deleted=False).all()
-        branches = Branch.query.filter_by(is_deleted=False).all()
-        paypoints = Paypoint.query.filter_by(is_deleted=False).all()
-        products = ImpactProduct.query.filter_by(is_deleted=False).all()
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+
+        users = User.query.filter_by(is_deleted=False).paginate(page, per_page, error_out=False)
+        sales_executives = SalesExecutive.query.filter_by(is_deleted=False).paginate(page, per_page, error_out=False)
+        banks = Bank.query.filter_by(is_deleted=False).paginate(page, per_page, error_out=False)
+        branches = Branch.query.filter_by(is_deleted=False).paginate(page, per_page, error_out=False)
+        paypoints = Paypoint.query.filter_by(is_deleted=False).paginate(page, per_page, error_out=False)
+        products = ImpactProduct.query.filter_by(is_deleted=False).paginate(page, per_page, error_out=False)
+
+        # Log the GET action in the audit trail
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='GET',
+            resource_type='all_resources',
+            resource_id=None,
+            details=f"Retrieved data for users, sales executives, banks, branches, paypoints, and products."
+        )
+        db.session.add(audit)
+        db.session.commit()
 
         logger.info(f"Data retrieved successfully by user ID {current_user['id']}")
+
         return jsonify({
-            'users': [user.serialize() for user in users],
-            'sales_executives': [se.serialize() for se in sales_executives],
-            'banks': [bank.serialize() for bank in banks],
-            'branches': [branch.serialize() for branch in branches],
-            'paypoints': [paypoint.serialize() for paypoint in paypoints],
-            'products': [product.serialize() for product in products]
+            'users': [user.serialize() for user in users.items],
+            'sales_executives': [se.serialize() for se in sales_executives.items],
+            'banks': [bank.serialize() for bank in banks.items],
+            'branches': [branch.serialize() for branch in branches.items],
+            'paypoints': [paypoint.serialize() for paypoint in paypoints.items],
+            'products': [product.serialize() for product in products.items],
+            'total_pages': users.pages
         })
 
     @admin_ns.doc(security='Bearer Auth', responses={201: 'Created', 403: 'Unauthorized'})
@@ -101,7 +130,11 @@ class AdminResource(Resource):
             'product': ImpactProduct
         }
 
-        resource = create_resource(data, model_mapping.get(data['type']))
+        model_class = model_mapping.get(data.get('type'))
+        if not model_class:
+            return {'message': f"Invalid resource type '{data.get('type')}'"}, 400
+
+        resource = create_resource(data, model_class)
         if not resource:
             return {'message': f"Failed to create {data['type']}"}, 500
 
@@ -143,10 +176,7 @@ class AdminResource(Resource):
             logger.error(f"{data['type']} ID {data['id']} not found for update")
             return {'message': f"{data['type']} not found"}, 404
 
-        for key, value in data.items():
-            if hasattr(resource, key):
-                setattr(resource, key, value)
-
+        resource = update_resource(resource, data)
         db.session.commit()
 
         # Log the update to audit trail

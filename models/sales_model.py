@@ -19,11 +19,11 @@ class Sale(db.Model):
     momo_transaction_id = db.Column(db.String(100), nullable=True, index=True)
     first_pay_with_momo = db.Column(db.Boolean, nullable=True, index=True)
     subsequent_pay_source_type = db.Column(db.String(50), nullable=True, index=True)
-    bank_id = db.Column(db.Integer, db.ForeignKey('bank.id'), nullable=True, index=True)  # Foreign key to Bank
-    bank_branch_id = db.Column(db.Integer, db.ForeignKey('bank_branch.id'), nullable=True, index=True)  # Foreign key to BankBranch
-    bank_acc_number = db.Column(db.String(100), nullable=True, index=True)  # Bank account number
-    paypoint_name = db.Column(db.String(100), nullable=True, index=True)  # Paypoint name
-    paypoint_branch = db.Column(db.String(100), nullable=True, index=True)  # Paypoint branch
+    bank_id = db.Column(db.Integer, db.ForeignKey('bank.id'), nullable=True, index=True)
+    bank_branch_id = db.Column(db.Integer, db.ForeignKey('bank_branch.id'), nullable=True, index=True)
+    bank_acc_number = db.Column(db.String(100), nullable=True, index=True)
+    paypoint_name = db.Column(db.String(100), nullable=True, index=True)
+    paypoint_branch = db.Column(db.String(100), nullable=True, index=True)
     staff_id = db.Column(db.String(100), nullable=True, index=True)
     policy_type_id = db.Column(db.Integer, db.ForeignKey('impact_product.id'), nullable=False, index=True)
     amount = db.Column(db.Float, nullable=False)
@@ -39,8 +39,8 @@ class Sale(db.Model):
     # Relationships
     policy_type = db.relationship('ImpactProduct', foreign_keys=[policy_type_id], lazy='joined')
     sale_manager = db.relationship('User', foreign_keys=[sale_manager_id], lazy='joined')
-    bank = db.relationship('Bank', foreign_keys=[bank_id], lazy='joined')  # Bank relationship
-    bank_branch = db.relationship('BankBranch', foreign_keys=[bank_branch_id], lazy='joined')  # BankBranch relationship
+    bank = db.relationship('Bank', foreign_keys=[bank_id], lazy='joined')
+    bank_branch = db.relationship('BankBranch', foreign_keys=[bank_branch_id], lazy='joined')
 
     @validates('client_phone')
     def validate_client_phone(self, _, number):
@@ -71,7 +71,19 @@ class Sale(db.Model):
             raise ValueError(f"Invalid collection platform. Must be one of {allowed_platforms}.")
         return value
 
+    @validates('geolocation_latitude', 'geolocation_longitude')
+    def validate_geolocation(self, key, value):
+        """Ensure the latitude and longitude are within valid ranges."""
+        if key == 'geolocation_latitude':
+            if value is not None and (value < -90 or value > 90):
+                raise ValueError("Latitude must be between -90 and 90")
+        elif key == 'geolocation_longitude':
+            if value is not None and (value < -180 or value > 180):
+                raise ValueError("Longitude must be between -180 and 180")
+        return value
+
     def check_duplicate(self):
+        """Check for duplicate sale based on client phone, name, and serial number."""
         try:
             duplicate_conditions = (
                 Sale.client_phone == self.client_phone,
@@ -83,14 +95,17 @@ class Sale(db.Model):
 
             if duplicate_sale:
                 self.status = 'under investigation'
-                investigation = UnderInvestigation(
-                    sale_id=self.id,
-                    reason='Duplicate detected',
-                    notes='Auto-flagged by system'
-                )
-                db.session.add(investigation)
+                # Use atomic transaction to ensure consistency in case of duplicate detection
+                with db.session.begin():
+                    investigation = UnderInvestigation(
+                        sale_id=self.id,
+                        reason='Duplicate detected',
+                        notes='Auto-flagged by system'
+                    )
+                    db.session.add(investigation)
             return self
         except Exception as e:
+            db.session.rollback()
             raise ValueError(f"Error checking for duplicates: {e}")
 
     def serialize(self):
@@ -110,8 +125,8 @@ class Sale(db.Model):
             'momo_transaction_id': self.momo_transaction_id,
             'first_pay_with_momo': self.first_pay_with_momo,
             'subsequent_pay_source_type': self.subsequent_pay_source_type,
-            'bank': self.bank.serialize() if self.bank else None,  # Serialize the bank object
-            'bank_branch': self.bank_branch.serialize() if self.bank_branch else None,  # Serialize the bank branch object
+            'bank': self.bank.serialize() if self.bank else None,
+            'bank_branch': self.bank_branch.serialize() if self.bank_branch else None,
             'staff_id': self.staff_id,
             'paypoint_name': self.paypoint_name,
             'paypoint_branch': self.paypoint_branch,
@@ -131,6 +146,7 @@ class Sale(db.Model):
     def get_active_sales(page=1, per_page=10):
         """Retrieve paginated list of active (non-deleted) sales."""
         try:
-            return Sale.query.filter_by(is_deleted=False).paginate(page=page, per_page=per_page).items
+            sales = Sale.query.filter_by(is_deleted=False).paginate(page=page, per_page=per_page)
+            return sales.items, sales.total, sales.pages, sales.page
         except Exception as e:
             raise ValueError(f"Error fetching active sales: {e}")

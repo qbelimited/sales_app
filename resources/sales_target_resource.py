@@ -4,7 +4,7 @@ from models.sales_executive_model import SalesExecutive
 from models.user_model import User
 from models.performance_model import SalesTarget
 from models.audit_model import AuditTrail
-from app import db, logger  # Import logger from app.py
+from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
@@ -21,12 +21,8 @@ sales_target_model = sales_target_ns.model('SalesTarget', {
 })
 
 # Helper function to check role permissions
-def check_role_permission(current_user, required_role):
-    roles = {
-        'admin': ['admin'],
-        'manager': ['admin', 'manager']
-    }
-    return current_user['role'].lower() in roles.get(required_role, [])
+def check_role_permission(current_user, required_roles):
+    return current_user['role'].lower() in required_roles
 
 @sales_target_ns.route('/')
 class SalesTargetListResource(Resource):
@@ -46,19 +42,18 @@ class SalesTargetListResource(Resource):
         filter_by = request.args.get('filter_by', None)
         sort_by = request.args.get('sort_by', 'created_at')
 
-        sales_target_query = SalesTarget.query
+        query = SalesTarget.query.filter_by(is_deleted=False)
 
         if filter_by:
-            sales_target_query = sales_target_query.join(SalesExecutive).filter(SalesExecutive.name.ilike(f'%{filter_by}%'))
+            query = query.join(SalesExecutive).filter(SalesExecutive.name.ilike(f'%{filter_by}%'))
 
-        sales_targets = sales_target_query.order_by(getattr(SalesTarget, sort_by).desc()).paginate(page=page, per_page=per_page, error_out=False)
+        sales_targets = query.order_by(getattr(SalesTarget, sort_by).desc()).paginate(page=page, per_page=per_page, error_out=False)
 
         # Log the access to audit trail
         audit = AuditTrail(
             user_id=current_user['id'],
             action='ACCESS',
             resource_type='sales_target_list',
-            resource_id=None,
             details="User accessed list of Sales Targets"
         )
         db.session.add(audit)
@@ -81,16 +76,19 @@ class SalesTargetListResource(Resource):
         current_user = get_jwt_identity()
 
         # Role-based access control
-        if not check_role_permission(current_user, 'manager'):
+        if not check_role_permission(current_user, ['admin', 'manager']):
             logger.warning(f"Unauthorized attempt to create sales target by user {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
         data = request.json
 
-        # Validation of required fields
-        if not data.get('sales_executive_id') or not data.get('sales_manager_id'):
-            logger.error(f"Sales target creation failed due to missing fields by user {current_user['id']}")
-            return {'message': 'Missing required fields'}, 400
+        # Validate Sales Executive and Sales Manager
+        sales_executive = SalesExecutive.query.filter_by(id=data['sales_executive_id']).first()
+        sales_manager = User.query.filter_by(id=data['sales_manager_id']).first()
+
+        if not sales_executive or not sales_manager:
+            logger.error(f"Sales Executive or Manager not found by user {current_user['id']}")
+            return {'message': 'Sales Executive or Manager not found'}, 404
 
         new_target = SalesTarget(
             sales_executive_id=data['sales_executive_id'],
@@ -124,7 +122,7 @@ class SalesTargetResource(Resource):
         """Retrieve a specific Sales Target by ID."""
         current_user = get_jwt_identity()
 
-        target = SalesTarget.query.filter_by(id=target_id).first()
+        target = SalesTarget.query.filter_by(id=target_id, is_deleted=False).first()
         if not target:
             logger.error(f"Sales target ID {target_id} not found by user {current_user['id']}")
             return {'message': 'Sales Target not found'}, 404
@@ -152,16 +150,17 @@ class SalesTargetResource(Resource):
         current_user = get_jwt_identity()
 
         # Role-based access control
-        if not check_role_permission(current_user, 'manager'):
+        if not check_role_permission(current_user, ['admin', 'manager']):
             logger.warning(f"Unauthorized attempt to update sales target ID {target_id} by user {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
-        target = SalesTarget.query.filter_by(id=target_id).first()
+        target = SalesTarget.query.filter_by(id=target_id, is_deleted=False).first()
         if not target:
             logger.error(f"Sales target ID {target_id} not found for update by user {current_user['id']}")
             return {'message': 'Sales Target not found'}, 404
 
         data = request.json
+
         target.sales_executive_id = data.get('sales_executive_id', target.sales_executive_id)
         target.sales_manager_id = data.get('sales_manager_id', target.sales_manager_id)
         target.target_sales_count = data.get('target_sales_count', target.target_sales_count)
@@ -192,11 +191,11 @@ class SalesTargetResource(Resource):
         current_user = get_jwt_identity()
 
         # Role-based access control
-        if not check_role_permission(current_user, 'admin'):
+        if not check_role_permission(current_user, ['admin']):
             logger.warning(f"Unauthorized attempt to delete sales target ID {target_id} by user {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
-        target = SalesTarget.query.filter_by(id=target_id).first()
+        target = SalesTarget.query.filter_by(id=target_id, is_deleted=False).first()
         if not target:
             logger.error(f"Sales target ID {target_id} not found for deletion by user {current_user['id']}")
             return {'message': 'Sales Target not found'}, 404

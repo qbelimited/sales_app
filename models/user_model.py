@@ -1,7 +1,7 @@
 from app import db
-import re
 from datetime import datetime
 from sqlalchemy.orm import validates
+import re
 from werkzeug.security import generate_password_hash, check_password_hash
 
 # Association table for many-to-many relationship between users and branches
@@ -36,7 +36,6 @@ class User(db.Model):
     name = db.Column(db.String(150), nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     role_id = db.Column(db.Integer, db.ForeignKey('role.id'), nullable=False, index=True)
-    branches = db.relationship('Branch', secondary=user_branches, backref=db.backref('users', lazy=True))
     is_active = db.Column(db.Boolean, default=True, index=True)
     is_deleted = db.Column(db.Boolean, default=False, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -44,20 +43,19 @@ class User(db.Model):
 
     # Role relationship
     role = db.relationship('Role', backref='users')
+    branches = db.relationship('Branch', secondary=user_branches, backref=db.backref('users', lazy='selectin'))
 
+    # Validation for email format and uniqueness
     @validates('email')
-    def validate_email(self, _, email):
+    def validate_email(self, key, email):
         if not email or email.strip() == "":
-            print(f"Invalid email address found: {email}")
             raise ValueError("Invalid email address")
-
         email_regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
         if not re.match(email_regex, email):
-            print(f"Invalid email address found: {email}")
-            raise ValueError("Invalid email address")
+            raise ValueError("Invalid email format")
         return email
 
-    # Define password property to automatically hash the password
+    # Password hashing
     @property
     def password(self):
         raise AttributeError("Password is not readable")
@@ -68,19 +66,18 @@ class User(db.Model):
             raise ValueError("Password cannot be empty")
         self.password_hash = generate_password_hash(password)
 
+    # Method to check password
     def check_password(self, password):
-        try:
-            return check_password_hash(self.password_hash, password)
-        except Exception as e:
-            raise ValueError(f"Error checking password: {e}")
+        return check_password_hash(self.password_hash, password)
 
+    # Serialize method to return user data safely
     def serialize(self):
         return {
             'id': self.id,
             'email': self.email,
             'name': self.name,
-            'role_id': self.role_id,
-            'branches': [branch.serialize() for branch in self.branches],
+            'role': self.role.serialize() if self.role else None,
+            'branches': [branch.serialize() for branch in self.branches],  # Include related branches
             'is_active': self.is_active,
             'is_deleted': self.is_deleted,
             'created_at': self.created_at.isoformat(),
@@ -89,4 +86,6 @@ class User(db.Model):
 
     @staticmethod
     def get_active_users():
-        return User.query.filter_by(is_deleted=False).all()
+        """Retrieve list of active users."""
+        return User.query.filter_by(is_deleted=False, is_active=True).all()
+

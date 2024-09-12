@@ -1,6 +1,6 @@
 from flask_restx import Namespace, Resource, fields
-from flask import request, jsonify
-from models.impact_product_model import ImpactProduct
+from flask import request
+from models.impact_product_model import ImpactProduct, ProductCategory
 from models.audit_model import AuditTrail
 from app import db, logger  # Import logger from app.py
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -13,14 +13,16 @@ impact_product_ns = Namespace('impact_product', description='Impact Product oper
 impact_product_model = impact_product_ns.model('ImpactProduct', {
     'id': fields.Integer(description='Product ID'),
     'name': fields.String(required=True, description='Product Name'),
-    'category': fields.String(required=True, description='Product Category')
+    'category': fields.String(required=True, description='Product Category'),
+    'group': fields.String(required=True, description='Product Group (risk, investment, hybrid)'),
 })
 
 # Helper function to check role permissions
 def check_role_permission(current_user, required_role):
     roles = {
         'admin': ['admin'],
-        'manager': ['admin', 'manager']
+        'manager': ['admin', 'manager'],
+        'viewer': ['admin', 'manager', 'viewer']
     }
     return current_user['role'].lower() in roles.get(required_role, [])
 
@@ -30,7 +32,7 @@ class ImpactProductListResource(Resource):
     @jwt_required()
     @impact_product_ns.param('page', 'Page number for pagination', type='integer', default=1)
     @impact_product_ns.param('per_page', 'Number of items per page', type='integer', default=10)
-    @impact_product_ns.param('filter_by', 'Filter by product name', type='string')
+    @impact_product_ns.param('filter_by', 'Filter by product name or category', type='string')
     @impact_product_ns.param('sort_by', 'Sort by field (e.g., created_at, name)', type='string', default='created_at')
     def get(self):
         """Retrieve a paginated list of Impact Products."""
@@ -48,8 +50,12 @@ class ImpactProductListResource(Resource):
 
         product_query = ImpactProduct.query.filter_by(is_deleted=False)
 
+        # Filter by product name or category
         if filter_by:
-            product_query = product_query.filter(ImpactProduct.name.ilike(f'%{filter_by}%'))
+            product_query = product_query.join(ProductCategory).filter(
+                (ImpactProduct.name.ilike(f'%{filter_by}%')) |
+                (ProductCategory.name.ilike(f'%{filter_by}%'))
+            )
 
         products = product_query.order_by(sort_by).paginate(page=page, per_page=per_page, error_out=False)
 
@@ -58,7 +64,6 @@ class ImpactProductListResource(Resource):
             user_id=current_user['id'],
             action='ACCESS',
             resource_type='impact_product_list',
-            resource_id=None,
             details="User accessed list of Impact Products"
         )
         db.session.add(audit)
@@ -84,29 +89,38 @@ class ImpactProductListResource(Resource):
 
         data = request.json
 
-        # Validate required fields
-        if not data.get('name') or not data.get('category'):
-            return {'message': 'Missing required fields'}, 400
+        # Validate category
+        category = ProductCategory.query.filter_by(name=data.get('category')).first()
+        if not category:
+            return {'message': f"Category '{data.get('category')}' not found"}, 400
 
         new_product = ImpactProduct(
             name=data['name'],
-            category=data['category']
+            category=category,
+            group=data['group']
         )
-        db.session.add(new_product)
-        db.session.commit()
 
-        # Log the creation to audit trail
-        audit = AuditTrail(
-            user_id=current_user['id'],
-            action='CREATE',
-            resource_type='impact_product',
-            resource_id=new_product.id,
-            details=f"User created a new Impact Product with ID {new_product.id}"
-        )
-        db.session.add(audit)
-        db.session.commit()
+        try:
+            db.session.add(new_product)
+            db.session.commit()
 
-        return new_product.serialize(), 201
+            # Log the creation to audit trail
+            audit = AuditTrail(
+                user_id=current_user['id'],
+                action='CREATE',
+                resource_type='impact_product',
+                resource_id=new_product.id,
+                details=f"User created a new Impact Product with ID {new_product.id}"
+            )
+            db.session.add(audit)
+            db.session.commit()
+
+            return new_product.serialize(), 201
+
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error creating product: {e}")
+            return {"message": "Error creating product"}, 500
 
 
 @impact_product_ns.route('/<int:product_id>')
@@ -150,7 +164,8 @@ class ImpactProductResource(Resource):
 
         data = request.json
         product.name = data.get('name', product.name)
-        product.category = data.get('category', product.category)
+        product.category = ProductCategory.query.filter_by(name=data.get('category')).first() or product.category
+        product.group = data.get('group', product.group)
         product.updated_at = datetime.utcnow()
 
         db.session.commit()

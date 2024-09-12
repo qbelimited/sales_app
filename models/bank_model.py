@@ -12,12 +12,14 @@ class Bank(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
+    # Validation for bank name
     @validates('name')
-    def validate_name(self, _, name):
-        if not name:
+    def validate_name(self, key, name):
+        if not name or name.strip() == "":
             raise ValueError("Bank name cannot be empty")
         return name
 
+    # Serialization of bank model
     def serialize(self):
         return {
             'id': self.id,
@@ -25,7 +27,7 @@ class Bank(db.Model):
             'is_deleted': self.is_deleted,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
-            'bank_branches': [bank_branch.serialize() for bank_branch in self.bank_branches if not bank_branch.is_deleted]
+            'bank_branches': [branch.serialize() for branch in self.bank_branches if not branch.is_deleted]
         }
 
     @staticmethod
@@ -43,17 +45,19 @@ class BankBranch(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, index=True)
     bank_id = db.Column(db.Integer, db.ForeignKey('bank.id'), nullable=False, index=True)
-    sort_code = db.Column(db.String(50), nullable=True)  # Adjusted length
-    is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete
+    sort_code = db.Column(db.String(50), nullable=True)  # Optional sort code field
+    is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete flag
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
+    # Validation for bank branch name
     @validates('name')
-    def validate_name(self, _, name):
-        if not name:
+    def validate_name(self, key, name):
+        if not name or name.strip() == "":
             raise ValueError("Branch name cannot be empty")
         return name
 
+    # Serialization of bank branch model
     def serialize(self):
         return {
             'id': self.id,
@@ -71,4 +75,4 @@ class BankBranch(db.Model):
         try:
             return BankBranch.query.filter_by(is_deleted=False).paginate(page=page, per_page=per_page).items
         except Exception as e:
-            raise ValueError(f"Error fetching active branches: {e}")
+            raise ValueError(f"Error fetching active bank branches: {e}")

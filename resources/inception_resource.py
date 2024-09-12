@@ -1,5 +1,5 @@
 from flask_restx import Namespace, Resource, fields
-from flask import request, jsonify
+from flask import request
 from models.inception_model import Inception
 from models.sales_model import Sale
 from models.audit_model import AuditTrail
@@ -19,6 +19,17 @@ inception_model = inception_ns.model('Inception', {
     'description': fields.String(description='Description of the inception'),
 })
 
+
+# Helper function for input validation
+def validate_inception_data(data):
+    if 'amount_received' in data and data['amount_received'] <= 0:
+        raise ValueError("Amount received must be greater than zero.")
+    if not data.get('sale_id'):
+        raise ValueError("Sale ID is required.")
+    if not data.get('amount_received'):
+        raise ValueError("Amount received is required.")
+
+
 # Inception List Resource (Create new Inception, Get list of Inceptions)
 @inception_ns.route('/')
 class InceptionListResource(Resource):
@@ -36,7 +47,6 @@ class InceptionListResource(Resource):
             user_id=current_user['id'],
             action='ACCESS',
             resource_type='inception_list',
-            resource_id=None,
             details="User accessed list of inceptions"
         )
         db.session.add(audit)
@@ -51,6 +61,13 @@ class InceptionListResource(Resource):
         """Create a new Inception for a sale."""
         current_user = get_jwt_identity()
         data = request.json
+
+        # Validate input data
+        try:
+            validate_inception_data(data)
+        except ValueError as e:
+            logger.error(f"Validation error: {str(e)}")
+            return {'message': str(e)}, 400
 
         # Validate the Sale exists
         sale = Sale.query.filter_by(id=data['sale_id'], is_deleted=False).first()
@@ -128,27 +145,37 @@ class InceptionResource(Resource):
             logger.error(f"Inception with ID {inception_id} not found for user {current_user['id']}")
             return {'message': 'Inception not found'}, 404
 
-        # Update fields
-        inception.amount_received = data.get('amount_received', inception.amount_received)
-        inception.description = data.get('description', inception.description)
-        inception.received_at = data.get('received_at', inception.received_at)
-        inception.updated_at = datetime.utcnow()
+        # Update fields with validation
+        try:
+            validate_inception_data(data)
+            inception.amount_received = data.get('amount_received', inception.amount_received)
+            inception.description = data.get('description', inception.description)
+            inception.received_at = data.get('received_at', inception.received_at)
+            inception.updated_at = datetime.utcnow()
 
-        db.session.commit()
+            db.session.commit()
 
-        # Log the update to audit trail
-        audit = AuditTrail(
-            user_id=current_user['id'],
-            action='UPDATE',
-            resource_type='inception',
-            resource_id=inception.id,
-            details=f"User updated inception with ID {inception_id}"
-        )
-        db.session.add(audit)
-        db.session.commit()
+            # Log the update to audit trail
+            audit = AuditTrail(
+                user_id=current_user['id'],
+                action='UPDATE',
+                resource_type='inception',
+                resource_id=inception.id,
+                details=f"User updated inception with ID {inception_id}"
+            )
+            db.session.add(audit)
+            db.session.commit()
 
-        logger.info(f"User {current_user['id']} updated inception with ID {inception_id}")
-        return inception.serialize(), 200
+            logger.info(f"User {current_user['id']} updated inception with ID {inception_id}")
+            return inception.serialize(), 200
+
+        except ValueError as e:
+            logger.error(f"Validation error: {str(e)}")
+            return {'message': str(e)}, 400
+
+        except Exception as e:
+            logger.error(f"Error updating inception with ID {inception_id}: {str(e)}")
+            return {'message': 'Error updating inception'}, 500
 
     @inception_ns.doc(security='Bearer Auth', responses={200: 'Deleted', 404: 'Inception not found'})
     @jwt_required()
@@ -161,19 +188,24 @@ class InceptionResource(Resource):
             logger.error(f"Inception with ID {inception_id} not found for user {current_user['id']}")
             return {'message': 'Inception not found'}, 404
 
-        db.session.delete(inception)
-        db.session.commit()
+        try:
+            db.session.delete(inception)
+            db.session.commit()
 
-        # Log the deletion to audit trail
-        audit = AuditTrail(
-            user_id=current_user['id'],
-            action='DELETE',
-            resource_type='inception',
-            resource_id=inception.id,
-            details=f"User deleted inception with ID {inception_id}"
-        )
-        db.session.add(audit)
-        db.session.commit()
+            # Log the deletion to audit trail
+            audit = AuditTrail(
+                user_id=current_user['id'],
+                action='DELETE',
+                resource_type='inception',
+                resource_id=inception.id,
+                details=f"User deleted inception with ID {inception_id}"
+            )
+            db.session.add(audit)
+            db.session.commit()
 
-        logger.info(f"User {current_user['id']} deleted inception with ID {inception_id}")
-        return {'message': 'Inception deleted successfully'}, 200
+            logger.info(f"User {current_user['id']} deleted inception with ID {inception_id}")
+            return {'message': 'Inception deleted successfully'}, 200
+
+        except Exception as e:
+            logger.error(f"Error deleting inception with ID {inception_id}: {str(e)}")
+            return {'message': 'Error deleting inception'}, 500

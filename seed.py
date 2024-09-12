@@ -5,6 +5,7 @@ from models.branch_model import Branch
 from models.impact_product_model import ImpactProduct, ProductCategory
 from models.paypoint_model import Paypoint
 from models.user_model import Role, User
+from models.access_model import Access
 from models.sales_executive_model import SalesExecutive
 from werkzeug.security import generate_password_hash
 
@@ -58,9 +59,9 @@ with app.app_context():
 
     # Seed Impact Products
     products = [
-        {'name': 'EDUCARE', 'category': 'Retail', 'group': 'risk'},
-        {'name': 'FAREWELL', 'category': 'Retail', 'group': 'risk'},
-        {'name': 'PENSION', 'category': 'Retail', 'group': 'risk'}
+        {'name': 'EDUCARE', 'category': 'Retail', 'group': 'Investment'},
+        {'name': 'FAREWELL', 'category': 'Retail', 'group': 'Risk'},
+        {'name': 'PENSION', 'category': 'Retail', 'group': 'Investment'},
     ]
 
     for product_data in products:
@@ -226,6 +227,82 @@ with app.app_context():
 
     db.session.commit()
     print("Users and roles seeded successfully!")
+
+    # Seed Access Rules for each role
+    access_rules = [
+        {
+            'role_name': 'Back_office',
+            'can_create': True,
+            'can_update': True,
+            'can_delete': False,
+            'can_view_logs': False,
+            'can_manage_users': False,
+            'can_view_audit_trail': True
+        },
+        {
+            'role_name': 'Manager',
+            'can_create': True,
+            'can_update': True,
+            'can_delete': False,
+            'can_view_logs': False,
+            'can_manage_users': True,
+            'can_view_audit_trail': True
+        },
+        {
+            'role_name': 'Admin',
+            'can_create': True,
+            'can_update': True,
+            'can_delete': True,
+            'can_view_logs': True,
+            'can_manage_users': True,
+            'can_view_audit_trail': True
+        },
+        {
+            'role_name': 'Sales_Manager',
+            'can_create': True,
+            'can_update': True,
+            'can_delete': False,
+            'can_view_logs': False,
+            'can_manage_users': False,
+            'can_view_audit_trail': False
+        },
+        {
+            'role_name': 'Super_admin',
+            'can_create': True,
+            'can_update': True,
+            'can_delete': True,
+            'can_view_logs': True,
+            'can_manage_users': True,
+            'can_view_audit_trail': True
+        }
+    ]
+
+    for rule in access_rules:
+        # Get the role by name
+        role = db.session.query(Role).filter_by(name=rule['role_name']).first()
+
+        if not role:
+            print(f"Role '{rule['role_name']}' not found, skipping access rule seeding.")
+            continue
+
+        # Check if the access rule for the role already exists
+        existing_access = db.session.query(Access).filter_by(role_id=role.id).first()
+
+        if not existing_access:
+            # Create new access rule if not found
+            access_rule = Access(
+                role_id=role.id,
+                can_create=rule['can_create'],
+                can_update=rule['can_update'],
+                can_delete=rule['can_delete'],
+                can_view_logs=rule['can_view_logs'],
+                can_manage_users=rule['can_manage_users'],
+                can_view_audit_trail=rule['can_view_audit_trail']
+            )
+            db.session.add(access_rule)
+
+    db.session.commit()
+    print("Access rules seeded successfully!")
 
     # Define the Sales Manager role before using it
     sales_manager_role = db.session.query(Role).filter_by(name='Sales Manager').first()

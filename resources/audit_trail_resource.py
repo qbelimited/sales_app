@@ -1,8 +1,9 @@
 from flask_restx import Namespace, Resource, fields
 from flask import request
-from models.audit_model import AuditTrail
+from models.audit_model import AuditTrail, AuditAction
 from app import logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from datetime import datetime
 
 # Define namespace for audit trails
 audit_ns = Namespace('audit_trail', description='Audit trail operations')
@@ -40,16 +41,36 @@ class AuditTrailResource(Resource):
         user_id = request.args.get('user_id')
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
+        resource_type = request.args.get('resource_type')
+        action = request.args.get('action')
 
         query = AuditTrail.query
 
-        # Filter by user if provided
+        # Filter by user ID if provided
         if user_id:
             query = query.filter_by(user_id=user_id)
 
         # Filter by date range if provided
         if start_date and end_date:
-            query = query.filter(AuditTrail.timestamp.between(start_date, end_date))
+            try:
+                start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+                end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+                query = query.filter(AuditTrail.timestamp.between(start_dt, end_dt))
+            except ValueError:
+                logger.error(f"Invalid date format for filtering: {start_date} - {end_date}.")
+                return {'message': 'Invalid date format. Use YYYY-MM-DD'}, 400
+
+        # Filter by resource type
+        if resource_type:
+            query = query.filter_by(resource_type=resource_type)
+
+        # Filter by action
+        if action:
+            if action in AuditAction.__members__:
+                query = query.filter_by(action=AuditAction[action])
+            else:
+                logger.error(f"Invalid action type provided: {action}.")
+                return {'message': f"Invalid action type. Valid types are: {', '.join(AuditAction.__members__.keys())}"}, 400
 
         audit_trails = query.all()
 
@@ -106,10 +127,22 @@ class FilteredAuditTrailResource(Resource):
         # Apply filters if provided
         if resource_type:
             query = query.filter_by(resource_type=resource_type)
+
         if action:
-            query = query.filter_by(action=action)
+            if action in AuditAction.__members__:
+                query = query.filter_by(action=AuditAction[action])
+            else:
+                logger.error(f"Invalid action type provided: {action}.")
+                return {'message': f"Invalid action type. Valid types are: {', '.join(AuditAction.__members__.keys())}"}, 400
+
         if start_date and end_date:
-            query = query.filter(AuditTrail.timestamp.between(start_date, end_date))
+            try:
+                start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+                end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+                query = query.filter(AuditTrail.timestamp.between(start_dt, end_dt))
+            except ValueError:
+                logger.error(f"Invalid date format for filtering: {start_date} - {end_date}.")
+                return {'message': 'Invalid date format. Use YYYY-MM-DD'}, 400
 
         filtered_audits = query.all()
 

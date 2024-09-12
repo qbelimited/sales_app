@@ -2,18 +2,22 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 
 const ProtectedRoute = ({ children, allowedRoles, userRole }) => {
+  // Check if the user is logged in by validating userRole
   if (!userRole) {
-    // If the user is not logged in, redirect to login
-    return <Navigate to="/login" />;
+    // If the user is not logged in, redirect to login page
+    return <Navigate to="/login" replace />;
   }
 
-  // Check if the user's role is in the allowedRoles array
-  if (!allowedRoles.includes(parseInt(userRole))) {
-    // If the user doesn't have the required role, redirect to a "Not Authorized" page
-    return <Navigate to="/unauthorized" />;
+  // Ensure userRole is an integer and check if it matches the allowed roles
+  const parsedUserRole = parseInt(userRole, 10);
+
+  if (!allowedRoles.includes(parsedUserRole)) {
+    // If the user doesn't have the required role, redirect to an unauthorized page
+    return <Navigate to="/unauthorized" replace />;
   }
 
-  return children;  // If authorized, render the child components
+  // If the user is authorized, render the child components
+  return children;
 };
 
 export default ProtectedRoute;

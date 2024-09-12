@@ -12,6 +12,7 @@ retention_ns = Namespace('retention', description='Retention Policy operations')
 retention_policy_model = retention_ns.model('RetentionPolicy', {
     'id': fields.Integer(description='Policy ID'),
     'retention_days': fields.Integer(required=True, description='Number of days for data retention'),
+    'created_at': fields.String(description='Creation timestamp'),
     'updated_at': fields.String(description='Last updated timestamp')
 })
 
@@ -25,7 +26,7 @@ class RetentionPolicyResource(Resource):
         current_user = get_jwt_identity()
 
         try:
-            # Fetch the current policy or create a default one if it doesn't exist
+            # Fetch the current retention policy or create a default one
             policy = RetentionPolicy.get_current_policy()
 
             # Log access to the audit trail
@@ -34,7 +35,7 @@ class RetentionPolicyResource(Resource):
                 action='ACCESS',
                 resource_type='retention_policy',
                 resource_id=policy.id,
-                details="User accessed the current retention policy"
+                details="User accessed the retention policy"
             )
             db.session.add(audit)
             db.session.commit()
@@ -54,16 +55,16 @@ class RetentionPolicyResource(Resource):
         data = request.json
 
         try:
-            # Fetch the current policy
+            # Fetch the current retention policy
             policy = RetentionPolicy.get_current_policy()
 
-            # Update the retention days
+            # Update the retention days if provided
             retention_days = data.get('retention_days')
-            if retention_days:
+            if retention_days and retention_days > 0:
                 policy.retention_days = retention_days
                 db.session.commit()
 
-                # Log the update to audit trail
+                # Log the update to the audit trail
                 audit = AuditTrail(
                     user_id=current_user['id'],
                     action='UPDATE',
@@ -77,7 +78,7 @@ class RetentionPolicyResource(Resource):
                 logger.info(f"User {current_user['id']} updated retention policy to {retention_days} days")
                 return policy.serialize(), 200
             else:
-                logger.warning(f"User {current_user['id']} provided invalid retention days")
+                logger.warning(f"Invalid retention days provided by User {current_user['id']}")
                 return {'message': 'Invalid retention days'}, 400
         except ValueError as e:
             logger.error(f"Validation error: {str(e)} for User {current_user['id']}")

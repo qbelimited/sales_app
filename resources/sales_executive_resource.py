@@ -15,7 +15,8 @@ sales_executive_model = sales_executive_ns.model('SalesExecutive', {
     'name': fields.String(required=True, description='Sales Executive Name'),
     'code': fields.String(required=True, description='Sales Executive Code'),
     'manager_id': fields.Integer(required=True, description='Manager ID'),
-    'branch_id': fields.Integer(required=True, description='Branch ID')
+    'branch_ids': fields.List(fields.Integer, description='List of Branch IDs'),
+    'phone_number': fields.String(required=True, description='Sales Executive Phone Number')
 })
 
 @sales_executive_ns.route('/')
@@ -75,7 +76,7 @@ class SalesExecutiveListResource(Resource):
         data = request.json
 
         # Validation
-        required_fields = ['name', 'code', 'manager_id', 'branch_id']
+        required_fields = ['name', 'code', 'manager_id', 'branch_ids', 'phone_number']
         if not all([data.get(field) for field in required_fields]):
             logger.error(f"User {current_user['id']} attempted to create a Sales Executive with missing fields.")
             return {'message': 'Missing required fields'}, 400
@@ -84,8 +85,16 @@ class SalesExecutiveListResource(Resource):
             name=data['name'],
             code=data['code'],
             manager_id=data['manager_id'],
-            branch_id=data['branch_id']
+            phone_number=data['phone_number']
         )
+
+        # Add branches to the sales executive
+        branch_ids = data['branch_ids']
+        for branch_id in branch_ids:
+            branch = Branch.query.filter_by(id=branch_id).first()
+            if branch:
+                new_sales_executive.branches.append(branch)
+
         db.session.add(new_sales_executive)
         db.session.commit()
 
@@ -151,9 +160,18 @@ class SalesExecutiveResource(Resource):
         sales_executive.name = data.get('name', sales_executive.name)
         sales_executive.code = data.get('code', sales_executive.code)
         sales_executive.manager_id = data.get('manager_id', sales_executive.manager_id)
-        sales_executive.branch_id = data.get('branch_id', sales_executive.branch_id)
-        sales_executive.updated_at = datetime.utcnow()
+        sales_executive.phone_number = data.get('phone_number', sales_executive.phone_number)
 
+        # Update branches
+        if 'branch_ids' in data:
+            sales_executive.branches = []  # Clear existing branches
+            branch_ids = data['branch_ids']
+            for branch_id in branch_ids:
+                branch = Branch.query.filter_by(id=branch_id).first()
+                if branch:
+                    sales_executive.branches.append(branch)
+
+        sales_executive.updated_at = datetime.utcnow()
         db.session.commit()
 
         # Log the update to audit trail and logger

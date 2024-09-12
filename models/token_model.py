@@ -1,4 +1,4 @@
-from app import db
+from app import db, logger
 from datetime import datetime
 
 # TokenBlacklist model for managing blacklisted (revoked) JWT tokens
@@ -14,6 +14,7 @@ class TokenBlacklist(db.Model):
     user = db.relationship('User', backref='blacklisted_tokens')
 
     def serialize(self):
+        """Serialize the token blacklist entry to JSON-friendly format."""
         return {
             'id': self.id,
             'jti': self.jti,
@@ -26,8 +27,14 @@ class TokenBlacklist(db.Model):
     def revoke(self):
         """Mark the token as revoked if not already revoked."""
         if not self.revoked:
-            self.revoked = True
-            db.session.commit()
+            try:
+                self.revoked = True
+                db.session.commit()
+                logger.info(f"Token {self.jti} for user {self.user_id} revoked.")
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"Failed to revoke token {self.jti}: {e}")
+                raise ValueError("Token revocation failed.")
 
     def is_revoked(self):
         """Check if the token is revoked."""
@@ -47,6 +54,7 @@ class RefreshToken(db.Model):
     user = db.relationship('User', backref='refresh_tokens')
 
     def serialize(self):
+        """Serialize the refresh token entry to JSON-friendly format."""
         return {
             'id': self.id,
             'user_id': self.user_id,
@@ -59,10 +67,16 @@ class RefreshToken(db.Model):
     def revoke(self):
         """Mark the refresh token as revoked if not already revoked."""
         if not self.revoked:
-            self.revoked_at = datetime.utcnow()
-            self.revoked = True
-            db.session.commit()
+            try:
+                self.revoked_at = datetime.utcnow()
+                self.revoked = True
+                db.session.commit()
+                logger.info(f"Refresh token {self.token} for user {self.user_id} revoked.")
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"Failed to revoke refresh token {self.token}: {e}")
+                raise ValueError("Refresh token revocation failed.")
 
     def is_revoked(self):
-        """Check if the token is revoked."""
+        """Check if the refresh token is revoked."""
         return self.revoked

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Route, Routes, Navigate, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -12,26 +12,40 @@ import ManageUsersPage from './pages/ManageUsersPage';
 import ManageProductsPage from './pages/ManageProductsPage';
 import ManageBanksPage from './pages/ManageBanksPage';
 import ProtectedRoute from './components/ProtectedRoute';
-import BranchManagementPage from './pages/BranchManagementPage';
 import Toaster from './components/Toaster';
 import authService from './services/authService';
+import { AccessProvider, useAccessContext } from './context/AccessProvider'; // Import AccessProvider here
 
 function App() {
   const [role, setRole] = useState(null);
+  const [roleName, setRoleName] = useState('');
   const [toasts, setToasts] = useState([]);  // Global toast state
   const navigate = useNavigate();
+  const { fetchUserAccess } = useAccessContext(); // Access context hook
+
+  // Fetch role name based on roleId
+  const fetchRoleName = useCallback(async (roleId) => {
+    try {
+      const roleData = await authService.getRoleById(roleId);  // Fetch role data from the service
+      setRoleName(roleData.name);
+    } catch (error) {
+      console.error('Error fetching role name:', error);
+    }
+  }, []);
 
   // On mount, check if the user is already logged in by checking localStorage
   useEffect(() => {
     const savedRole = localStorage.getItem('userRole');
     if (savedRole && authService.isLoggedIn()) { // Check if the user is logged in and token is valid
       setRole(savedRole);
+      fetchRoleName(savedRole);  // Fetch role name when user logs in
+      fetchUserAccess(savedRole); // Fetch access rules for the user role
     } else {
       setRole(null); // Clear role if not logged in
       localStorage.removeItem('userRole');  // Ensure that we clear invalid sessions
       navigate('/login');  // Redirect to login page if not logged in
     }
-  }, [navigate]);  // This will run only once when the component mounts
+  }, [fetchRoleName, fetchUserAccess, navigate]);  // Added dependencies for hooks
 
   // Function to show toast messages without duplicates
   const showToast = (variant, message, heading) => {
@@ -61,6 +75,8 @@ function App() {
   const handleLogin = (userRole) => {
     setRole(userRole);
     localStorage.setItem('userRole', userRole);  // Store role in localStorage after login
+    fetchRoleName(userRole);  // Fetch role name on login
+    fetchUserAccess(userRole);  // Fetch access rules on login
 
     // Use navigate for redirect instead of window.location.href
     navigate(userRole === 3 ? '/manage-users' : '/sales');
@@ -70,6 +86,7 @@ function App() {
     authService.logout()  // Call the logout function to clear tokens
       .then(() => {
         setRole(null);  // Set role to null to hide Navbar and Sidebar
+        setRoleName('');  // Clear the role name
         showToast('success', 'Logout successful', 'Goodbye');
         navigate('/login');  // Redirect to login page after successful logout
       })
@@ -80,7 +97,7 @@ function App() {
 
   return (
     <div>
-      {role && <Navbar onLogout={handleLogout} />}
+      {role && <Navbar onLogout={handleLogout} roleName={roleName} />}
       {role && <Sidebar />}
 
       <div style={{ marginLeft: role ? '250px' : '0' }}>
@@ -144,14 +161,6 @@ function App() {
             }
           />
           <Route
-            path="/banks/:bankId/branches"
-            element={
-              <ProtectedRoute allowedRoles={[2, 3]} userRole={parseInt(role)}>
-                <BranchManagementPage showToast={showToast} />
-              </ProtectedRoute>
-            }
-          />
-          <Route
             path="/manage-banks"
             element={
               <ProtectedRoute allowedRoles={[2, 3]} userRole={parseInt(role)}>
@@ -169,4 +178,10 @@ function App() {
   );
 }
 
-export default App;
+export default function RootApp() {
+  return (
+    <AccessProvider>
+      <App />
+    </AccessProvider>
+  );
+}

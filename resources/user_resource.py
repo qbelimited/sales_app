@@ -1,5 +1,5 @@
 from flask_restx import Namespace, Resource, fields
-from flask import request, jsonify
+from flask import request
 from models.user_model import User
 from models.user_session_model import UserSession
 from models.audit_model import AuditTrail
@@ -22,16 +22,23 @@ user_model = user_ns.model('User', {
     'updated_at': fields.String(description='Updated At'),
 })
 
+password_model = user_ns.model('Password', {
+    'current_password': fields.String(required=True, description='Current Password'),
+    'new_password': fields.String(required=True, description='New Password'),
+})
+
 session_model = user_ns.model('UserSession', {
     'id': fields.Integer(description='Session ID'),
     'user_id': fields.Integer(description='User ID'),
     'login_time': fields.String(description='Login Time'),
     'logout_time': fields.String(description='Logout Time'),
+    'expires_at': fields.String(description='Expires At'),
     'ip_address': fields.String(description='IP Address'),
     'is_active': fields.Boolean(description='Is Active'),
 })
 
 
+# CRUD Operations for Users
 @user_ns.route('/')
 class UserListResource(Resource):
     @user_ns.doc(security='Bearer Auth')
@@ -208,33 +215,114 @@ class UserResource(Resource):
         return {'message': 'User deleted successfully'}, 200
 
 
+# Password Management
+@user_ns.route('/<int:user_id>/password')
+class PasswordUpdateResource(Resource):
+    @user_ns.doc(security='Bearer Auth')
+    @user_ns.expect(password_model, validate=True)
+    @jwt_required()
+    def put(self, user_id):
+        """Update the password for the authenticated user."""
+        current_user = get_jwt_identity()
+
+        # Ensure that only the user themselves can update their password
+        if current_user['id'] != user_id:
+            return {'message': 'Unauthorized'}, 403
+
+        user = User.query.filter_by(id=user_id, is_deleted=False).first()
+        if not user:
+            return {'message': 'User not found'}, 404
+
+        data = request.json
+        current_password = data['current_password']
+        new_password = data['new_password']
+
+        # Verify the current password
+        if not user.check_password(current_password):
+            return {'message': 'Current password is incorrect'}, 400
+
+        # Update the password
+        user.set_password(new_password)
+        user.updated_at = datetime.utcnow()
+        db.session.commit()
+
+        # Log the password update to the audit trail and logger
+        logger.info(f"User {current_user['id']} updated their password.")
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='UPDATE_PASSWORD',
+            resource_type='user',
+            resource_id=user_id,
+            details=f"User updated password"
+        )
+        db.session.add(audit)
+        db.session.commit()
+
+        return {'message': 'Password updated successfully'}, 200
+
+
+# User Sessions Management
 @user_ns.route('/<int:user_id>/sessions')
 class UserSessionResource(Resource):
     @user_ns.doc(security='Bearer Auth')
     @jwt_required()
     @user_ns.marshal_list_with(session_model)
     def get(self, user_id):
-        """Retrieve active sessions for a user."""
+        """Retrieve active sessions for a specific user."""
         current_user = get_jwt_identity()
 
-        # Only admin or the user can access session details
+        # Only admin or the user themselves can access session details
         if current_user['id'] != user_id and current_user['role'].lower() != 'admin':
-            logger.warning(f"Unauthorized access attempt by User {current_user['id']} for sessions of User {user_id}.")
             return {'message': 'Unauthorized'}, 403
 
         sessions = UserSession.get_active_sessions(user_id=user_id)
+        logger.info(f"User {current_user['id']} accessed sessions of user {user_id}.")
 
-        logger.info(f"User {current_user['id']} accessed sessions of User {user_id}.")
-        return sessions, 200
+        return [session.serialize() for session in sessions], 200
 
-    @user_ns.doc(security='Bearer Auth', responses={200: 'Session ended', 403: 'Unauthorized'})
+    @user_ns.doc(security='Bearer Auth')
     @jwt_required()
+    @user_ns.expect(session_model, validate=True)
     def post(self, user_id):
-        """End the user's active session (admin only)."""
+        """Create a new session for a user."""
+        current_user = get_jwt_identity()
+
+        # Only admin or the user themselves can create a session
+        if current_user['id'] != user_id and current_user['role'].lower() != 'admin':
+            return {'message': 'Unauthorized'}, 403
+
+        data = request.json
+
+        new_session = UserSession(
+            user_id=user_id,
+            ip_address=data.get('ip_address', '0.0.0.0'),  # Default to '0.0.0.0' if not provided
+            expires_at=datetime.utcnow() + timedelta(minutes=45),  # Default to 45 minutes
+        )
+        db.session.add(new_session)
+        db.session.commit()
+
+        logger.info(f"User {current_user['id']} created a new session for user {user_id}.")
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='CREATE',
+            resource_type='session',
+            resource_id=new_session.id,
+            details=f"Created session for user {user_id}"
+        )
+        db.session.add(audit)
+        db.session.commit()
+
+        return new_session.serialize(), 201
+
+    @user_ns.doc(security='Bearer Auth')
+    @jwt_required()
+    @user_ns.response(200, 'Session deleted successfully')
+    @user_ns.response(404, 'Session not found')
+    def delete(self, user_id):
+        """End all active sessions for a user (admin only)."""
         current_user = get_jwt_identity()
 
         if current_user['role'].lower() != 'admin':
-            logger.warning(f"Unauthorized attempt by User {current_user['id']} to end session of User {user_id}.")
             return {'message': 'Unauthorized'}, 403
 
         sessions = UserSession.get_active_sessions(user_id=user_id)
@@ -244,5 +332,57 @@ class UserSessionResource(Resource):
         for session in sessions:
             session.end_session()
 
-        logger.info(f"User {current_user['id']} ended all active sessions for User {user_id}.")
+        logger.info(f"User {current_user['id']} ended all active sessions for user {user_id}.")
         return {'message': 'All active sessions ended successfully'}, 200
+
+
+@user_ns.route('/<int:user_id>/sessions/<int:session_id>')
+class SingleUserSessionResource(Resource):
+    @user_ns.doc(security='Bearer Auth')
+    @jwt_required()
+    @user_ns.response(200, 'Session retrieved successfully', session_model)
+    @user_ns.response(404, 'Session not found')
+    def get(self, user_id, session_id):
+        """Retrieve a specific session for a user."""
+        current_user = get_jwt_identity()
+
+        # Only admin or the user themselves can access session details
+        if current_user['id'] != user_id and current_user['role'].lower() != 'admin':
+            return {'message': 'Unauthorized'}, 403
+
+        session = UserSession.query.filter_by(id=session_id, user_id=user_id, is_active=True).first()
+        if not session:
+            return {'message': 'Session not found'}, 404
+
+        logger.info(f"User {current_user['id']} accessed session {session_id} for user {user_id}.")
+        return session.serialize(), 200
+
+    @user_ns.doc(security='Bearer Auth')
+    @jwt_required()
+    @user_ns.response(200, 'Session deleted successfully')
+    @user_ns.response(404, 'Session not found')
+    def delete(self, user_id, session_id):
+        """End a specific session for a user (admin only)."""
+        current_user = get_jwt_identity()
+
+        if current_user['role'].lower() != 'admin':
+            return {'message': 'Unauthorized'}, 403
+
+        session = UserSession.query.filter_by(id=session_id, user_id=user_id, is_active=True).first()
+        if not session:
+            return {'message': 'Session not found'}, 404
+
+        session.end_session()
+        logger.info(f"User {current_user['id']} ended session {session_id} for user {user_id}.")
+
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='DELETE',
+            resource_type='session',
+            resource_id=session_id,
+            details=f"Ended session {session_id} for user {user_id}"
+        )
+        db.session.add(audit)
+        db.session.commit()
+
+        return {'message': 'Session deleted successfully'}, 200

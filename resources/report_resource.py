@@ -10,6 +10,12 @@ from models.sales_executive_model import SalesExecutive
 from models.branch_model import Branch
 from models.user_model import User
 from models.audit_model import AuditTrail
+from models.paypoint_model import Paypoint
+from models.bank_model import Bank, BankBranch
+from models.inception_model import Inception
+from models.under_investigation_model import UnderInvestigation
+from models.query_model import Query
+from models.performance_model import SalesTarget
 from pmdarima import auto_arima
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
@@ -23,169 +29,161 @@ from sqlalchemy import or_
 from fpdf import FPDF
 
 # Define namespace for report-related operations
-report_ns = Namespace('reports', description='Sales and Performance Report Generation')
+report_ns = Namespace('reports', description='Comprehensive Sales and Performance Report Generation')
 
 # Define the model for Swagger documentation
 report_model = report_ns.model('Report', {
-    'report_type': fields.String(required=True, description='Type of the report to generate')
+    'report_type': fields.String(required=True, description='Type of the report to generate'),
+    'filters': fields.Raw(description="Filters for the report"),
+    'group_by': fields.String(description="Group by field for data aggregation")
 })
 
-class ReportResource(Resource):
-    MIN_DATA_DAYS = 60  # Minimum number of days of data required for meaningful analysis
+class ComprehensiveReportResource(Resource):
 
     @report_ns.doc(security='Bearer Auth')
     @jwt_required()
-    @report_ns.param('report_type', 'The type of report to generate')
-    def get(self):
-        """Generate and return a report with visualizations if requested."""
+    @report_ns.expect(report_model, validate=True)
+    def post(self):
+        """Generate a comprehensive dynamic report with filters, statistics, and visualizations."""
         current_user = get_jwt_identity()
+        data = request.json
+        report_type = data.get('report_type')
+        filters = data.get('filters', {})
+        group_by = data.get('group_by', None)
 
-        report_type = request.args.get('report_type', None)
-        if not report_type:
-            return {'message': 'Report type is required'}, 400
+        # Step 1: Fetch and combine data from different models
+        combined_df = self.fetch_combined_data(filters)
 
-        # Route to the correct report generation function
-        report_type = report_type.lower()
-        if report_type == 'performance':
-            return self.generate_performance_report()
-        elif report_type == 'sales':
-            return self.generate_sales_report()
-        elif report_type == 'branch':
-            return self.generate_branch_wise_report()
-        elif report_type == 'sales_executive':
-            return self.generate_sales_executive_wise_report()
-        elif report_type == 'sales_manager':
-            return self.generate_sales_manager_wise_report()
+        # Step 2: Apply filtering logic
+        if filters:
+            combined_df = self.apply_filters(combined_df, filters)
+
+        # Step 3: Handle different report types
+        if report_type == 'sales_performance':
+            return self.generate_sales_performance_report(combined_df, group_by)
+        elif report_type == 'investigations':
+            return self.generate_investigations_report(combined_df, group_by)
+        elif report_type == 'queries':
+            return self.generate_queries_report(combined_df, group_by)
+        elif report_type == 'statistics':
+            return self.generate_statistics_report(combined_df)
         elif report_type == 'predictive':
-            return self.generate_predictive_report()
+            return self.generate_predictive_report(combined_df)
         elif report_type == 'lstm_predictive':
-            return self.generate_lstm_predictive_report()
+            return self.generate_lstm_predictive_report(combined_df)
         else:
             return {'message': 'Invalid report type'}, 400
 
-    def check_data_sufficiency(self, df):
-        """Check if the dataset has enough data for analysis."""
-        unique_dates = df['created_at'].nunique()
-        if unique_dates < self.MIN_DATA_DAYS:
-            return False, self.MIN_DATA_DAYS - unique_dates
-        return True, 0
-
-    def generate_performance_report(self):
-        """Generate a performance report with visualizations."""
-        sales_data = db.session.query(
-            SalesExecutive.name, Branch.name, db.func.sum(Sale.amount).label('total_sales')
-        ).join(Sale).join(Branch).group_by(SalesExecutive.name, Branch.name).all()
-
-        df = pd.DataFrame(sales_data, columns=['Sales Executive', 'Branch', 'Total Sales'])
-
-        # Check if there’s enough data
-        sufficient_data, days_needed = self.check_data_sufficiency(df)
-        if not sufficient_data:
-            return {
-                'message': f'Insufficient data. Please collect at least {days_needed} more days of data.',
-                'status': 'insufficient_data'
-            }, 200
-
-        # Visualization: Bar plot for sales per branch
-        plt.figure(figsize=(10, 6))
-        sns.barplot(x='Branch', y='Total Sales', data=df)
-        plt.xticks(rotation=45)
-        plt.title('Total Sales per Branch')
-        plt.tight_layout()
-
-        return self.export_visualization('performance_sales_barplot')
-
-    def generate_sales_report(self):
-        """Generate a sales report with visualizations."""
+    def fetch_combined_data(self, filters):
+        """Fetch sales data combined with Inception, Paypoint, Bank, Sales Executive, Investigations, Queries."""
         sales_data = db.session.query(Sale).all()
-        df = pd.DataFrame([sale.serialize() for sale in sales_data])
+        sales_df = pd.DataFrame([sale.serialize() for sale in sales_data])
 
-        if df.empty:
-            return {'message': 'No sales data available'}, 200
+        # Fetch additional data and merge into sales_df
+        inception_data = db.session.query(Inception).all()
+        inception_df = pd.DataFrame([inception.serialize() for inception in inception_data])
 
-        # Visualization: Line graph for sales over time
-        df['created_at'] = pd.to_datetime(df['created_at'])
-        df.set_index('created_at', inplace=True)
-        df['amount'].plot(figsize=(10, 6), title="Sales Over Time")
-        plt.tight_layout()
+        paypoint_data = db.session.query(Paypoint).all()
+        paypoint_df = pd.DataFrame([paypoint.serialize() for paypoint in paypoint_data])
 
-        return self.export_visualization('sales_line_graph')
+        bank_data = db.session.query(Bank).all()
+        bank_df = pd.DataFrame([bank.serialize() for bank in bank_data])
 
-    def generate_branch_wise_report(self):
-        """Generate a branch-wise report with visualizations."""
-        sales_data = db.session.query(
-            Branch.name, db.func.sum(Sale.amount).label('total_sales')
-        ).join(Sale).group_by(Branch.name).all()
+        branch_data = db.session.query(BankBranch).all()
+        branch_df = pd.DataFrame([branch.serialize() for branch in branch_data])
 
-        df = pd.DataFrame(sales_data, columns=['Branch', 'Total Sales'])
+        sales_executive_data = db.session.query(SalesExecutive).all()
+        sales_executive_df = pd.DataFrame([se.serialize() for se in sales_executive_data])
 
-        if df.empty:
-            return {'message': 'No branch sales data available'}, 200
+        product_data = db.session.query(ImpactProduct).all()
+        product_df = pd.DataFrame([product.serialize() for product in product_data])
 
-        # Visualization: Pie chart for sales distribution by branch
-        plt.figure(figsize=(8, 8))
-        df.set_index('Branch')['Total Sales'].plot.pie(autopct='%1.1f%%', startangle=90)
-        plt.title('Sales Distribution by Branch')
-        plt.ylabel('')
-        plt.tight_layout()
+        investigation_data = db.session.query(UnderInvestigation).all()
+        investigation_df = pd.DataFrame([inv.serialize() for inv in investigation_data])
 
-        return self.export_visualization('branch_sales_pie_chart')
+        query_data = db.session.query(Query).all()
+        query_df = pd.DataFrame([q.serialize() for q in query_data])
 
-    def generate_sales_executive_wise_report(self):
-        """Generate a sales executive-wise report."""
-        sales_data = db.session.query(
-            SalesExecutive.name, db.func.sum(Sale.amount).label('total_sales')
-        ).join(Sale).group_by(SalesExecutive.name).all()
+        # Merge all the data into a single DataFrame
+        merged_df = pd.merge(sales_df, inception_df, how='left', on='sale_id')
+        merged_df = pd.merge(merged_df, paypoint_df, how='left', on='paypoint_id')
+        merged_df = pd.merge(merged_df, bank_df, how='left', on='bank_id')
+        merged_df = pd.merge(merged_df, branch_df, how='left', on='bank_branch_id')
+        merged_df = pd.merge(merged_df, sales_executive_df, how='left', on='sales_executive_id')
+        merged_df = pd.merge(merged_df, product_df, how='left', on='policy_type_id')
+        merged_df = pd.merge(merged_df, investigation_df, how='left', on='sale_id')
+        merged_df = pd.merge(merged_df, query_df, how='left', on='sale_id')
 
-        df = pd.DataFrame(sales_data, columns=['Sales Executive', 'Total Sales'])
+        return merged_df
 
-        if df.empty:
-            return {'message': 'No sales executive data available'}, 200
+    def apply_filters(self, df, filters):
+        """Apply filters to the DataFrame."""
+        for column, value in filters.items():
+            if value:
+                df = df[df[column] == value]
+        return df
 
-        return self.export_to_format(df, 'sales_executive_wise_report')
+    def generate_sales_performance_report(self, df, group_by=None):
+        """Generate sales performance report comparing sales against targets."""
+        df['performance'] = (df['amount'] / df['target_amount']) * 100
+        performance_df = df.groupby(group_by).agg({
+            'amount': ['sum', 'min', 'max', 'mean'],
+            'target_amount': ['sum', 'min', 'max', 'mean'],
+            'performance': ['mean']
+        })
 
-    def generate_sales_manager_wise_report(self):
-        """Generate a sales manager-wise report."""
-        sales_data = db.session.query(
-            User.name, db.func.sum(Sale.amount).label('total_sales')
-        ).join(Sale).group_by(User.name).all()
+        return self.export_to_format(performance_df, 'sales_performance_report')
 
-        df = pd.DataFrame(sales_data, columns=['Sales Manager', 'Total Sales'])
+    def generate_investigations_report(self, df, group_by=None):
+        """Generate report on sales under investigation."""
+        investigation_df = df[df['resolved'] == False].groupby(group_by).agg({
+            'amount': ['sum', 'count'],
+            'inception_amount': ['sum', 'count'],
+        })
 
-        if df.empty:
-            return {'message': 'No sales manager data available'}, 200
+        return self.export_to_format(investigation_df, 'investigations_report')
 
-        return self.export_to_format(df, 'sales_manager_wise_report')
+    def generate_queries_report(self, df, group_by=None):
+        """Generate report on sales queries and responses."""
+        query_df = df.groupby(group_by).agg({
+            'amount': ['sum', 'count'],
+            'query_status': ['count'],  # Count of queried sales
+            'response_status': ['count']  # Count of resolved queries
+        })
 
-    def generate_predictive_report(self):
-        """Generate a predictive sales report based on historical data using ARIMA."""
-        sales_data = db.session.query(Sale).all()
+        return self.export_to_format(query_df, 'queries_report')
 
-        df = pd.DataFrame([sale.serialize() for sale in sales_data])
+    def generate_statistics_report(self, df):
+        """Generate statistical report on sales and incepted amounts."""
+        stats_sales = df['amount'].agg(['sum', 'min', 'max', 'mean', 'std', 'var']).to_dict()
+        stats_incepted = df['inception_amount'].agg(['sum', 'min', 'max', 'mean', 'std', 'var']).to_dict()
+
+        return {
+            'sales_statistics': stats_sales,
+            'inception_statistics': stats_incepted,
+        }
+
+    def generate_predictive_report(self, df):
+        """Generate predictive sales report using ARIMA."""
         df['created_at'] = pd.to_datetime(df['created_at'])
         df.set_index('created_at', inplace=True)
 
-        sufficient_data, days_needed = self.check_data_sufficiency(df)
-        if not sufficient_data:
-            return {
-                'message': f'Insufficient data for prediction. Please collect at least {days_needed} more days of data.',
-                'status': 'insufficient_data'
-            }, 200
+        # Ensure sufficient data
+        if df.shape[0] < 60:  # Example condition for minimal data sufficiency
+            return {'message': 'Insufficient data for prediction'}, 400
 
-        # Train ARIMA model for time-series forecasting
+        # Train ARIMA model
         model = auto_arima(df['amount'], seasonal=False, stepwise=True, suppress_warnings=True)
-
-        # Predict sales for the next 30 days
         forecast = model.predict(n_periods=30)
         forecast_dates = pd.date_range(start=datetime.today(), periods=30, freq='D')
 
+        # Generate forecast DataFrame
         future_df = pd.DataFrame({
             'Date': forecast_dates,
             'Predicted Sales': forecast
         })
 
         # Visualization: Line plot for predictions
-        plt.figure(figsize=(10, 6))
         plt.plot(future_df['Date'], future_df['Predicted Sales'], label='Predicted Sales')
         plt.title('Predicted Sales for the Next 30 Days')
         plt.xlabel('Date')
@@ -193,22 +191,16 @@ class ReportResource(Resource):
         plt.legend()
         plt.tight_layout()
 
-        return self.export_visualization('sales_forecast_line_plot')
+        return self.export_visualization('predictive_sales_report')
 
-    def generate_lstm_predictive_report(self):
+    def generate_lstm_predictive_report(self, df):
         """Generate a predictive sales report using LSTM."""
-        sales_data = db.session.query(Sale).all()
-
-        df = pd.DataFrame([sale.serialize() for sale in sales_data])
         df['created_at'] = pd.to_datetime(df['created_at'])
         df.set_index('created_at', inplace=True)
 
-        sufficient_data, days_needed = self.check_data_sufficiency(df)
-        if not sufficient_data:
-            return {
-                'message': f'Insufficient data for LSTM prediction. Please collect at least {days_needed} more days of data.',
-                'status': 'insufficient_data'
-            }, 200
+        # Ensure sufficient data
+        if df.shape[0] < 60:  # Example condition for minimal data sufficiency
+            return {'message': 'Insufficient data for LSTM prediction'}, 400
 
         # Normalize data
         scaler = MinMaxScaler(feature_range=(0, 1))
@@ -290,14 +282,13 @@ class ReportResource(Resource):
         pdf.add_page()
         pdf.set_font("Arial", size=12)
 
-        for i in range(len(df)):
-            row = df.iloc[i].to_string()
-            pdf.cell(200, 10, txt=row, ln=True)
+        for row in df.to_dict(orient='records'):
+            row_text = ', '.join(f"{key}: {value}" for key, value in row.items())
+            pdf.cell(200, 10, txt=row_text, ln=True)
 
         output = BytesIO()
         pdf.output(output)
         output.seek(0)
-
         return send_file(output, attachment_filename=f"{filename}.pdf", as_attachment=True)
 
 
@@ -319,7 +310,7 @@ class ParallelReportResource(Resource):
     def generate_report(self, report_type):
         """Generate report based on report type."""
         report_mapping = {
-            'performance': self.generate_performance_report,
+            'performance': self.generate_sales_performance_report,
             'sales': self.generate_sales_report,
             'branch': self.generate_branch_wise_report,
             'sales_executive': self.generate_sales_executive_wise_report,

@@ -14,12 +14,12 @@ query_response_model = query_response_ns.model('QueryResponse', {
     'id': fields.Integer(description='Response ID'),
     'query_id': fields.Integer(description='Query ID'),
     'user_id': fields.Integer(description='User ID'),
-    'response': fields.String(required=True, description='Response content'),
+    'content': fields.String(required=True, description='Response content'),
     'created_at': fields.DateTime(description='Created at'),
     'updated_at': fields.DateTime(description='Updated at'),
 })
 
-# Helper function to check if the user is admin or the owner of the response
+# Helper function to check if the user is an admin or the owner of the resource
 def check_user_authorization(current_user, resource_user_id):
     return current_user['role'].lower() == 'admin' or current_user['id'] == resource_user_id
 
@@ -37,9 +37,9 @@ class QueryResponseResource(Resource):
             logger.warning(f"Query ID {query_id} not found for User ID {current_user['id']}.")
             return {'message': 'Query/Feedback not found'}, 404
 
-        responses = QueryResponse.query.filter_by(query_id=query_id, is_deleted=False).all()
+        responses = QueryResponse.query.filter_by(query_id=query_id).all()
 
-        # Log the access to audit trail
+        # Log the access to the audit trail
         audit = AuditTrail(
             user_id=current_user['id'],
             action='ACCESS',
@@ -65,7 +65,7 @@ class QueryResponseResource(Resource):
             return {'message': 'Query/Feedback not found'}, 404
 
         data = request.json
-        if not data.get('response'):
+        if not data.get('content'):
             logger.error(f"Missing response content for User ID {current_user['id']} in Query ID {query_id}.")
             return {'message': 'Response content is required'}, 400
 
@@ -73,7 +73,7 @@ class QueryResponseResource(Resource):
             new_response = QueryResponse(
                 query_id=query_id,
                 user_id=current_user['id'],
-                response=data['response'],
+                content=data['content'],
                 created_at=datetime.utcnow()
             )
             db.session.add(new_response)
@@ -82,7 +82,7 @@ class QueryResponseResource(Resource):
             logger.error(f"Error creating response for query ID {query_id} by User ID {current_user['id']}: {str(e)}")
             return {'message': 'Error creating response'}, 500
 
-        # Log the response creation to audit trail
+        # Log the response creation to the audit trail
         audit = AuditTrail(
             user_id=current_user['id'],
             action='CREATE',
@@ -105,7 +105,7 @@ class QueryResponseByIdResource(Resource):
         """Update a specific response to a query/feedback."""
         current_user = get_jwt_identity()
 
-        response = QueryResponse.query.filter_by(id=response_id, query_id=query_id, is_deleted=False).first()
+        response = QueryResponse.query.filter_by(id=response_id, query_id=query_id).first()
         if not response:
             logger.warning(f"Response ID {response_id} not found for Query ID {query_id} by User ID {current_user['id']}.")
             return {'message': 'Response not found'}, 404
@@ -116,14 +116,14 @@ class QueryResponseByIdResource(Resource):
 
         data = request.json
         try:
-            response.response = data.get('response', response.response)
+            response.content = data.get('content', response.content)
             response.updated_at = datetime.utcnow()
             db.session.commit()
         except Exception as e:
             logger.error(f"Error updating response ID {response_id} for query ID {query_id} by User ID {current_user['id']}: {str(e)}")
             return {'message': 'Error updating response'}, 500
 
-        # Log the update to audit trail
+        # Log the update to the audit trail
         audit = AuditTrail(
             user_id=current_user['id'],
             action='UPDATE',
@@ -143,7 +143,7 @@ class QueryResponseByIdResource(Resource):
         """Soft delete a response to a query/feedback."""
         current_user = get_jwt_identity()
 
-        response = QueryResponse.query.filter_by(id=response_id, query_id=query_id, is_deleted=False).first()
+        response = QueryResponse.query.filter_by(id=response_id, query_id=query_id).first()
         if not response:
             logger.warning(f"Response ID {response_id} not found for Query ID {query_id} by User ID {current_user['id']}.")
             return {'message': 'Response not found'}, 404

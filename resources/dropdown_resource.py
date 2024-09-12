@@ -6,12 +6,11 @@ from models.impact_product_model import ImpactProduct
 from models.user_model import User
 from models.audit_model import AuditTrail
 from models.paypoint_model import Paypoint
-from app import db, logger  # Import logger for logging
+from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 # Define a namespace for dropdown-related operations
 dropdown_ns = Namespace('dropdown', description='Dropdown operations')
-
 
 # Helper function to check role permissions
 def check_role_permission(current_user, required_role):
@@ -33,7 +32,6 @@ branch_model = dropdown_ns.model('BankBranch', {
     'id': fields.Integer(description='Branch ID'),
     'name': fields.String(required=True, description='Branch Name'),
     'bank_id': fields.Integer(description='Bank ID'),
-    'sort_code': fields.String(description='Sort Code'),
 })
 
 sales_executive_model = dropdown_ns.model('SalesExecutive', {
@@ -60,7 +58,6 @@ paypoint_model = dropdown_ns.model('Paypoint', {
     'location': fields.String(description='Paypoint Location'),
 })
 
-# Extend the Dropdown API for additional dropdowns
 @dropdown_ns.route('/')
 class DropdownResource(Resource):
     @dropdown_ns.doc(security='Bearer Auth')

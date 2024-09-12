@@ -1,5 +1,5 @@
 from flask_restx import Namespace, Resource, fields
-from flask import request, jsonify
+from flask import request
 from models.paypoint_model import Paypoint
 from models.audit_model import AuditTrail
 from app import db, logger
@@ -13,10 +13,10 @@ paypoint_ns = Namespace('paypoint', description='Paypoint operations')
 paypoint_model = paypoint_ns.model('Paypoint', {
     'id': fields.Integer(description='Paypoint ID'),
     'name': fields.String(required=True, description='Paypoint Name'),
-    'location': fields.String(required=True, description='Paypoint Location')
+    'location': fields.String(description='Paypoint Location'),
 })
 
-# Helper function to check role permissions (allowing multiple roles)
+# Helper function to check role permissions
 def check_role_permission(current_user, required_roles):
     return current_user['role'].lower() in required_roles
 
@@ -37,11 +37,6 @@ class PaypointListResource(Resource):
         filter_by = request.args.get('filter_by', None)
         sort_by = request.args.get('sort_by', 'created_at')
 
-        paypoint_query = Paypoint.query.filter_by(is_deleted=False)
-
-        if filter_by:
-            paypoint_query = paypoint_query.filter(Paypoint.name.ilike(f'%{filter_by}%'))
-
         # Validate sorting field
         valid_sort_fields = ['created_at', 'name', 'location']
         if sort_by not in valid_sort_fields:
@@ -49,31 +44,36 @@ class PaypointListResource(Resource):
             return {'message': f'Invalid sorting field: {sort_by}'}, 400
 
         try:
+            paypoint_query = Paypoint.query.filter_by(is_deleted=False)
+
+            if filter_by:
+                paypoint_query = paypoint_query.filter(Paypoint.name.ilike(f'%{filter_by}%'))
+
             paypoints = paypoint_query.order_by(getattr(Paypoint, sort_by).desc()).paginate(page=page, per_page=per_page, error_out=False)
+
+            if not paypoints.items:
+                return {'message': 'No Paypoints found'}, 200
+
+            # Log the access to audit trail
+            audit = AuditTrail(
+                user_id=current_user['id'],
+                action='ACCESS',
+                resource_type='paypoint_list',
+                details="User accessed list of Paypoints"
+            )
+            db.session.add(audit)
+            db.session.commit()
+
+            return {
+                'paypoints': [paypoint.serialize() for paypoint in paypoints.items],
+                'total': paypoints.total,
+                'pages': paypoints.pages,
+                'current_page': paypoints.page
+            }, 200
+
         except Exception as e:
-            logger.error(f"Error during Paypoint sorting: {str(e)}")
+            logger.error(f"Error retrieving Paypoints: {str(e)}")
             return {'message': 'Error retrieving Paypoints'}, 500
-
-        if not paypoints.items:
-            return {'message': 'No Paypoints found'}, 200
-
-        # Log the access to audit trail
-        audit = AuditTrail(
-            user_id=current_user['id'],
-            action='ACCESS',
-            resource_type='paypoint_list',
-            resource_id=None,
-            details="User accessed list of Paypoints"
-        )
-        db.session.add(audit)
-        db.session.commit()
-
-        return {
-            'paypoints': [paypoint.serialize() for paypoint in paypoints.items],
-            'total': paypoints.total,
-            'pages': paypoints.pages,
-            'current_page': paypoints.page
-        }, 200
 
     @paypoint_ns.doc(security='Bearer Auth', responses={201: 'Created', 400: 'Bad Request', 403: 'Unauthorized'})
     @jwt_required()
@@ -89,34 +89,36 @@ class PaypointListResource(Resource):
 
         data = request.json
 
-        if not data.get('name') or not data.get('location'):
+        if not data.get('name'):
             logger.error(f"Missing required fields in Paypoint creation by User ID {current_user['id']}.")
-            return {'message': 'Missing required fields: name and location'}, 400
+            return {'message': 'Missing required field: name'}, 400
 
         new_paypoint = Paypoint(
             name=data['name'],
-            location=data['location']
+            location=data.get('location', '')  # Set location as optional
         )
         try:
             db.session.add(new_paypoint)
             db.session.commit()
+
+            # Log the creation to audit trail
+            audit = AuditTrail(
+                user_id=current_user['id'],
+                action='CREATE',
+                resource_type='paypoint',
+                resource_id=new_paypoint.id,
+                details=f"User created a new Paypoint with ID {new_paypoint.id}"
+            )
+            db.session.add(audit)
+            db.session.commit()
+
+            logger.info(f"Paypoint ID {new_paypoint.id} created by User ID {current_user['id']}.")
+            return new_paypoint.serialize(), 201
+
         except Exception as e:
             logger.error(f"Database error during Paypoint creation by User ID {current_user['id']}: {str(e)}")
             return {'message': 'Failed to create Paypoint, please try again later.'}, 500
 
-        # Log the creation to audit trail
-        audit = AuditTrail(
-            user_id=current_user['id'],
-            action='CREATE',
-            resource_type='paypoint',
-            resource_id=new_paypoint.id,
-            details=f"User created a new Paypoint with ID {new_paypoint.id}"
-        )
-        db.session.add(audit)
-        db.session.commit()
-
-        logger.info(f"Paypoint ID {new_paypoint.id} created by User ID {current_user['id']}.")
-        return new_paypoint.serialize(), 201
 
 @paypoint_ns.route('/<int:paypoint_id>')
 class PaypointResource(Resource):

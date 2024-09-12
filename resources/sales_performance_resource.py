@@ -1,8 +1,7 @@
 from flask_restx import Namespace, Resource, fields
 from flask import request, jsonify
-from models.performance_model import SalesPerformance
+from models.performance_model import SalesPerformance, SalesTarget
 from models.audit_model import AuditTrail
-from models.performance_model import SalesTarget
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
@@ -22,13 +21,14 @@ sales_performance_model = sales_performance_ns.model('SalesPerformance', {
 })
 
 # Helper function to check role permissions
-def check_role_permission(current_user, required_role):
+def check_role_permission(current_user, required_roles):
+    """Helper function to validate the user's role."""
     roles = {
         'admin': ['admin'],
         'manager': ['admin', 'manager'],
         'sales_manager': ['admin', 'manager', 'sales_manager']
     }
-    return current_user['role'].lower() in roles.get(required_role, [])
+    return current_user['role'].lower() in roles.get(required_roles, [])
 
 @sales_performance_ns.route('/')
 class SalesPerformanceResource(Resource):
@@ -40,7 +40,7 @@ class SalesPerformanceResource(Resource):
     @sales_performance_ns.param('sales_manager_id', 'Filter by Sales Manager ID', type='integer')
     @sales_performance_ns.param('target_id', 'Filter by Sales Target ID', type='integer')
     def get(self):
-        """Retrieve sales performance records with pagination."""
+        """Retrieve sales performance records with pagination and optional filters."""
         current_user = get_jwt_identity()
         if not check_role_permission(current_user, 'sales_manager'):
             logger.warning(f"Unauthorized access attempt by User ID {current_user['id']} to retrieve sales performances.")
@@ -53,35 +53,34 @@ class SalesPerformanceResource(Resource):
         target_id = request.args.get('target_id')
 
         # Build query based on filters
-        sales_performance_query = SalesPerformance.query.filter_by(is_deleted=False)
+        query = SalesPerformance.query.filter_by(is_deleted=False)
         if sales_executive_id:
-            sales_performance_query = sales_performance_query.filter_by(sales_executive_id=sales_executive_id)
+            query = query.filter_by(sales_executive_id=sales_executive_id)
         if sales_manager_id:
-            sales_performance_query = sales_performance_query.filter_by(sales_manager_id=sales_manager_id)
+            query = query.filter_by(sales_manager_id=sales_manager_id)
         if target_id:
-            sales_performance_query = sales_performance_query.filter_by(target_id=target_id)
+            query = query.filter_by(target_id=target_id)
 
-        sales_performances = sales_performance_query.paginate(page=page, per_page=per_page, error_out=False)
+        sales_performances = query.paginate(page=page, per_page=per_page, error_out=False)
 
         # Log the access to audit trail
         audit = AuditTrail(
             user_id=current_user['id'],
             action='ACCESS',
             resource_type='sales_performance_list',
-            resource_id=None,
             details="User accessed sales performance records"
         )
         db.session.add(audit)
         db.session.commit()
 
-        return jsonify({
+        return {
             'sales_performances': [sp.serialize() for sp in sales_performances.items],
             'total': sales_performances.total,
             'pages': sales_performances.pages,
             'current_page': sales_performances.page,
             'has_next': sales_performances.has_next,
             'has_prev': sales_performances.has_prev
-        })
+        }
 
     @sales_performance_ns.doc(security='Bearer Auth', responses={201: 'Created', 403: 'Unauthorized'})
     @jwt_required()
@@ -101,6 +100,7 @@ class SalesPerformanceResource(Resource):
             logger.error(f"Sales Target ID {data['target_id']} not found.")
             return {'message': 'Sales Target not found'}, 404
 
+        # Create new sales performance
         new_sales_performance = SalesPerformance(
             sales_executive_id=data['sales_executive_id'],
             sales_manager_id=data.get('sales_manager_id', current_user['id']),
@@ -118,7 +118,7 @@ class SalesPerformanceResource(Resource):
             action='CREATE',
             resource_type='sales_performance',
             resource_id=new_sales_performance.id,
-            details=f"Sales manager created a new sales performance with ID {new_sales_performance.id}"
+            details=f"User created sales performance with ID {new_sales_performance.id}"
         )
         db.session.add(audit)
         db.session.commit()

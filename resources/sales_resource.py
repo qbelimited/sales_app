@@ -1,5 +1,5 @@
 from flask_restx import Namespace, Resource, fields
-from flask import request, jsonify
+from flask import request
 from models.sales_model import Sale
 from models.audit_model import AuditTrail
 from app import db, logger
@@ -7,45 +7,45 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import or_, and_
 from datetime import datetime
 
-# Define a namespace for the sales operations
+# Define a namespace for sales operations
 sales_ns = Namespace('sales', description='Sales operations')
 
-# Define models for Swagger documentation
+# Define model for Swagger documentation
 sale_model = sales_ns.model('Sale', {
     'sale_manager_id': fields.Integer(required=True, description='Sale Manager ID'),
     'sales_executive_id': fields.Integer(required=True, description='Sales Executive ID'),
     'client_name': fields.String(required=True, description='Client Name'),
-    'client_id_no': fields.String(required=False, description='Client ID Number'),
+    'client_id_no': fields.String(description='Client ID Number'),
     'client_phone': fields.String(required=True, description='Client Phone Number'),
     'serial_number': fields.String(required=True, description='Serial Number'),
-    'collection_platform': fields.String(required=False, description='Collection Platform'),
-    'source_type': fields.String(required=False, description='Source Type'),
-    'momo_reference_number': fields.String(required=False, description='Momo Reference Number'),
-    'momo_transaction_id': fields.String(required=False, description='Momo Transaction ID'),
-    'first_pay_with_momo': fields.Boolean(required=False, description='First Pay with Momo'),
-    'subsequent_pay_source_type': fields.String(required=False, description='Subsequent Payment Source Type'),
-    'bank_id': fields.Integer(required=False, description='Bank ID'),
-    'bank_branch_id': fields.Integer(required=False, description='Bank Branch ID'),
-    'bank_acc_number': fields.String(required=False, description='Bank Account Number'),
-    'paypoint_name': fields.String(required=False, description='Paypoint Name'),
-    'paypoint_branch': fields.String(required=False, description='Paypoint Branch'),
-    'staff_id': fields.String(required=False, description='Staff ID'),
+    'collection_platform': fields.String(description='Collection Platform'),
+    'source_type': fields.String(description='Source Type'),
+    'momo_reference_number': fields.String(description='Momo Reference Number'),
+    'momo_transaction_id': fields.String(description='Momo Transaction ID'),
+    'first_pay_with_momo': fields.Boolean(description='First Pay with Momo'),
+    'subsequent_pay_source_type': fields.String(description='Subsequent Payment Source Type'),
+    'bank_id': fields.Integer(description='Bank ID'),
+    'bank_branch_id': fields.Integer(description='Bank Branch ID'),
+    'bank_acc_number': fields.String(description='Bank Account Number'),
+    'paypoint_name': fields.String(description='Paypoint Name'),
+    'paypoint_branch': fields.String(description='Paypoint Branch'),
+    'staff_id': fields.String(description='Staff ID'),
     'policy_type_id': fields.Integer(required=True, description='Policy Type ID'),
     'amount': fields.Float(required=True, description='Sale Amount'),
-    'customer_called': fields.Boolean(required=False, description='Customer Called'),
-    'geolocation_latitude': fields.Float(required=False, description='Geolocation Latitude'),
-    'geolocation_longitude': fields.Float(required=False, description='Geolocation Longitude')
+    'customer_called': fields.Boolean(description='Customer Called'),
+    'geolocation_latitude': fields.Float(description='Geolocation Latitude'),
+    'geolocation_longitude': fields.Float(description='Geolocation Longitude')
 })
 
 @sales_ns.route('/')
 class SaleListResource(Resource):
     @sales_ns.doc(security='Bearer Auth')
     @jwt_required()
-    @sales_ns.marshal_with(sale_model)
     def get(self):
         """Retrieve a list of sales with extended filters."""
         current_user = get_jwt_identity()
 
+        # Pagination and filtering
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
         filter_by = request.args.get('filter_by', None)
@@ -60,6 +60,7 @@ class SaleListResource(Resource):
         max_amount = request.args.get('max_amount', None, type=float)
         status = request.args.get('status', None)
 
+        # Base query
         sales_query = Sale.query.filter_by(is_deleted=False)
 
         if filter_by:
@@ -68,11 +69,17 @@ class SaleListResource(Resource):
                 Sale.client_phone.ilike(f'%{filter_by}%')
             ))
 
+        # Date range filter
         if start_date and end_date:
-            sales_query = sales_query.filter(and_(
-                Sale.created_at >= datetime.strptime(start_date, '%Y-%m-%d'),
-                Sale.created_at <= datetime.strptime(end_date, '%Y-%m-%d')
-            ))
+            try:
+                start_date_parsed = datetime.strptime(start_date, '%Y-%m-%d')
+                end_date_parsed = datetime.strptime(end_date, '%Y-%m-%d')
+                sales_query = sales_query.filter(and_(
+                    Sale.created_at >= start_date_parsed,
+                    Sale.created_at <= end_date_parsed
+                ))
+            except ValueError:
+                return {'message': 'Invalid date format. Use YYYY-MM-DD.'}, 400
 
         if sales_executive_id:
             sales_query = sales_query.filter(Sale.sales_executive_id == sales_executive_id)
@@ -99,7 +106,7 @@ class SaleListResource(Resource):
             action='ACCESS',
             resource_type='sales_list',
             resource_id=None,
-            details=f"User accessed list of sales"
+            details="User accessed the list of sales."
         )
         db.session.add(audit)
         db.session.commit()
@@ -122,17 +129,18 @@ class SaleListResource(Resource):
         # Validate required fields
         required_fields = ['sales_executive_id', 'client_phone', 'amount', 'sale_manager_id', 'policy_type_id']
         for field in required_fields:
-            if field not in data:
+            if field not in data or not data[field]:
                 return {'message': f'Missing required field: {field}'}, 400
 
+        # Create new sale
         new_sale = Sale(
             user_id=current_user['id'],
-            sale_manager_id=data.get('sale_manager_id'),
-            sales_executive_id=data.get('sales_executive_id'),
-            client_name=data.get('client_name'),
+            sale_manager_id=data['sale_manager_id'],
+            sales_executive_id=data['sales_executive_id'],
+            client_name=data['client_name'],
             client_id_no=data.get('client_id_no'),
-            client_phone=data.get('client_phone'),
-            serial_number=data.get('serial_number'),
+            client_phone=data['client_phone'],
+            serial_number=data['serial_number'],
             collection_platform=data.get('collection_platform'),
             source_type=data.get('source_type'),
             momo_reference_number=data.get('momo_reference_number'),
@@ -145,14 +153,14 @@ class SaleListResource(Resource):
             paypoint_name=data.get('paypoint_name'),
             paypoint_branch=data.get('paypoint_branch'),
             staff_id=data.get('staff_id'),
-            policy_type_id=data.get('policy_type_id'),
-            amount=data.get('amount'),
+            policy_type_id=data['policy_type_id'],
+            amount=data['amount'],
             customer_called=data.get('customer_called'),
             geolocation_latitude=data.get('geolocation_latitude'),
             geolocation_longitude=data.get('geolocation_longitude')
         )
 
-        # Check for duplicates and handle accordingly
+        # Check for duplicates
         new_sale.check_duplicate()
 
         db.session.add(new_sale)
@@ -177,7 +185,6 @@ class SaleListResource(Resource):
 class SaleDetailResource(Resource):
     @sales_ns.doc(security='Bearer Auth', responses={200: 'OK', 404: 'Sale Not Found'})
     @jwt_required()
-    @sales_ns.marshal_with(sale_model)
     def get(self, sale_id):
         """Retrieve a single sale by ID."""
         current_user = get_jwt_identity()
@@ -211,6 +218,8 @@ class SaleDetailResource(Resource):
             return {'message': 'Sale not found'}, 404
 
         data = request.json
+
+        # Update fields
         sale.sale_manager_id = data.get('sale_manager_id', sale.sale_manager_id)
         sale.sales_executive_id = data.get('sales_executive_id', sale.sales_executive_id)
         sale.client_name = data.get('client_name', sale.client_name)

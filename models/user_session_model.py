@@ -28,10 +28,24 @@ class UserSession(db.Model):
 
     @staticmethod
     def get_active_sessions(user_id=None):
-        """Retrieve all active sessions or for a specific user if provided."""
+        """Retrieve all active sessions or for a specific user if provided. Automatically expire sessions."""
+        now = datetime.utcnow()
+
+        # Query active sessions and auto-expire those past expiration
+        query = UserSession.query.filter(UserSession.is_active == True, UserSession.expires_at > now)
+
         if user_id:
-            return UserSession.query.filter_by(user_id=user_id, is_active=True).all()
-        return UserSession.query.filter_by(is_active=True).all()
+            query = query.filter(UserSession.user_id == user_id)
+
+        sessions = query.all()
+
+        # Mark sessions as inactive if they have expired (optional: background job or trigger here)
+        for session in sessions:
+            if session.expires_at <= now:
+                session.end_session()  # Automatically end expired session
+
+        db.session.commit()
+        return sessions
 
     def end_session(self):
         """Ends the session by setting is_active to False and adding the logout time."""

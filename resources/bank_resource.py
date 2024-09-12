@@ -34,7 +34,7 @@ class BankResource(Resource):
     def get(self):
         """Get all active banks along with their active branches."""
         banks = Bank.get_active_banks()
-        logger.info(f"Banks retrieved successfully by user ID {get_jwt_identity()['id']}")
+        logger.info(f"Banks retrieved successfully by user ID {get_jwt_identity()}")
         return [bank.serialize() for bank in banks], 200
 
     @bank_ns.doc(security='Bearer Auth')
@@ -80,7 +80,7 @@ class SingleBankResource(Resource):
             logger.error(f"Bank ID {bank_id} not found")
             return {'message': 'Bank not found'}, 404
 
-        logger.info(f"Bank ID {bank_id} retrieved successfully by user ID {get_jwt_identity()['id']}")
+        logger.info(f"Bank ID {bank_id} retrieved successfully by user ID {get_jwt_identity()}")
         return bank.serialize(), 200
 
     @bank_ns.doc(security='Bearer Auth')
@@ -150,14 +150,14 @@ class SingleBankResource(Resource):
         return {'message': 'Bank deleted successfully'}, 200
 
 
-@bank_ns.route('/branches')
+@bank_ns.route('/bank-branches')
 class BankBranchResource(Resource):
     @bank_ns.doc(security='Bearer Auth')
     @jwt_required()
     def get(self):
         """Get all active bank branches."""
         branches = BankBranch.get_active_branches()
-        logger.info(f"Branches retrieved successfully by user ID {get_jwt_identity()['id']}")
+        logger.info(f"Branches retrieved successfully by user ID {get_jwt_identity()}")
         return [branch.serialize() for branch in branches], 200
 
     @bank_ns.doc(security='Bearer Auth')
@@ -194,7 +194,7 @@ class BankBranchResource(Resource):
         return {'message': 'Branch created successfully', 'branch': new_branch.serialize()}, 201
 
 
-@bank_ns.route('/branches/<int:branch_id>')
+@bank_ns.route('/bank-branches/<int:branch_id>')
 class SingleBranchResource(Resource):
     @bank_ns.doc(security='Bearer Auth')
     @bank_ns.response(200, 'Success', bank_branch_model)
@@ -207,7 +207,7 @@ class SingleBranchResource(Resource):
             logger.error(f"Branch ID {branch_id} not found")
             return {'message': 'Branch not found'}, 404
 
-        logger.info(f"Branch ID {branch_id} retrieved successfully by user ID {get_jwt_identity()['id']}")
+        logger.info(f"Branch ID {branch_id} retrieved successfully by user ID {get_jwt_identity()}")
         return branch.serialize(), 200
 
     @bank_ns.doc(security='Bearer Auth')

@@ -23,15 +23,22 @@ class UnderInvestigation(db.Model):
             raise ValueError("Reason cannot be empty")
         return reason
 
+    @validates('resolved_at')
+    def validate_resolved_at(self, _, resolved_at):
+        if self.resolved and not resolved_at:
+            raise ValueError("Resolved date must be provided when marking investigation as resolved")
+        return resolved_at
+
     def add_note_with_history(self, new_note, user_id):
         """Updates the notes, keeps track of note history, and logs who updated it."""
         try:
             if self.notes:
-                # Append old note to the history
+                # Append old note to the history with a timestamp
+                timestamp = datetime.utcnow().isoformat()
                 if self.notes_history:
-                    self.notes_history += f"\n[{datetime.utcnow().isoformat()}] {self.notes}"
+                    self.notes_history += f"\n[{timestamp}] {self.notes}"
                 else:
-                    self.notes_history = f"[{datetime.utcnow().isoformat()}] {self.notes}"
+                    self.notes_history = f"[{timestamp}] {self.notes}"
             # Update the note and the user who updated it
             self.notes = new_note
             self.updated_by_user_id = user_id
@@ -39,6 +46,15 @@ class UnderInvestigation(db.Model):
         except Exception as e:
             db.session.rollback()
             raise ValueError(f"Error updating notes: {e}")
+
+    def resolve_investigation(self, resolved_by_user_id):
+        """Marks the investigation as resolved and records the resolution time."""
+        if self.resolved:
+            raise ValueError("Investigation is already resolved")
+        self.resolved = True
+        self.resolved_at = datetime.utcnow()
+        self.updated_by_user_id = resolved_by_user_id
+        db.session.commit()
 
     def serialize(self):
         """Serializes the data for use in API responses or frontend display."""
@@ -57,9 +73,15 @@ class UnderInvestigation(db.Model):
     @staticmethod
     def get_active_investigations(page=1, per_page=10):
         """Retrieve paginated list of active investigations."""
-        return UnderInvestigation.query.filter_by(resolved=False).paginate(page=page, per_page=per_page).items
+        try:
+            return UnderInvestigation.query.filter_by(resolved=False).paginate(page=page, per_page=per_page).items
+        except Exception as e:
+            raise ValueError(f"Error fetching active investigations: {e}")
 
     @staticmethod
     def get_resolved_investigations(page=1, per_page=10):
         """Retrieve paginated list of resolved investigations."""
-        return UnderInvestigation.query.filter_by(resolved=True).paginate(page=page, per_page=per_page).items
+        try:
+            return UnderInvestigation.query.filter_by(resolved=True).paginate(page=page, per_page=per_page).items
+        except Exception as e:
+            raise ValueError(f"Error fetching resolved investigations: {e}")
