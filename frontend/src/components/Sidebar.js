@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import {
   FaUser,
   FaCog,
@@ -22,12 +22,49 @@ import {
   FaFileAlt,
 } from 'react-icons/fa';
 import './Sidebar.css';
+import api from '../services/api';
+import { toast } from 'react-toastify';
 
-function Sidebar({ handleLogout }) {
+function Sidebar({ onLogout }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [systemAuditsOpen, setSystemAuditsOpen] = useState(false);
   const [manageItemsOpen, setManageItemsOpen] = useState(false);
   const [salesOpen, setSalesOpen] = useState(false);
+  const navigate = useNavigate();
+
+  // Function to handle the logout process
+  const handleLogout = async () => {
+    const token = localStorage.getItem('accessToken');  // Retrieve the token from localStorage
+
+    try {
+      // Send the logout request with the Authorization header
+      await api.post('/auth/logout', {}, {
+        headers: {
+          'Authorization': `Bearer ${token}`,  // Add the Authorization header with the JWT token
+          'Accept': 'application/json',
+        },
+      });
+
+      // Clear the token and user info from localStorage
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('userRole');
+      localStorage.removeItem('userID');
+      localStorage.removeItem('user');
+
+      // Call the onLogout function to clear session and user role
+      onLogout();
+
+      // Show logout success toast
+      toast.success('Logout successful!');
+
+      // Redirect to the login page
+      navigate('/login');
+    } catch (error) {
+      toast.error('Logout failed!');
+      // console.error('Logout failed:', error);
+    }
+  };
 
   return (
     <div className="sidebar">

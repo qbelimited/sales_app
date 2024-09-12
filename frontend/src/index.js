@@ -17,7 +17,7 @@ const container = document.getElementById('root');
 // Use createRoot instead of ReactDOM.render
 const root = createRoot(container);
 
-// Wrap RootApp inside BrowserRouter here
+// Wrap RootApp inside BrowserRouter and render
 root.render(
   <BrowserRouter>
     <RootApp />

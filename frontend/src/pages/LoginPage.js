@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Button, Spinner, Card, Form, Container, Row, Col } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
 import authService from '../services/authService';  // Use authService for login
@@ -8,23 +8,31 @@ function LoginPage({ onLogin, showToast }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const [emailError, setEmailError] = useState(null);
+  const [passwordError, setPasswordError] = useState(null);
+  const [formError, setFormError] = useState(null);
   const navigate = useNavigate();
 
-  const handleLogin = async () => {
-    // Reset the error state before each login attempt
-    setError(null);
+  // Handle login logic with error handling
+  const handleLogin = useCallback(async () => {
+    // Reset specific errors
+    setEmailError(null);
+    setPasswordError(null);
+    setFormError(null);
 
     // Client-side validation before making the API request
-    if (!email || !password) {
-      showToast('warning', 'Please fill in all fields', 'Missing Fields');
-      setError('All fields are required.');
+    if (!email) {
+      setEmailError('Email is required.');
       return;
     }
 
     if (!isValidEmail(email)) {
-      showToast('warning', 'Please enter a valid email address', 'Invalid Email');
-      setError('Please provide a valid email.');
+      setEmailError('Please provide a valid email address.');
+      return;
+    }
+
+    if (!password) {
+      setPasswordError('Password is required.');
       return;
     }
 
@@ -52,20 +60,23 @@ function LoginPage({ onLogin, showToast }) {
 
       // Redirect to the appropriate page based on role immediately after successful login
       navigate(user.role_id === 3 ? '/manage-users' : '/sales');
-
     } catch (error) {
       // Handle errors from the API
-      setError(error.response?.data?.message || 'Login failed');
-      showToast('danger', error.message || 'Login failed!', 'Error');
+      setFormError(error.response?.data?.message || 'Login failed');
+      showToast('danger', error.response?.data?.message || 'Login failed!', 'Error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [email, password, onLogin, showToast, navigate]);
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    handleLogin();
-  };
+  // Handle form submission
+  const handleSubmit = useCallback(
+    (e) => {
+      e.preventDefault();
+      handleLogin();
+    },
+    [handleLogin]
+  );
 
   return (
     <Container className="d-flex align-items-center justify-content-center vh-100">
@@ -82,11 +93,11 @@ function LoginPage({ onLogin, showToast }) {
                     placeholder="Enter email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    isInvalid={!!emailError}
                     required
-                    isInvalid={!!error}  // Mark invalid on error
                   />
                   <Form.Control.Feedback type="invalid">
-                    {error && error.includes('email') ? error : ''}
+                    {emailError}
                   </Form.Control.Feedback>
                 </Form.Group>
 
@@ -97,16 +108,16 @@ function LoginPage({ onLogin, showToast }) {
                     placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    isInvalid={!!passwordError}
                     required
-                    isInvalid={!!error && error.includes('Password')}
                   />
                   <Form.Control.Feedback type="invalid">
-                    {error && error.includes('Password') ? error : ''}
+                    {passwordError}
                   </Form.Control.Feedback>
                 </Form.Group>
 
-                {error && !error.includes('email') && !error.includes('Password') && (
-                  <div className="text-danger text-center mb-3">{error}</div>
+                {formError && (
+                  <div className="text-danger text-center mb-3">{formError}</div>
                 )}
 
                 <div className="d-grid">

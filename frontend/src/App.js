@@ -16,6 +16,7 @@ import Toaster from './components/Toaster';
 import authService from './services/authService';
 import { AccessProvider, useAccessContext } from './context/AccessProvider';
 
+// Main Application Component
 function App() {
   const [role, setRole] = useState(null);
   const [roleName, setRoleName] = useState('');
@@ -27,47 +28,35 @@ function App() {
   // Fetch role name based on roleId from localStorage
   const fetchRoleName = useCallback(() => {
     try {
-      setLoading(true);
       const storedRoleName = localStorage.getItem('userRoleName');  // Retrieve role name from localStorage
       if (storedRoleName) {
         setRoleName(storedRoleName);
-        // console.log('Role Name:', storedRoleName);  // Log role name
       }
     } catch (error) {
       console.error('Error fetching role name:', error);
-    } finally {
-      setLoading(false);
     }
   }, []);
 
-  // On mount, check if the user is already logged in by checking localStorage
+  // On mount, check if the user is logged in and fetch user access
   useEffect(() => {
     const savedRole = localStorage.getItem('userRoleID');
-    if (savedRole && authService.isLoggedIn()) { // Check if the user is logged in and token is valid
+    const isLoggedIn = authService.isLoggedIn();
+
+    if (savedRole && isLoggedIn) {
       setRole(savedRole);
-      fetchRoleName(savedRole);  // Fetch role name when user logs in
-      fetchUserAccess(savedRole); // Fetch access rules for the user role
+      fetchRoleName();  // Fetch role name
+      fetchUserAccess();  // Fetch access rules for the user role
     } else {
-      setRole(null); // Clear role if not logged in
-      localStorage.removeItem('userRoleID');  // Ensure that we clear invalid sessions
-      navigate('/login');  // Redirect to login page if not logged in
+      setRole(null);  // Clear role if not logged in
+      localStorage.removeItem('userRoleID');  // Clear invalid sessions
+      navigate('/login');  // Redirect to login
     }
   }, [fetchRoleName, fetchUserAccess, navigate]);
 
   // Function to show toast messages without duplicates
   const showToast = useCallback((variant, message, heading) => {
-    const newToast = {
-      id: Date.now(),
-      variant,
-      message,
-      heading,
-      time: new Date(),
-    };
-
-    // Check if a similar toast already exists (by message and variant)
-    const isDuplicate = toasts.some(
-      (toast) => toast.message === message && toast.variant === variant
-    );
+    const newToast = { id: Date.now(), variant, message, heading, time: new Date() };
+    const isDuplicate = toasts.some(toast => toast.message === message && toast.variant === variant);
 
     if (!isDuplicate) {
       setToasts((prevToasts) => [...prevToasts, newToast]);
@@ -79,33 +68,33 @@ function App() {
     setToasts((prevToasts) => prevToasts.filter((t) => t.id !== id));
   }, []);
 
+  // Handle login
   const handleLogin = useCallback(async (userRole) => {
     setRole(userRole);
-    localStorage.setItem('userRoleID', userRole);  // Store role in localStorage after login
-    await fetchRoleName(userRole);  // Fetch role name on login
-    await fetchUserAccess(userRole);  // Fetch access rules on login
+    localStorage.setItem('userRoleID', userRole);
+    await fetchRoleName();  // Fetch role name
+    await fetchUserAccess();  // Fetch access rules
 
-    // Use navigate for redirect instead of window.location.href
     navigate(userRole === 3 ? '/manage-users' : '/sales');
-    // console.log('Logged in with Role:', userRole);  // Log user role
   }, [fetchRoleName, fetchUserAccess, navigate]);
 
+  // Handle logout
   const handleLogout = useCallback(async () => {
     try {
-      setLoading(true);  // Start loading during logout
-      await authService.logout();  // Call the logout function to clear tokens
-      setRole(null);  // Set role to null to hide Navbar and Sidebar
-      setRoleName('');  // Clear the role name
+      setLoading(true);
+      await authService.logout();
+      setRole(null);
+      setRoleName('');
       showToast('success', 'Logout successful', 'Goodbye');
-      navigate('/login');  // Redirect to login page after successful logout
+      navigate('/login');
     } catch (error) {
       showToast('danger', error.message || 'Logout failed', 'Error');
     } finally {
-      setLoading(false);  // Stop loading after logout
+      setLoading(false);
     }
   }, [showToast, navigate]);
 
-  // Memoized role check for ProtectedRoute to avoid recalculating
+  // Memoized role check for ProtectedRoute
   const isAllowed = useMemo(() => (allowedRoles, userRole) => allowedRoles.includes(parseInt(userRole)), []);
 
   return (
@@ -119,7 +108,6 @@ function App() {
         ) : (
           <Routes>
             <Route path="/login" element={<LoginPage onLogin={handleLogin} showToast={showToast} />} />
-
             <Route
               path="/sales"
               element={
@@ -195,6 +183,7 @@ function App() {
   );
 }
 
+// RootApp to provide Access context
 export default function RootApp() {
   return (
     <AccessProvider>

@@ -6,40 +6,45 @@ const AccessContext = createContext();
 
 // AccessProvider component to provide the context to its children
 export const AccessProvider = ({ children }) => {
-  const [userAccess, setUserAccess] = useState(null);  // Initially, no access is fetched
-  const [loading, setLoading] = useState(false);       // Loading state for fetching access
-  const [error, setError] = useState(null);            // Error state to capture any errors
+  const [userAccess, setUserAccess] = useState(null);  // State for access rules
+  const [loading, setLoading] = useState(false);       // Loading state for API calls
+  const [error, setError] = useState(null);            // Error state for errors
 
-  // Function to get roleId from authService
-  const getRoleId = () => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    // console.log('User from localStorage:', user);  // Log user data
-    return user ? user.role.id : null;   // Return the roleId if user exists
-  };
+  // Utility function to get roleId from localStorage
+  const getRoleId = useMemo(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem('user'));
+      return user?.role?.id || null; // Safely extract roleId
+    } catch (e) {
+      console.error('Failed to get role from localStorage:', e);
+      return null;
+    }
+  }, []);  // Empty dependency array to ensure this runs only once
 
+  // Function to fetch user access rules based on roleId
   const fetchUserAccess = useCallback(async () => {
-    const roleId = getRoleId(); // Get roleId from authService or localStorage
+    const roleId = getRoleId;
+
     if (!roleId) {
-      setError('No role found');
-      // console.error('No role found');  // Log no role found
-      return;
+      setError('User role not found. Unable to fetch access rules.');
+      return; // Exit early if roleId is missing
     }
 
-    setLoading(true);  // Start loading before fetching access
-    setError(null);    // Reset error state
+    setLoading(true);  // Set loading state to true before the request
+    setError(null);    // Reset any previous errors
+
     try {
       const response = await api.get(`/access/${roleId}`);
-      setUserAccess(response.data); // Assuming the response contains access rules
-      // console.log('Fetched access rules:', response.data);  // Log access rules
+      setUserAccess(response.data); // Assume response.data contains access rules
     } catch (error) {
-      // console.error('Error fetching access rules:', error);
-      setError('Failed to fetch access rules');
+      setError('Failed to fetch access rules. Please try again later.');
+      console.error('Error fetching access rules:', error);
     } finally {
-      setLoading(false); // Stop loading after fetching access
+      setLoading(false); // Ensure loading state is stopped
     }
-  }, []);  // useCallback to ensure fetchUserAccess is stable
+  }, [getRoleId]);  // Add getRoleId as a dependency
 
-  // Memoize the context value to prevent unnecessary re-renders
+  // Memoize the context value to avoid unnecessary re-renders
   const contextValue = useMemo(() => ({
     userAccess,
     fetchUserAccess,
@@ -54,7 +59,7 @@ export const AccessProvider = ({ children }) => {
   );
 };
 
-// Custom hook to use the AccessContext
+// Custom hook to consume the AccessContext
 export const useAccessContext = () => {
   const context = useContext(AccessContext);
 

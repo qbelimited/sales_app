@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';
 import Toaster from './Toaster';  // Assuming you have a Toaster component
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUser, faSignOutAlt, faBars } from '@fortawesome/free-solid-svg-icons';
@@ -26,7 +26,7 @@ function Navbar({ onLogout }) {
 
     try {
       // Send the logout request with the Authorization header
-      await axios.post('http://127.0.0.1:5000/api/v1/auth/logout', {}, {
+      await api.post('/auth/logout', {}, {
         headers: {
           'Authorization': `Bearer ${token}`,  // Add the Authorization header with the JWT token
           'Accept': 'application/json',

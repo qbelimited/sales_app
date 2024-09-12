@@ -7,7 +7,7 @@ import { toast } from 'react-toastify';
 const TableWithPagination = ({ endpoint, columns, title, perPage }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [roles, setRoles] = useState([]);  // Store available roles for selection
+  const [roles, setRoles] = useState([]);
   const [sortBy, setSortBy] = useState('created_at');
   const [sortDirection, setSortDirection] = useState('asc');
   const [filterBy, setFilterBy] = useState('');
@@ -15,8 +15,8 @@ const TableWithPagination = ({ endpoint, columns, title, perPage }) => {
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null); // Store the user being edited
-  const [newPassword, setNewPassword] = useState('');  // Store new password for reset
+  const [currentUser, setCurrentUser] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
 
   // Fetch data from the API
   const fetchData = useCallback(async () => {
@@ -36,24 +36,26 @@ const TableWithPagination = ({ endpoint, columns, title, perPage }) => {
       setTotalPages(response.data.pages || 1);
     } catch (error) {
       console.error('Error fetching data:', error);
+      toast.error('Failed to load data');
     } finally {
       setLoading(false);
     }
   }, [endpoint, sortBy, sortDirection, filterBy, perPage, page]);
 
-  // Fetch roles from the API (only if the endpoint is for users)
+  // Fetch roles from the API
   const fetchRoles = useCallback(async () => {
     try {
       const response = await api.get('/roles/');
       setRoles(response.data);
     } catch (error) {
       console.error('Error fetching roles:', error);
+      toast.error('Failed to load roles');
     }
   }, []);
 
   useEffect(() => {
     fetchData();
-    if (endpoint === '/users/') fetchRoles();  // Fetch roles only for the user table
+    if (endpoint === '/users/') fetchRoles(); // Fetch roles only for users
   }, [fetchData, fetchRoles, endpoint]);
 
   // Handle sorting
@@ -77,7 +79,7 @@ const TableWithPagination = ({ endpoint, columns, title, perPage }) => {
   // Handle filter change
   const handleFilterChange = (e) => {
     setFilterBy(e.target.value);
-    setPage(1);
+    setPage(1); // Reset to the first page when filtering
   };
 
   const handleEditClick = (user) => {
@@ -91,7 +93,7 @@ const TableWithPagination = ({ endpoint, columns, title, perPage }) => {
     if (window.confirm(confirmMsg)) {
       try {
         await api.delete(`${endpoint}/${id}`);
-        setData(data.filter(item => item.id !== id)); // Remove the user/session from the list
+        setData(data.filter((item) => item.id !== id)); // Remove the user/session from the list
         toast.success(isUser ? 'User deleted successfully' : 'Session ended successfully');
       } catch (error) {
         console.error(isUser ? 'Error deleting user:' : 'Error ending session:', error);
@@ -102,9 +104,10 @@ const TableWithPagination = ({ endpoint, columns, title, perPage }) => {
 
   const handleSaveChanges = async () => {
     try {
-      await api.put(`/users/${currentUser.id}`, currentUser);  // Update the user
-      setData(data.map(user => (user.id === currentUser.id ? currentUser : user)));  // Update state
+      await api.put(`/users/${currentUser.id}`, currentUser); // Update the user
+      setData(data.map((user) => (user.id === currentUser.id ? currentUser : user))); // Update state
       setShowEditModal(false);
+      toast.success('User updated successfully');
     } catch (error) {
       console.error('Error updating user:', error);
       toast.error('Error updating user');
@@ -172,7 +175,9 @@ const TableWithPagination = ({ endpoint, columns, title, perPage }) => {
                   <td key={col.accessor}>{item[col.accessor]}</td>
                 ))}
                 <td>
-                  <Button variant="primary" size="sm" onClick={() => handleEditClick(item)}>Edit</Button>{' '}
+                  <Button variant="primary" size="sm" onClick={() => handleEditClick(item)}>
+                    Edit
+                  </Button>{' '}
                   <Button variant="danger" size="sm" onClick={() => handleDeleteClick(item.id)}>
                     {endpoint.includes('users') ? 'Delete' : 'End'}
                   </Button>
@@ -181,7 +186,9 @@ const TableWithPagination = ({ endpoint, columns, title, perPage }) => {
             ))
           ) : (
             <tr>
-              <td colSpan={columns.length + 2} className="text-center">No records found</td>
+              <td colSpan={columns.length + 2} className="text-center">
+                No records found
+              </td>
             </tr>
           )}
         </tbody>
@@ -189,7 +196,9 @@ const TableWithPagination = ({ endpoint, columns, title, perPage }) => {
 
       <Row className="align-items-center">
         <Col md="auto">
-          <p className="mb-0">Showing {(page - 1) * perPage + 1} to {Math.min(page * perPage, totalItems)} of {totalItems} items</p>
+          <p className="mb-0">
+            Showing {(page - 1) * perPage + 1} to {Math.min(page * perPage, totalItems)} of {totalItems} items
+          </p>
         </Col>
         <Col md="auto">
           <p className="mb-0">Page {page} of {totalPages}</p>
