@@ -6,9 +6,11 @@ const getUserIpAddress = async () => {
   try {
     const response = await fetch('https://api.ipify.org?format=json');
     const data = await response.json();
+    // console.log('IP Address:', data.ip);  // Log IP Address
     return data.ip;
   } catch (error) {
-    console.error('Failed to fetch IP address:', error.message || error);
+    toast.error('Failed to fetch IP address');
+    // console.error('Failed to fetch IP address:', error.message || error);
     return 'Unknown';  // Fallback in case of failure
   }
 };
@@ -16,35 +18,57 @@ const getUserIpAddress = async () => {
 // Helper to get device information
 const getDeviceInfo = () => {
   const userAgent = navigator.userAgent || 'Unknown';
-  return {
+  const deviceInfo = {
     browser: navigator.appName || 'Unknown',
     platform: navigator.platform || 'Unknown',
     userAgent,
   };
+  // console.log('Device Info:', deviceInfo);  // Log Device Info
+  return deviceInfo;
 };
 
+// Helper to store tokens and user data in localStorage
+const storeSession = (access_token, refresh_token, user) => {
+  localStorage.setItem('access_token', access_token);
+  localStorage.setItem('refresh_token', refresh_token);
+  localStorage.setItem('user', JSON.stringify(user));
+  localStorage.setItem('userRoleID', user.role.id);
+  localStorage.setItem('userRoleName', user.role.name);
+  // console.log('Stored Session:', { access_token, refresh_token, user });  // Log stored session data
+  // console.log('User Role:', user.role);
+  // console.log('User Role ID:', user.role.id);
+  // console.log('User Role name:', user.role.name);
+};
+
+// Helper to clear tokens and user data from localStorage
+const clearSession = () => {
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('user');
+  localStorage.removeItem('userRoleID');
+  localStorage.removeItem('userRoleName');
+  // console.log('Session cleared');  // Log session cleared
+};
+
+// authService for authentication and session management
 const authService = {
   login: async (credentials) => {
     try {
       const response = await api.post('/auth/login', credentials);
 
-      // Ensure response and response.data are not undefined
       if (response && response.data) {
         const { access_token, refresh_token, user } = response.data;
 
-        // Check if access_token and refresh_token exist before storing
         if (access_token && refresh_token && user) {
-          localStorage.setItem('access_token', access_token);
-          localStorage.setItem('refresh_token', refresh_token);
-          localStorage.setItem('user', JSON.stringify(user));
-          localStorage.setItem('userRole', user.role_id);  // Store role in localStorage
+          // Store session
+          storeSession(access_token, refresh_token, user);
 
           // Fetch IP and device info
           const ipAddress = await getUserIpAddress();
           const deviceInfo = getDeviceInfo();
 
-          // Create a session after login with IP and device info
-          await api.post(`/user/${user.id}/sessions/`, {
+          // Create a session after login
+          await api.post(`/users/${user.id}/sessions`, {
             ip_address: ipAddress,
             device_info: deviceInfo,
           }, {
@@ -54,16 +78,17 @@ const authService = {
           });
 
           toast.success('Login successful');
-          return response.data;  // Return user data and tokens
+          return response.data;
         } else {
-          // Handle case where tokens or user data are missing in the response
-          toast.error('Login failed: No user found or tokens missing.');
+          toast.error('Login failed: Missing tokens or user data.');
+          // console.error('Login failed: Missing tokens or user data.');
         }
       } else {
-        toast.error('Login failed: Communication to the backend lost.');
+        toast.error('Login failed: Server response is invalid.');
+        // console.error('Login failed: Server response is invalid.');
       }
     } catch (error) {
-      console.error('Login failed:', error.message || error);
+      // console.error('Login failed:', error.message || error);
       toast.error('Login failed. Please check your credentials or try again later.');
     }
   },
@@ -75,8 +100,9 @@ const authService = {
       const user = JSON.parse(localStorage.getItem('user'));
 
       if (!accessToken && !refreshToken) {
-        authService.clearSession();
+        clearSession();
         toast.error('Already logged out.');
+        // console.log('Already logged out');
         return;
       }
 
@@ -89,17 +115,18 @@ const authService = {
       });
 
       // End the session after logout
-      await api.delete(`/user/${user.id}/sessions/`, {
+      await api.delete(`/users/${user.id}/sessions`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
       });
 
-      authService.clearSession();
+      clearSession();
       toast.success('Logout successful');
+      // console.log('Logout successful');
     } catch (error) {
-      console.error('Logout failed:', error.message || error);
-      authService.clearSession();
+      // console.error('Logout failed:', error.message || error);
+      clearSession();
       toast.error('Logout failed');
     }
   },
@@ -107,7 +134,11 @@ const authService = {
   refreshToken: async () => {
     try {
       const refreshToken = localStorage.getItem('refresh_token');
-      if (!refreshToken) toast.error('No refresh token available');
+      if (!refreshToken) {
+        toast.error('No refresh token available');
+        // console.log('No refresh token available');
+        return;
+      }
 
       const response = await api.post('/auth/refresh', { refresh_token: refreshToken });
 
@@ -119,7 +150,7 @@ const authService = {
 
           // Update session expiration after token refresh
           const user = JSON.parse(localStorage.getItem('user'));
-          await api.put(`/user/${user.id}/sessions/`, {
+          await api.put(`/users/${user.id}/sessions`, {
             expires_at: new Date(Date.now() + 45 * 60 * 1000).toISOString(),  // Extend session expiration by 45 minutes
           }, {
             headers: {
@@ -127,26 +158,32 @@ const authService = {
             },
           });
 
+          // console.log('Token refreshed successfully:', access_token);  // Log token refresh
           return access_token;
         } else {
-          toast.error('Missing access token in response');
+          toast.error('Missing access token in refresh response');
+          // console.error('Missing access token in refresh response');
         }
       } else {
-        toast.error('Invalid response from server');
+        toast.error('Invalid response from server during token refresh');
+        // console.error('Invalid response from server during token refresh');
       }
     } catch (error) {
-      console.error('Token refresh failed:', error.message || error);
-      authService.clearSession();
+      // console.error('Token refresh failed:', error.message || error);
+      clearSession();
       toast.error('Token refresh failed. Please log in again.');
     }
   },
 
   getAccessToken: () => {
-    return localStorage.getItem('access_token') || null;
+    const token = localStorage.getItem('access_token');
+    // console.log('Access Token:', token);  // Log access token
+    return token || null;
   },
 
   isLoggedIn: async () => {
     const token = localStorage.getItem('access_token');
+    // console.log('Checking if logged in with token:', token);  // Log token check
 
     if (token && !authService.isTokenExpired(token)) {
       return true;
@@ -157,29 +194,28 @@ const authService = {
       } catch (error) {
         authService.logout();
         toast.error('Session expired. Please log in again.');
+        // console.error('Session expired. Please log in again.');
       }
     } else {
       authService.logout();
       toast.error('You are not logged in. Please log in.');
+      // console.log('You are not logged in.');
     }
   },
 
   isTokenExpired: (token) => {
     try {
       const decoded = JSON.parse(atob(token.split('.')[1]));  // Decode the token payload
-      return decoded.exp * 1000 < Date.now();  // Check if token is expired
+      const isExpired = decoded.exp * 1000 < Date.now();
+      // console.log('Token expiration check:', isExpired);  // Log token expiration check
+      return isExpired;
     } catch (e) {
-      console.error('Token expiration check failed:', e.message || e);
+      // console.error('Token expiration check failed:', e.message || e);
       return true;
     }
   },
 
-  clearSession: () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('userRole');
-  }
+  clearSession,  // Export clearSession for usage in other parts of the app
 };
 
 export default authService;

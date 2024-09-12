@@ -5,7 +5,7 @@ from models.user_session_model import UserSession
 from models.audit_model import AuditTrail
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Define a namespace for User-related operations
 user_ns = Namespace('user', description='User operations')

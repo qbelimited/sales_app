@@ -1,137 +1,283 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, Routes, Route, Navigate } from 'react-router-dom';
-import { useAccessContext } from '../context/AccessProvider';
+import React, { useState } from 'react';
+import { NavLink } from 'react-router-dom';
+import {
+  FaUser,
+  FaCog,
+  FaChartBar,
+  FaHome,
+  FaSignOutAlt,
+  FaBuilding,
+  FaRegClipboard,
+  FaLock,
+  FaHistory,
+  FaUsersCog,
+  FaFlag,
+  FaClipboardList,
+  FaSearch,
+  FaStore,
+  FaTasks,
+  FaRegChartBar,
+  FaWarehouse,
+  FaCaretDown,
+  FaFileAlt,
+} from 'react-icons/fa';
+import './Sidebar.css';
 
-import Navbar from './Navbar';
-import Sidebar from './Sidebar';
-import LoginPage from '../pages/LoginPage';
-import DashboardPage from '../pages/DashboardPage';
-import SalesPage from '../pages/SalesPage';
-import InceptedSalesPage from '../pages/InceptedSalesPage';
-import FlaggedInvestigationsPage from '../pages/FlaggedInvestigationsPage';
-import QueriesPage from '../pages/QueriesPage';
-import ManageBanksPage from '../pages/ManageBanksPage';
-import BankBranchManagementPage from '../pages/BankBranchManagementPage';
-import SalesExecutiveManagementPage from '../pages/SalesExecutiveManagementPage';
-import AuditTrailPage from '../pages/AuditTrailPage';
-import LogsPage from '../pages/LogsPage';
-import ReportsPage from '../pages/ReportsPage';
-import RetentionPolicyPage from '../pages/RetentionPolicyPage';
-import ManagePaypointsPage from '../pages/ManagePaypointsPage';
-import ManageRolesPage from '../pages/ManageRolesPage';
-import ManageUsersPage from '../pages/ManageUsersPage';
-import ManageAccessPage from '../pages/ManageAccessPage';
-import ManageProductsPage from '../pages/ManageProductsPage';
-import ManageBranchesPage from '../pages/ManageBranchesPage';
-import Toaster from './Toaster';
-import authService from '../services/authService';
-
-function SidebarComponent() {
-  const [role, setRole] = useState(null);
-  const [roleName, setRoleName] = useState('');
-  const [toasts, setToasts] = useState([]);
-  const navigate = useNavigate();
-  const { fetchUserAccess } = useAccessContext();
-
-  useEffect(() => {
-    const savedRole = localStorage.getItem('userRole');
-    if (savedRole && authService.isLoggedIn()) {
-      setRole(savedRole);
-      fetchRoleName(savedRole);
-      fetchUserAccess(savedRole); // Included fetchUserAccess in the useEffect
-    } else {
-      setRole(null);
-      localStorage.removeItem('userRole');
-      navigate('/login');
-    }
-  }, [navigate, fetchUserAccess]);  // Added fetchUserAccess to the dependency array
-
-  const fetchRoleName = async (roleId) => {
-    try {
-      const roleData = await authService.getRoleById(roleId);
-      setRoleName(roleData.name);
-    } catch (error) {
-      console.error('Error fetching role name:', error);
-    }
-  };
-
-  const showToast = (variant, message, heading) => {
-    const newToast = {
-      id: Date.now(),
-      variant,
-      message,
-      heading,
-      time: new Date(),
-    };
-
-    const isDuplicate = toasts.some(
-      (toast) => toast.message === message && toast.variant === variant
-    );
-
-    if (!isDuplicate) {
-      setToasts((prevToasts) => [...prevToasts, newToast]);
-    }
-  };
-
-  const removeToast = (id) => {
-    setToasts((prevToasts) => prevToasts.filter((t) => t.id !== id));
-  };
-
-  const handleLogin = (userRole) => {
-    setRole(userRole);
-    localStorage.setItem('userRole', userRole);
-    fetchRoleName(userRole);
-    fetchUserAccess(userRole);
-
-    navigate(userRole === 3 ? '/manage-users' : '/sales');
-  };
-
-  const handleLogout = () => {
-    authService.logout()
-      .then(() => {
-        setRole(null);
-        setRoleName('');
-        showToast('success', 'Logout successful', 'Goodbye');
-        navigate('/login');
-      })
-      .catch((error) => {
-        showToast('danger', error.message || 'Logout failed', 'Error');
-      });
-  };
+function Sidebar({ handleLogout }) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [systemAuditsOpen, setSystemAuditsOpen] = useState(false);
+  const [manageItemsOpen, setManageItemsOpen] = useState(false);
+  const [salesOpen, setSalesOpen] = useState(false);
 
   return (
-    <div>
-      {role && <Navbar onLogout={handleLogout} roleName={roleName} />}
-      {role && <Sidebar />}
-
-      <div style={{ marginLeft: role ? '250px' : '0' }}>
-        <Routes>
-          <Route path="/login" element={<LoginPage onLogin={handleLogin} showToast={showToast} />} />
-          <Route path="/sales" element={<SalesPage showToast={showToast} />} />
-          <Route path="/dashboard" element={<DashboardPage showToast={showToast} />} />
-          <Route path="/incepted-sales" element={<InceptedSalesPage showToast={showToast} />} />
-          <Route path="/flagged-investigations" element={<FlaggedInvestigationsPage showToast={showToast} />} />
-          <Route path="/queries" element={<QueriesPage showToast={showToast} />} />
-          <Route path="/manage-banks" element={<ManageBanksPage showToast={showToast} />} />
-          <Route path="/bank-branches/:bankId" element={<BankBranchManagementPage showToast={showToast} />} />
-          <Route path="/branches" element={<ManageBranchesPage showToast={showToast} />} />
-          <Route path="/products" element={<ManageProductsPage showToast={showToast} />} />
-          <Route path="/paypoints" element={<ManagePaypointsPage showToast={showToast} />} />
-          <Route path="/sales-executive-management" element={<SalesExecutiveManagementPage showToast={showToast} />} />
-          <Route path="/audit-trail" element={<AuditTrailPage showToast={showToast} />} />
-          <Route path="/logs" element={<LogsPage showToast={showToast} />} />
-          <Route path="/reports" element={<ReportsPage showToast={showToast} />} />
-          <Route path="/retention-policy" element={<RetentionPolicyPage showToast={showToast} />} />
-          <Route path="/manage-users" element={<ManageUsersPage showToast={showToast} />} />
-          <Route path="/manage-roles" element={<ManageRolesPage showToast={showToast} />} />
-          <Route path="/manage-access" element={<ManageAccessPage showToast={showToast} />} />
-          <Route path="*" element={<Navigate to={role ? "/dashboard" : "/login"} />} />
-        </Routes>
+    <div className="sidebar">
+      <div className="sidebar-header">
+        <img src="#" alt="App Logo" /> {/* Replace with your logo path */}
       </div>
+      <div className="sidebar-menu">
+        <ul>
+          <li>
+            <NavLink
+              to="/dashboard"
+              className={({ isActive }) => (isActive ? 'active' : '')}
+            >
+              <FaHome />
+              <span>Dashboard</span>
+            </NavLink>
+          </li>
 
-      <Toaster toasts={toasts} removeToast={removeToast} />
+          {/* Sales Dropdown */}
+          <li>
+            <div onClick={() => setSalesOpen(!salesOpen)} className="sidebar-dropdown">
+              <FaChartBar />
+              <span>Sales</span>
+              <FaCaretDown />
+            </div>
+            {salesOpen && (
+              <ul className="submenu">
+                <li>
+                  <NavLink
+                    to="/sales"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <FaChartBar />
+                    <span>Sales</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/incepted-sales"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <FaClipboardList />
+                    <span>Incepted Sales</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/sales-performance"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <FaRegChartBar />
+                    <span>Sales Performance</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/flagged-investigations"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <FaFlag />
+                    <span>Flagged Investigations</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/queries"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <FaSearch />
+                    <span>Queries</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/reports"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <FaFileAlt />
+                    <span>Reports</span>
+                  </NavLink>
+                </li>
+              </ul>
+            )}
+          </li>
+
+          {/* Manage Items Dropdown */}
+          <li>
+            <div onClick={() => setManageItemsOpen(!manageItemsOpen)} className="sidebar-dropdown">
+              <FaTasks />
+              <span>Manage Items</span>
+              <FaCaretDown />
+            </div>
+            {manageItemsOpen && (
+              <ul className="submenu">
+                <li>
+                  <NavLink
+                    to="/manage-banks"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <FaBuilding />
+                    <span>Bank Management</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/branches"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <FaWarehouse />
+                    <span>Branch Management</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/sales-executive-management"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <FaTasks />
+                    <span>Sales Executive Management</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/paypoints"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <FaStore />
+                    <span>Paypoint Management</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/products"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <FaRegClipboard />
+                    <span>Products Management</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/manage-users"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <FaUser />
+                    <span>User Management</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/sales-target-management"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <FaChartBar />
+                    <span>Sales Target Management</span>
+                  </NavLink>
+                </li>
+              </ul>
+            )}
+          </li>
+
+          {/* System Audits Dropdown */}
+          <li>
+            <div onClick={() => setSystemAuditsOpen(!systemAuditsOpen)} className="sidebar-dropdown">
+              <FaRegChartBar />
+              <span>System Audits</span>
+              <FaCaretDown />
+            </div>
+            {systemAuditsOpen && (
+              <ul className="submenu">
+                <li>
+                  <NavLink
+                    to="/audit-trail"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <FaRegChartBar />
+                    <span>Audit Trail</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/logs"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <FaClipboardList />
+                    <span>Logs</span>
+                  </NavLink>
+                </li>
+              </ul>
+            )}
+          </li>
+
+          {/* Settings Dropdown */}
+          <li>
+            <div onClick={() => setSettingsOpen(!settingsOpen)} className="sidebar-dropdown">
+              <FaCog />
+              <span>Settings</span>
+              <FaCaretDown />
+            </div>
+            {settingsOpen && (
+              <ul className="submenu">
+                <li>
+                  <NavLink
+                    to="/user-sessions"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <FaHistory />
+                    <span>User Sessions</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/manage-roles"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <FaUsersCog />
+                    <span>Role Management</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/manage-access"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <FaLock />
+                    <span>Access Management</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/retention-policy"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                  >
+                    <FaHistory />
+                    <span>Retention Policy</span>
+                  </NavLink>
+                </li>
+              </ul>
+            )}
+          </li>
+        </ul>
+      </div>
+      <div className="sidebar-footer">
+        <button onClick={handleLogout}>
+          <FaSignOutAlt />
+          <span>Logout</span>
+        </button>
+      </div>
     </div>
   );
 }
 
-export default SidebarComponent;
+export default Sidebar;
