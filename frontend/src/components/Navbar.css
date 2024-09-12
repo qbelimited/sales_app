@@ -1,0 +1,42 @@
+/* Navbar.css */
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    padding: 0 1rem;
+    background-color: #333;
+    color: #fff;
+    align-items: center;
+  }
+
+  .navbar-left a, .navbar-right a {
+    color: #fff;
+    text-decoration: none;
+    margin-right: 1rem;
+  }
+
+  .navbar-left a.active, .navbar-right a.active {
+    border-bottom: 2px solid #fff;
+  }
+
+  .navbar-right {
+    display: flex;
+    align-items: center;
+  }
+
+  .navbar-profile {
+    display: flex;
+    align-items: center;
+    margin-right: 1rem;
+  }
+
+  .navbar-profile span {
+    margin-left: 0.5rem;
+  }
+
+  .logout-button {
+    background: none;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    font-size: 1.5rem;
+  }

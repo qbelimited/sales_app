@@ -38,15 +38,19 @@ const storeSession = ({ access_token, refresh_token, user }) => {
 
 // Helper to clear session data from localStorage
 const clearSession = () => {
-  localStorage.clear();
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('user');
+  localStorage.removeItem('userRoleID');
+  localStorage.removeItem('userRoleName');
 };
 
 // Authentication and session management service
 const authService = {
   login: async (credentials) => {
     try {
-      const response = await api.post('/auth/login', credentials);
-      const { access_token, refresh_token, user } = response.data || {};
+      const { data } = await api.post('/auth/login', credentials);
+      const { access_token, refresh_token, user } = data || {};
 
       if (!access_token || !refresh_token || !user) {
         throw new Error('Login failed: Missing tokens or user data.');
@@ -57,6 +61,8 @@ const authService = {
 
       const ipAddress = await getUserIpAddress();
       const deviceInfo = getDeviceInfo();
+
+      // Create user session
       await api.post(`/users/${user.id}/sessions`, {
         ip_address: ipAddress,
         device_info: deviceInfo,
@@ -65,9 +71,9 @@ const authService = {
       });
 
       toast.success('Login successful');
-      return response.data;
+      return data;
     } catch (error) {
-      toast.error(error.message || 'Login failed. Please check your credentials.');
+      toast.error(error.response?.data?.message || 'Login failed. Please check your credentials.');
       return Promise.reject(error);
     }
   },
@@ -84,6 +90,7 @@ const authService = {
         return;
       }
 
+      // End user session and log out
       await api.post('/auth/logout', { refresh_token: refreshToken }, {
         headers: { 'Authorization': `Bearer ${accessToken}` },
       });
@@ -107,8 +114,8 @@ const authService = {
         throw new Error('No refresh token available');
       }
 
-      const response = await api.post('/auth/refresh', { refresh_token: refreshToken });
-      const { access_token } = response.data;
+      const { data } = await api.post('/auth/refresh', { refresh_token: refreshToken });
+      const { access_token } = data;
 
       if (!access_token) {
         throw new Error('Missing access token in refresh response');
@@ -117,6 +124,8 @@ const authService = {
       localStorage.setItem('access_token', access_token);
 
       const user = JSON.parse(localStorage.getItem('user'));
+
+      // Extend session expiration after refreshing the token
       await api.put(`/users/${user.id}/sessions`, {
         expires_at: new Date(Date.now() + 45 * 60 * 1000).toISOString(),
       }, {
@@ -131,31 +140,36 @@ const authService = {
     }
   },
 
-  getAccessToken: () => localStorage.getItem('access_token') || null,
+  getAccessToken: () => localStorage.getItem('access_token'),
 
   isLoggedIn: async () => {
     const token = authService.getAccessToken();
+
     if (token && !authService.isTokenExpired(token)) {
       return true;
-    } else if (token && authService.isTokenExpired(token)) {
+    }
+
+    if (token && authService.isTokenExpired(token)) {
       try {
         await authService.refreshToken();
         return true;
       } catch (error) {
         authService.logout();
         toast.error('Session expired. Please log in again.');
+        return false;
       }
-    } else {
-      authService.logout();
-      toast.error('You are not logged in.');
     }
+
+    authService.logout();
+    toast.error('You are not logged in.');
+    return false;
   },
 
   isTokenExpired: (token) => {
     try {
       const decoded = JSON.parse(atob(token.split('.')[1]));
       return decoded.exp * 1000 < Date.now();
-    } catch {
+    } catch (error) {
       return true;
     }
   },

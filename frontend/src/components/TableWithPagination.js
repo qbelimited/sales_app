@@ -3,6 +3,7 @@ import { Table, Spinner, Row, Col, Button, Form, Modal } from 'react-bootstrap';
 import { FaSort, FaSortUp, FaSortDown } from 'react-icons/fa';
 import api from '../services/api';
 import { toast } from 'react-toastify';
+import debounce from 'lodash.debounce';
 
 const TableWithPagination = ({ endpoint, columns, title, perPage }) => {
   const [data, setData] = useState([]);
@@ -76,11 +77,11 @@ const TableWithPagination = ({ endpoint, columns, title, perPage }) => {
     return <FaSort />;
   };
 
-  // Handle filter change
-  const handleFilterChange = (e) => {
+  // Handle filter change with debounce to reduce API calls
+  const handleFilterChange = debounce((e) => {
     setFilterBy(e.target.value);
     setPage(1); // Reset to the first page when filtering
-  };
+  }, 300); // Adjust debounce timing as needed
 
   const handleEditClick = (user) => {
     setCurrentUser(user);
@@ -148,7 +149,6 @@ const TableWithPagination = ({ endpoint, columns, title, perPage }) => {
           <Form.Control
             type="text"
             placeholder="Filter by keyword"
-            value={filterBy}
             onChange={handleFilterChange}
           />
         </Col>

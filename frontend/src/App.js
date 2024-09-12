@@ -14,7 +14,6 @@ import ManageBanksPage from './pages/ManageBanksPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import Toaster from './components/Toaster';
 import authService from './services/authService';
-import { AccessProvider, useAccessContext } from './context/AccessProvider';
 
 // Main Application Component
 function App() {
@@ -23,7 +22,6 @@ function App() {
   const [toasts, setToasts] = useState([]);  // Global toast state
   const [loading, setLoading] = useState(false);  // Loading state for login
   const navigate = useNavigate();
-  const { fetchUserAccess } = useAccessContext();  // Access context hook
 
   // Fetch role name based on roleId from localStorage
   const fetchRoleName = useCallback(() => {
@@ -44,14 +42,13 @@ function App() {
 
     if (savedRole && isLoggedIn) {
       setRole(savedRole);
-      fetchRoleName();  // Fetch role name
-      fetchUserAccess();  // Fetch access rules for the user role
+      fetchRoleName();  // Ensure this function is stable
     } else {
-      setRole(null);  // Clear role if not logged in
-      localStorage.removeItem('userRoleID');  // Clear invalid sessions
-      navigate('/login');  // Redirect to login
+      setRole(null);
+      localStorage.removeItem('userRoleID');
+      navigate('/login');  // Make sure this is not causing continuous navigation
     }
-  }, [fetchRoleName, fetchUserAccess, navigate]);
+  }, [fetchRoleName, navigate]);  // Stable dependencies only
 
   // Function to show toast messages without duplicates
   const showToast = useCallback((variant, message, heading) => {
@@ -73,10 +70,9 @@ function App() {
     setRole(userRole);
     localStorage.setItem('userRoleID', userRole);
     await fetchRoleName();  // Fetch role name
-    await fetchUserAccess();  // Fetch access rules
 
     navigate(userRole === 3 ? '/manage-users' : '/sales');
-  }, [fetchRoleName, fetchUserAccess, navigate]);
+  }, [fetchRoleName, navigate]);
 
   // Handle logout
   const handleLogout = useCallback(async () => {
@@ -99,6 +95,7 @@ function App() {
 
   return (
     <div>
+      {/* Conditionally render Navbar and Sidebar only if the user is logged in */}
       {role && <Navbar onLogout={handleLogout} roleName={roleName} />}
       {role && <Sidebar />}
 
@@ -107,7 +104,17 @@ function App() {
           <div>Loading...</div>
         ) : (
           <Routes>
-            <Route path="/login" element={<LoginPage onLogin={handleLogin} showToast={showToast} />} />
+            {/* Redirect to /sales or /manage-users if logged in, otherwise show login */}
+            <Route
+              path="/login"
+              element={
+                role ? (
+                  <Navigate to={role === '3' ? '/manage-users' : '/sales'} replace />
+                ) : (
+                  <LoginPage onLogin={handleLogin} showToast={showToast} />
+                )
+              }
+            />
             <Route
               path="/sales"
               element={
@@ -183,11 +190,4 @@ function App() {
   );
 }
 
-// RootApp to provide Access context
-export default function RootApp() {
-  return (
-    <AccessProvider>
-      <App />
-    </AccessProvider>
-  );
-}
+export default App;
