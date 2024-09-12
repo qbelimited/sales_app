@@ -44,7 +44,7 @@ const authService = {
           const deviceInfo = getDeviceInfo();
 
           // Create a session after login with IP and device info
-          await api.post(`/user/${user.id}/sessions`, {
+          await api.post(`/user/${user.id}/sessions/`, {
             ip_address: ipAddress,
             device_info: deviceInfo,
           }, {
@@ -89,7 +89,7 @@ const authService = {
       });
 
       // End the session after logout
-      await api.delete(`/user/${user.id}/sessions`, {
+      await api.delete(`/user/${user.id}/sessions/`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
@@ -119,7 +119,7 @@ const authService = {
 
           // Update session expiration after token refresh
           const user = JSON.parse(localStorage.getItem('user'));
-          await api.put(`/user/${user.id}/sessions`, {
+          await api.put(`/user/${user.id}/sessions/`, {
             expires_at: new Date(Date.now() + 45 * 60 * 1000).toISOString(),  // Extend session expiration by 45 minutes
           }, {
             headers: {

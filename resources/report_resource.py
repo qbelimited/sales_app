@@ -38,8 +38,8 @@ report_model = report_ns.model('Report', {
     'group_by': fields.String(description="Group by field for data aggregation")
 })
 
+@report_ns.route('/generate')
 class ComprehensiveReportResource(Resource):
-
     @report_ns.doc(security='Bearer Auth')
     @jwt_required()
     @report_ns.expect(report_model, validate=True)
@@ -291,7 +291,7 @@ class ComprehensiveReportResource(Resource):
         output.seek(0)
         return send_file(output, attachment_filename=f"{filename}.pdf", as_attachment=True)
 
-
+@report_ns.route('/generate-parallel')
 # Register ParallelReportResource if needed
 class ParallelReportResource(Resource):
     @jwt_required()
