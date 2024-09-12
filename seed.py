@@ -5,6 +5,7 @@ from models.branch_model import Branch
 from models.impact_product_model import ImpactProduct, ProductCategory
 from models.paypoint_model import Paypoint
 from models.user_model import Role, User
+from models.retention_model import RetentionPolicy
 from models.access_model import Access
 from models.sales_executive_model import SalesExecutive
 from werkzeug.security import generate_password_hash
@@ -59,9 +60,9 @@ with app.app_context():
 
     # Seed Impact Products
     products = [
-        {'name': 'EDUCARE', 'category': 'Retail', 'group': 'Investment'},
-        {'name': 'FAREWELL', 'category': 'Retail', 'group': 'Risk'},
-        {'name': 'PENSION', 'category': 'Retail', 'group': 'Investment'},
+        {'name': 'EDUCARE', 'category': 'Retail', 'group': 'investment'},
+        {'name': 'FAREWELL', 'category': 'Retail', 'group': 'risk'},
+        {'name': 'PENSION', 'category': 'Retail', 'group': 'investment'},
     ]
 
     for product_data in products:
@@ -303,6 +304,16 @@ with app.app_context():
 
     db.session.commit()
     print("Access rules seeded successfully!")
+
+    # Seed Retention Policy with 1 year retention period
+    retention_policy = db.session.query(RetentionPolicy).first()
+    if not retention_policy:
+        retention_policy = RetentionPolicy(retention_days=365)
+        db.session.add(retention_policy)
+        db.session.commit()
+        print("Retention policy seeded successfully with a 1-year period.")
+    else:
+        print("Retention policy already exists.")
 
     # Define the Sales Manager role before using it
     sales_manager_role = db.session.query(Role).filter_by(name='Sales Manager').first()
