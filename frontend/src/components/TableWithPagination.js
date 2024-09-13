@@ -160,7 +160,13 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
               <tr key={item.id}>
                 <td>{(page - 1) * perPage + index + 1}</td>
                 {columns.map((col) => (
-                  <td key={col.accessor}>{item[col.accessor]}</td>
+                  <td key={col.Header}>
+                    {/* Check if col.accessor is a function or a string */}
+                    {typeof col.accessor === 'function'
+                      ? col.accessor(item) // If function, call the accessor
+                      : item[col.accessor]  // If string, access the field directly
+                    }
+                  </td>
                 ))}
                 <td>
                   <Button variant="primary" size="sm" onClick={() => handleEditClick(item)}>Edit</Button>{' '}
@@ -233,9 +239,11 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
                   value={currentUser.role.name}
                   onChange={(e) => setCurrentUser({ ...currentUser, role_name: e.target.value })}
                 >
-                  <option value={1}>Admin</option>
+                  <option value={1}>Back Office</option>
                   <option value={2}>Manager</option>
-                  <option value={3}>User</option>
+                  <option value={3}>Admin</option>
+                  <option value={4}>Sales Manager</option>
+                  <option value={5}>Super Admin</option>
                 </Form.Control>
               </Form.Group>
             </Form>

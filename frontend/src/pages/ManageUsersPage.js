@@ -6,8 +6,14 @@ const ManageUsersPage = () => {
   const userColumns = [
     { Header: 'Name', accessor: 'name' },
     { Header: 'Email', accessor: 'email' },
-    { Header: 'Role', accessor: 'role.name' },  // Adjust according to your backend field
-    { Header: 'Created At', accessor: 'created_at' }  // Assuming there's a creation date field
+    {
+      Header: 'Role',
+      accessor: (row) => row.role && row.role.name ? row.role.name : 'No Role'
+    },
+    {
+      Header: 'Created At',
+      accessor: (row) => new Date(row.created_at).toLocaleDateString(),
+    },
   ];
 
   return (

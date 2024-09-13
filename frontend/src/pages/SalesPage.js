@@ -25,7 +25,7 @@ const SalesPage = () => {
   // Fetch banks and branches data
   const fetchBanks = async () => {
     try {
-      const response = await api.get('/banks/'); // Assuming you have an endpoint for fetching banks
+      const response = await api.get('/bank/'); // Assuming you have an endpoint for fetching banks
       setBanks(response.data);
     } catch (error) {
       console.error('Error fetching banks:', error);
@@ -34,8 +34,14 @@ const SalesPage = () => {
 
   const fetchBranches = async (bankId) => {
     try {
-      const response = await api.get(`/banks/${bankId}/branches`); // Assuming you have an endpoint for fetching branches by bank
-      setBranches(response.data);
+      if (bankId) {
+        const response = await api.get('/dropdown/', {
+          params: { type: 'branch', bank_id: bankId },
+        });
+        setBranches(response.data);
+      } else {
+        setBranches([]);
+      }
     } catch (error) {
       console.error('Error fetching branches:', error);
     }

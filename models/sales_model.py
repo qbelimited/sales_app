@@ -38,6 +38,7 @@ class Sale(db.Model):
 
     # Relationships
     policy_type = db.relationship('ImpactProduct', foreign_keys=[policy_type_id], lazy='joined')
+    sales_executive = db.relationship('SalesExecutive', foreign_keys=[sales_executive_id], lazy='joined')
     sale_manager = db.relationship('User', foreign_keys=[sale_manager_id], lazy='joined')
     bank = db.relationship('Bank', foreign_keys=[bank_id], lazy='joined')
     bank_branch = db.relationship('BankBranch', foreign_keys=[bank_branch_id], lazy='joined')
