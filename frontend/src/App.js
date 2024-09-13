@@ -17,7 +17,7 @@ import authService from './services/authService';
 
 function App() {
   const [role, setRole] = useState(null);
-  const [toasts, setToasts] = useState([]); // Global toast state
+  const [toasts, setToasts] = useState([]);  // Global toast state
   const navigate = useNavigate();
 
   // On mount, check if the user is already logged in by checking localStorage
@@ -27,10 +27,10 @@ function App() {
       setRole(savedRole);
     } else {
       setRole(null); // Clear role if not logged in
-      localStorage.removeItem('userRole'); // Ensure that we clear invalid sessions
-      navigate('/login'); // Redirect to login page if not logged in
+      localStorage.removeItem('userRole');  // Ensure that we clear invalid sessions
+      navigate('/login');  // Redirect to login page if not logged in
     }
-  }, [navigate]);
+  }, [navigate]);  // This will run only once when the component mounts
 
   // Function to show toast messages without duplicates
   const showToast = (variant, message, heading) => {
@@ -59,16 +59,18 @@ function App() {
 
   const handleLogin = (userRole) => {
     setRole(userRole);
-    localStorage.setItem('userRole', userRole); // Store role in localStorage after login
-    navigate(userRole === 3 ? '/manage-users' : '/sales'); // Redirect based on role
+    localStorage.setItem('userRole', userRole);  // Store role in localStorage after login
+
+    // Use navigate for redirect instead of window.location.href
+    navigate(userRole === 3 ? '/manage-users' : '/sales');
   };
 
   const handleLogout = () => {
-    authService.logout() // Call the logout function to clear tokens
+    authService.logout()  // Call the logout function to clear tokens
       .then(() => {
-        setRole(null); // Set role to null to hide Navbar and Sidebar
+        setRole(null);  // Set role to null to hide Navbar and Sidebar
         showToast('success', 'Logout successful', 'Goodbye');
-        navigate('/login'); // Redirect to login page after successful logout
+        navigate('/login');  // Redirect to login page after successful logout
       })
       .catch((error) => {
         showToast('danger', error.message || 'Logout failed', 'Error');
@@ -82,11 +84,7 @@ function App() {
 
       <div style={{ marginLeft: role ? '250px' : '0' }}>
         <Routes>
-          {/* Only show login form if user is not logged in */}
-          <Route
-            path="/login"
-            element={role ? <Navigate to="/sales" /> : <LoginPage onLogin={handleLogin} showToast={showToast} />}
-          />
+          <Route path="/login" element={<LoginPage onLogin={handleLogin} showToast={showToast} />} />
 
           <Route
             path="/sales"

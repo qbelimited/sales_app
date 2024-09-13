@@ -12,6 +12,9 @@ function LoginPage({ onLogin, showToast }) {
   const navigate = useNavigate();
 
   const handleLogin = async () => {
+    // Reset previous errors
+    setError(null);
+
     // Client-side validation before making the API request
     if (!email || !password) {
       showToast('warning', 'Please fill in all fields', 'Missing Fields');
@@ -27,29 +30,36 @@ function LoginPage({ onLogin, showToast }) {
 
     try {
       // Use the authService to handle login
-      const { access_token, refresh_token, user } = await authService.login({
+      const response = await authService.login({
         email,
         password,
       });
 
-      // Store tokens and user info in localStorage for persistence
-      localStorage.setItem('accessToken', access_token);  // Store access token
-      localStorage.setItem('refreshToken', refresh_token);  // Store refresh token
-      localStorage.setItem('userRole', user.role.id);  // Store user role
-      localStorage.setItem('userID', user.id);         // Store user ID
-      localStorage.setItem('user', JSON.stringify(user));  // Store user details
+      if (response && response.access_token && response.user) {
+        const { access_token, refresh_token, user } = response;
 
-      // Call the onLogin function to set the role in the App state
-      onLogin(user.role.id);
+        // Store tokens and user info in localStorage for persistence
+        localStorage.setItem('accessToken', access_token);  // Store access token
+        localStorage.setItem('refreshToken', refresh_token);  // Store refresh token
+        localStorage.setItem('userRole', user.role.id);  // Store user role
+        localStorage.setItem('userID', user.id);         // Store user ID
+        localStorage.setItem('user', JSON.stringify(user));  // Store user details
 
-      // Show success toast
-      showToast('success', 'Login successful!', 'Success');
+        // Call the onLogin function to set the role in the App state
+        onLogin(user.role.id);
 
-      // Redirect to the appropriate page based on role immediately after successful login
-      navigate(user.role.id === 3 ? '/manage-users' : '/sales');
+        // Show success toast
+        showToast('success', 'Login successful!', 'Success');
+
+        // Redirect to the appropriate page based on role immediately after successful login
+        navigate(user.role.id === 3 ? '/manage-users' : '/sales');
+      } else {
+        throw new Error('Invalid login response, please try again.');
+      }
 
     } catch (error) {
-      setError(error.message || 'Login failed');
+      console.error('Login error:', error);
+      setError(error.message || 'Login failed. Please try again.');
       showToast('danger', error.message || 'Login failed!', 'Error');
     } finally {
       setLoading(false);
@@ -71,8 +81,12 @@ function LoginPage({ onLogin, showToast }) {
                     placeholder="Enter email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
+                    isInvalid={!!error}
                     required
                   />
+                  <Form.Control.Feedback type="invalid">
+                    {error && 'Please enter a valid email.'}
+                  </Form.Control.Feedback>
                 </Form.Group>
 
                 <Form.Group controlId="formPassword" className="mb-3">
@@ -82,8 +96,12 @@ function LoginPage({ onLogin, showToast }) {
                     placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                    isInvalid={!!error}
                     required
                   />
+                  <Form.Control.Feedback type="invalid">
+                    {error && 'Incorrect password.'}
+                  </Form.Control.Feedback>
                 </Form.Group>
 
                 {error && <div className="text-danger text-center mb-3">{error}</div>}
