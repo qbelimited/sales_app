@@ -24,10 +24,10 @@ sale_model = sales_ns.model('Sale', {
     'momo_transaction_id': fields.String(description='Momo Transaction ID'),
     'first_pay_with_momo': fields.Boolean(description='First Pay with Momo'),
     'subsequent_pay_source_type': fields.String(description='Subsequent Payment Source Type'),
-    'bank_id': fields.Integer(description='Bank ID'),
-    'bank_branch_id': fields.Integer(description='Bank Branch ID'),
+    'bank_id': fields.Integer(description='Bank ID', allow_none=True),
+    'bank_branch_id': fields.Integer(description='Bank Branch ID', allow_none=True),
     'bank_acc_number': fields.String(description='Bank Account Number'),
-    'paypoint_name': fields.String(description='Paypoint Name'),
+    'paypoint_id': fields.Integer(description='Paypoint ID', allow_none=True),
     'paypoint_branch': fields.String(description='Paypoint Branch'),
     'staff_id': fields.String(description='Staff ID'),
     'policy_type_id': fields.Integer(required=True, description='Policy Type ID'),
@@ -137,24 +137,24 @@ class SaleListResource(Resource):
             user_id=current_user['id'],
             sale_manager_id=data['sale_manager_id'],
             sales_executive_id=data['sales_executive_id'],
-            client_name=data['client_name'],
+            client_name=data.get('client_name'),
             client_id_no=data.get('client_id_no'),
-            client_phone=data['client_phone'],
-            serial_number=data['serial_number'],
+            client_phone=data.get('client_phone'),
+            serial_number=data.get('serial_number'),
             collection_platform=data.get('collection_platform'),
             source_type=data.get('source_type'),
             momo_reference_number=data.get('momo_reference_number'),
             momo_transaction_id=data.get('momo_transaction_id'),
             first_pay_with_momo=data.get('first_pay_with_momo'),
             subsequent_pay_source_type=data.get('subsequent_pay_source_type'),
-            bank_id=data.get('bank_id'),
-            bank_branch_id=data.get('bank_branch_id'),
+            bank_id=data['bank_id'],
+            bank_branch_id=data['bank_branch_id'],
             bank_acc_number=data.get('bank_acc_number'),
-            paypoint_name=data.get('paypoint_name'),
+            paypoint_id=data['paypoint_id'],
             paypoint_branch=data.get('paypoint_branch'),
             staff_id=data.get('staff_id'),
             policy_type_id=data['policy_type_id'],
-            amount=data['amount'],
+            amount=data.get('amount'),
             customer_called=data.get('customer_called'),
             geolocation_latitude=data.get('geolocation_latitude'),
             geolocation_longitude=data.get('geolocation_longitude')
@@ -235,7 +235,7 @@ class SaleDetailResource(Resource):
         sale.bank_id = data.get('bank_id', sale.bank_id)
         sale.bank_branch_id = data.get('bank_branch_id', sale.bank_branch_id)
         sale.bank_acc_number = data.get('bank_acc_number', sale.bank_acc_number)
-        sale.paypoint_name = data.get('paypoint_name', sale.paypoint_name)
+        sale.paypoint_id = data.get('paypoint_id', sale.paypoint_id)
         sale.paypoint_branch = data.get('paypoint_branch', sale.paypoint_branch)
         sale.staff_id = data.get('staff_id', sale.staff_id)
         sale.policy_type_id = data.get('policy_type_id', sale.policy_type_id)

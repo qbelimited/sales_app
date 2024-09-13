@@ -19,7 +19,7 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
     bank_id: '',
     bank_branch_id: '',
     bank_acc_number: '',
-    paypoint_name: '',
+    paypoint_id: '',
     paypoint_branch: '',
     staff_id: '',
     policy_type_id: '',
@@ -159,7 +159,7 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
         bank_id: !isMomo ? prevData.bank_id : '',
         bank_branch_id: !isMomo ? prevData.bank_branch_id : '',
         bank_acc_number: !isMomo ? prevData.bank_acc_number : '',
-        paypoint_name: value === 'paypoint' ? prevData.paypoint_name : '',
+        paypoint_id: value === 'paypoint' ? prevData.paypoint_id : '',
         paypoint_branch: value === 'paypoint' ? prevData.paypoint_branch : '',
         staff_id: !isMomo ? prevData.staff_id : '',
         subsequent_pay_source_type: !isMomo ? '' : prevData.subsequent_pay_source_type,
@@ -187,7 +187,7 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
 
     // Validate for PayPoint transactions
     if (formData.source_type === 'paypoint' || formData.subsequent_pay_source_type === 'paypoint') {
-      if (!formData.paypoint_name) newErrors.paypoint_name = 'PayPoint name is required';
+      if (!formData.paypoint_id) newErrors.paypoint_id = 'PayPoint name is required';
       if (!formData.staff_id) newErrors.staff_id = 'Staff ID is required';
     }
 
@@ -229,9 +229,12 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
         sale_manager_id: parseInt(formData.sale_manager_id, 10),  // Convert to integer
         sales_executive_id: parseInt(formData.sales_executive_id, 10),  // Convert to integer
         policy_type_id: parseInt(formData.policy_type_id, 10),  // Convert to integer
-        bank_id: parseInt(formData.bank_id, 10),  // Convert to integer
-        bank_branch_id: parseInt(formData.bank_branch_id, 10),  // Convert to integer
         amount: parseFloat(formData.amount),
+
+        // Conditionally convert to integer if value exists, otherwise set to null
+        bank_id: formData.bank_id ? parseInt(formData.bank_id, 10) : null,
+        bank_branch_id: formData.bank_branch_id ? parseInt(formData.bank_branch_id, 10) : null,
+        paypoint_id: formData.paypoint_id ? parseInt(formData.paypoint_id, 10) : null,
       };
 
       console.log('Submitting sale:', sanitizedData);
@@ -247,6 +250,7 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
         toast.error('Failed to submit the sale. Please try again.');
       }
     } catch (error) {
+      console.error('Error submitting sale:', error);
       toast.error('Failed to submit the sale');
     }
   };
@@ -427,8 +431,8 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
             <select
               type="text"
               className="form-control"
-              name="paypoint_name"
-              value={formData.paypoint_name}
+              name="paypoint_id"
+              value={formData.paypoint_id}
               onChange={handleInputChange}
               disabled={!isGeolocationEnabled}
             >
@@ -439,7 +443,7 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
                 </option>
               ))}
             </select>
-            {errors.paypoint_name && <div className="text-danger">{errors.paypoint_name}</div>}
+            {errors.paypoint_id && <div className="text-danger">{errors.paypoint_id}</div>}
           </div>
 
           <div className="form-group">
@@ -574,8 +578,8 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
             <select
               type="text"
               className="form-control"
-              name="paypoint_name"
-              value={formData.paypoint_name}
+              name="paypoint_id"
+              value={formData.paypoint_id}
               onChange={handleInputChange}
               disabled={!isGeolocationEnabled}
             >
@@ -586,7 +590,7 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
                 </option>
               ))}
             </select>
-            {errors.paypoint_name && <div className="text-danger">{errors.paypoint_name}</div>}
+            {errors.paypoint_id && <div className="text-danger">{errors.paypoint_id}</div>}
           </div>
 
           <div className="form-group">

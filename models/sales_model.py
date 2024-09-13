@@ -2,6 +2,7 @@ from app import db
 from datetime import datetime
 from sqlalchemy.orm import validates
 from models.under_investigation_model import UnderInvestigation
+from models.bank_model import Bank
 from sqlalchemy import and_
 
 class Sale(db.Model):
@@ -22,7 +23,7 @@ class Sale(db.Model):
     bank_id = db.Column(db.Integer, db.ForeignKey('bank.id'), nullable=True, index=True)
     bank_branch_id = db.Column(db.Integer, db.ForeignKey('bank_branch.id'), nullable=True, index=True)
     bank_acc_number = db.Column(db.String(100), nullable=True, index=True)
-    paypoint_name = db.Column(db.String(100), nullable=True, index=True)
+    paypoint_id = db.Column(db.Integer, db.ForeignKey('paypoint.id'), nullable=True, index=True)
     paypoint_branch = db.Column(db.String(100), nullable=True, index=True)
     staff_id = db.Column(db.String(100), nullable=True, index=True)
     policy_type_id = db.Column(db.Integer, db.ForeignKey('impact_product.id'), nullable=False, index=True)
@@ -39,6 +40,7 @@ class Sale(db.Model):
     # Relationships
     policy_type = db.relationship('ImpactProduct', foreign_keys=[policy_type_id], lazy='joined')
     sales_executive = db.relationship('SalesExecutive', foreign_keys=[sales_executive_id], lazy='joined')
+    paypoint = db.relationship('Paypoint', foreign_keys=[paypoint_id], lazy='joined')
     sale_manager = db.relationship('User', foreign_keys=[sale_manager_id], lazy='joined')
     bank = db.relationship('Bank', foreign_keys=[bank_id], lazy='joined')
     bank_branch = db.relationship('BankBranch', foreign_keys=[bank_branch_id], lazy='joined')
@@ -52,17 +54,18 @@ class Sale(db.Model):
     @validates('bank_acc_number', 'bank_id')
     def validate_bank_acc_number(self, key, value):
         """Ensure account numbers are valid for selected banks."""
-        if key == 'bank_acc_number' and self.bank_id:
-            bank = Bank.query.get(self.bank_id)
-            length = len(value)
-            if bank.name == 'UBA' and length != 14:
-                raise ValueError("UBA account number must be 14 digits")
-            elif (bank.name == 'Zenith' or bank.name == 'Absa') and length != 10:
-                raise ValueError("Zenith or Absa account number must be 10 digits")
-            elif bank.name == 'SG' and length not in [12, 13]:
-                raise ValueError("SG account number must be 12 or 13 digits")
-            elif length not in [13, 16]:
-                raise ValueError("Account number must be 13 or 16 digits")
+        if key == 'bank_acc_number':
+            if self.bank_id:  # Only validate if bank_id is provided
+                bank = Bank.query.get(self.bank_id)
+                length = len(value)
+                if bank.name == 'UBA' and length != 14:
+                    raise ValueError("UBA account number must be 14 digits")
+                elif (bank.name == 'Zenith' or bank.name == 'Absa') and length != 10:
+                    raise ValueError("Zenith or Absa account number must be 10 digits")
+                elif bank.name == 'SG' and length not in [12, 13]:
+                    raise ValueError("SG account number must be 12 or 13 digits")
+                elif length not in [13, 16]:
+                    raise ValueError("Account number must be 13 or 16 digits")
         return value
 
     @validates('collection_platform')
@@ -115,7 +118,7 @@ class Sale(db.Model):
             'id': self.id,
             'user_id': self.user_id,
             'sale_manager': self.sale_manager.serialize() if self.sale_manager else None,
-            'sales_executive_id': self.sales_executive_id,
+            'sales_executive_id': self.sales_executive_id.serialize() if self.sales_executive_id else None,
             'client_name': self.client_name,
             'client_id_no': self.client_id_no,
             'client_phone': self.client_phone,
@@ -129,7 +132,7 @@ class Sale(db.Model):
             'bank': self.bank.serialize() if self.bank else None,
             'bank_branch': self.bank_branch.serialize() if self.bank_branch else None,
             'staff_id': self.staff_id,
-            'paypoint_name': self.paypoint_name,
+            'paypoint': self.paypoint.serialize() if self.paypoint else None,
             'paypoint_branch': self.paypoint_branch,
             'policy_type': self.policy_type.serialize() if self.policy_type else None,
             'amount': self.amount,
