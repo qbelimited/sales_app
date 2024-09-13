@@ -1,63 +1,47 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Table, Spinner, Row, Col, Button, Form, Modal } from 'react-bootstrap';
 import { FaSort, FaSortUp, FaSortDown } from 'react-icons/fa';
 import api from '../services/api';
 import { toast } from 'react-toastify';
-import debounce from 'lodash.debounce';
 
-const TableWithPagination = ({ endpoint, columns, title, perPage }) => {
+const TableWithPagination = ({ endpoint, columns, title }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [roles, setRoles] = useState([]);
   const [sortBy, setSortBy] = useState('created_at');
   const [sortDirection, setSortDirection] = useState('asc');
   const [filterBy, setFilterBy] = useState('');
+  const [perPage, setPerPage] = useState(10);
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [currentUser, setCurrentUser] = useState(null);
-  const [newPassword, setNewPassword] = useState('');
-
-  // Fetch data from the API
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await api.get(endpoint, {
-        params: {
-          sort_by: sortBy,
-          sort_direction: sortDirection,
-          filter_by: filterBy,
-          per_page: perPage,
-          page,
-        },
-      });
-      setData(response.data.users || response.data.sessions || []);
-      setTotalItems(response.data.total || 0);
-      setTotalPages(response.data.pages || 1);
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      toast.error('Failed to load data');
-    } finally {
-      setLoading(false);
-    }
-  }, [endpoint, sortBy, sortDirection, filterBy, perPage, page]);
-
-  // Fetch roles from the API
-  const fetchRoles = useCallback(async () => {
-    try {
-      const response = await api.get('/roles/');
-      setRoles(response.data);
-    } catch (error) {
-      console.error('Error fetching roles:', error);
-      toast.error('Failed to load roles');
-    }
-  }, []);
+  const [showEditModal, setShowEditModal] = useState(false); // Modal for editing user
+  const [currentUser, setCurrentUser] = useState(null); // Store the user being edited
 
   useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const response = await api.get(endpoint, {
+          params: {
+            sort_by: sortBy,
+            sort_direction: sortDirection,
+            filter_by: filterBy,
+            per_page: perPage,
+            page,
+          },
+        });
+
+        setData(response.data.users || []);
+        setTotalItems(response.data.total || 0);
+        setTotalPages(response.data.pages || 1);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchData();
-    if (endpoint === '/users/') fetchRoles(); // Fetch roles only for users
-  }, [fetchData, fetchRoles, endpoint]);
+  }, [endpoint, sortBy, sortDirection, filterBy, perPage, page]);
 
   // Handle sorting
   const handleSort = (column) => {
@@ -77,57 +61,47 @@ const TableWithPagination = ({ endpoint, columns, title, perPage }) => {
     return <FaSort />;
   };
 
-  // Handle filter change with debounce to reduce API calls
-  const handleFilterChange = debounce((e) => {
+  // Handle filter change
+  const handleFilterChange = (e) => {
     setFilterBy(e.target.value);
-    setPage(1); // Reset to the first page when filtering
-  }, 300); // Adjust debounce timing as needed
+    setPage(1);
+  };
 
+  // Handle per page change
+  const handlePerPageChange = (e) => {
+    setPerPage(Number(e.target.value));
+    setPage(1);
+  };
+
+  // Handle edit click
   const handleEditClick = (user) => {
     setCurrentUser(user);
     setShowEditModal(true);
   };
 
-  const handleDeleteClick = async (id) => {
-    const isUser = endpoint.includes('users');
-    const confirmMsg = isUser ? 'Are you sure you want to delete this user?' : 'Are you sure you want to end this session?';
-    if (window.confirm(confirmMsg)) {
+  // Handle delete click
+  const handleDeleteClick = async (userId) => {
+    if (window.confirm('Are you sure you want to delete this user?')) {
       try {
-        await api.delete(`${endpoint}/${id}`);
-        setData(data.filter((item) => item.id !== id)); // Remove the user/session from the list
-        toast.success(isUser ? 'User deleted successfully' : 'Session ended successfully');
+        await api.delete(`/users/${userId}`);
+        setData(data.filter(user => user.id !== userId)); // Remove the user from the list
+        toast.success('User deleted successfully');
       } catch (error) {
-        console.error(isUser ? 'Error deleting user:' : 'Error ending session:', error);
-        toast.error(isUser ? 'Error deleting user' : 'Error ending session');
+        console.error('Error deleting user:', error);
+        toast.error('Error deleting user');
       }
     }
   };
 
+  // Handle save changes for edit
   const handleSaveChanges = async () => {
     try {
-      await api.put(`/users/${currentUser.id}`, currentUser); // Update the user
-      setData(data.map((user) => (user.id === currentUser.id ? currentUser : user))); // Update state
-      setShowEditModal(false);
-      toast.success('User updated successfully');
+      await api.put(`/users/${currentUser.id}`, currentUser);  // Update the user via API
+      setData(data.map(user => (user.id === currentUser.id ? currentUser : user)));  // Update the state
+      setShowEditModal(false);  // Close modal
     } catch (error) {
       console.error('Error updating user:', error);
       toast.error('Error updating user');
-    }
-  };
-
-  const handlePasswordReset = async () => {
-    if (!newPassword) {
-      toast.error('Password cannot be empty');
-      return;
-    }
-
-    try {
-      await api.put(`/users/${currentUser.id}/password`, { password: newPassword });
-      toast.success('Password reset successfully');
-      setNewPassword('');
-    } catch (error) {
-      console.error('Error resetting password:', error);
-      toast.error('Error resetting password');
     }
   };
 
@@ -140,20 +114,34 @@ const TableWithPagination = ({ endpoint, columns, title, perPage }) => {
           <h2>{title}</h2>
         </Col>
         <Col className="text-right">
-          <h5>Total Items: {totalItems}</h5>
+          <h5>Total Users: {totalItems}</h5>
         </Col>
       </Row>
 
+      {/* Filtering and Pagination Controls */}
       <Row className="mb-3">
         <Col md={4}>
           <Form.Control
             type="text"
             placeholder="Filter by keyword"
+            value={filterBy}
             onChange={handleFilterChange}
           />
         </Col>
+        <Col md={4}>
+          <Form.Control
+            as="select"
+            value={perPage}
+            onChange={handlePerPageChange}
+          >
+            <option value={5}>5 per page</option>
+            <option value={10}>10 per page</option>
+            <option value={20}>20 per page</option>
+          </Form.Control>
+        </Col>
       </Row>
 
+      {/* Data Table */}
       <Table striped bordered hover responsive>
         <thead>
           <tr>
@@ -175,30 +163,23 @@ const TableWithPagination = ({ endpoint, columns, title, perPage }) => {
                   <td key={col.accessor}>{item[col.accessor]}</td>
                 ))}
                 <td>
-                  <Button variant="primary" size="sm" onClick={() => handleEditClick(item)}>
-                    Edit
-                  </Button>{' '}
-                  <Button variant="danger" size="sm" onClick={() => handleDeleteClick(item.id)}>
-                    {endpoint.includes('users') ? 'Delete' : 'End'}
-                  </Button>
+                  <Button variant="primary" size="sm" onClick={() => handleEditClick(item)}>Edit</Button>{' '}
+                  <Button variant="danger" size="sm" onClick={() => handleDeleteClick(item.id)}>Delete</Button>
                 </td>
               </tr>
             ))
           ) : (
             <tr>
-              <td colSpan={columns.length + 2} className="text-center">
-                No records found
-              </td>
+              <td colSpan={columns.length + 2} className="text-center">No records found</td>
             </tr>
           )}
         </tbody>
       </Table>
 
+      {/* Pagination Controls */}
       <Row className="align-items-center">
         <Col md="auto">
-          <p className="mb-0">
-            Showing {(page - 1) * perPage + 1} to {Math.min(page * perPage, totalItems)} of {totalItems} items
-          </p>
+          <p className="mb-0">Showing {(page - 1) * perPage + 1} to {Math.min(page * perPage, totalItems)} of {totalItems} users</p>
         </Col>
         <Col md="auto">
           <p className="mb-0">Page {page} of {totalPages}</p>
@@ -221,6 +202,7 @@ const TableWithPagination = ({ endpoint, columns, title, perPage }) => {
         </Col>
       </Row>
 
+      {/* Edit User Modal */}
       {currentUser && (
         <Modal show={showEditModal} onHide={() => setShowEditModal(false)}>
           <Modal.Header closeButton>
@@ -248,27 +230,13 @@ const TableWithPagination = ({ endpoint, columns, title, perPage }) => {
                 <Form.Label>Role</Form.Label>
                 <Form.Control
                   as="select"
-                  value={currentUser.role_id}
-                  onChange={(e) => setCurrentUser({ ...currentUser, role_id: e.target.value })}
+                  value={currentUser.role.name}
+                  onChange={(e) => setCurrentUser({ ...currentUser, role_name: e.target.value })}
                 >
-                  {roles.map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.name}
-                    </option>
-                  ))}
+                  <option value={1}>Admin</option>
+                  <option value={2}>Manager</option>
+                  <option value={3}>User</option>
                 </Form.Control>
-              </Form.Group>
-              <Form.Group className="mb-3">
-                <Form.Label>Reset Password</Form.Label>
-                <Form.Control
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Enter new password"
-                />
-                <Button variant="secondary" className="mt-2" onClick={handlePasswordReset}>
-                  Reset Password
-                </Button>
               </Form.Group>
             </Form>
           </Modal.Body>

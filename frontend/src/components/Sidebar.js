@@ -49,7 +49,7 @@ function Sidebar() {
   return (
     <div className="sidebar">
       <div className="sidebar-header">
-        <img src="#" alt="App Logo" /> {/* Replace with your logo path */}
+        <h1>S-T</h1>
       </div>
       <div className="sidebar-menu">
         <ul>
