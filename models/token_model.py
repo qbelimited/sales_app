@@ -9,6 +9,7 @@ class TokenBlacklist(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     revoked = db.Column(db.Boolean, default=False, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expire_at = db.Column(db.DateTime, nullable=False)
 
     # Relationship with User
     user = db.relationship('User', backref='blacklisted_tokens')
@@ -49,6 +50,7 @@ class RefreshToken(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     revoked_at = db.Column(db.DateTime, nullable=True)
     revoked = db.Column(db.Boolean, default=False, index=True)  # Add revoked flag
+    expire_at = db.Column(db.DateTime, nullable=False)
 
     # Relationship with User
     user = db.relationship('User', backref='refresh_tokens')

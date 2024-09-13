@@ -30,9 +30,9 @@ password_model = user_ns.model('Password', {
 session_model = user_ns.model('UserSession', {
     'id': fields.Integer(description='Session ID'),
     'user_id': fields.Integer(description='User ID'),
-    'login_time': fields.String(description='Login Time'),
-    'logout_time': fields.String(description='Logout Time'),
-    'expires_at': fields.String(description='Expires At'),
+    'login_time': fields.DateTime(description='Login Time'),
+    'logout_time': fields.DateTime(description='Logout Time'),
+    'expires_at': fields.DateTime(description='Expires At'),
     'ip_address': fields.String(description='IP Address'),
     'is_active': fields.Boolean(description='Is Active'),
 })
@@ -296,6 +296,8 @@ class UserSessionResource(Resource):
         new_session = UserSession(
             user_id=user_id,
             ip_address=data.get('ip_address', '0.0.0.0'),  # Default to '0.0.0.0' if not provided
+            login_time=datetime.utcnow(),
+            is_active=True,
             expires_at=datetime.utcnow() + timedelta(minutes=45),  # Default to 45 minutes
         )
         db.session.add(new_session)
@@ -356,6 +358,40 @@ class SingleUserSessionResource(Resource):
 
         logger.info(f"User {current_user['id']} accessed session {session_id} for user {user_id}.")
         return session.serialize(), 200
+
+    @user_ns.doc(security='Bearer Auth')
+    @jwt_required()
+    @user_ns.response(200, 'Session updated successfully')
+    @user_ns.response(404, 'Session not found')
+    def put(self, user_id, session_id):
+        """Update a specific session for a user."""
+        current_user = get_jwt_identity()
+
+        # Only admin or the user themselves can update session details
+        if current_user['id'] != user_id and current_user['role'].lower() != 'admin':
+            return {'message': 'Unauthorized'}, 403
+
+        session = UserSession.query.filter_by(id=session_id, user_id=user_id, is_active=True).first()
+        if not session:
+            return {'message': 'Session not found'}, 404
+
+        session.logout_time = datetime.utcnow()
+        session.is_active = False
+
+        db.session.commit()
+
+        logger.info(f"User {current_user['id']} updated session {session_id} for user {user_id}.")
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='UPDATE',
+            resource_type='session',
+            resource_id=session_id,
+            details=f"Updated session {session_id} for user {user_id}"
+        )
+        db.session.add(audit)
+        db.session.commit()
+
+        return {'message': 'Session updated successfully'}, 200
 
     @user_ns.doc(security='Bearer Auth')
     @jwt_required()

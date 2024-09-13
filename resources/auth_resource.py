@@ -67,14 +67,18 @@ class LoginResource(Resource):
             old_refresh_token.revoke()
             logger.info(f"Old refresh token for user {user.email} revoked.")
 
-        access_token = create_access_token(identity={'id': user.id, 'email': user.email, 'role': user.role.name})
-        refresh_token = create_refresh_token(identity={'id': user.id, 'email': user.email, 'role': user.role.name})
+        # Set access and refresh token expiration times
+        access_token_expiry = timedelta(hours=1)
+        refresh_token_expiry = timedelta(hours=12)
 
-        session_expiry = datetime.utcnow() + timedelta(minutes=30)
+        access_token = create_access_token(identity={'id': user.id, 'email': user.email, 'role': user.role.name}, expires_delta=access_token_expiry)
+        refresh_token = create_refresh_token(identity={'id': user.id, 'email': user.email, 'role': user.role.name}, expires_delta=refresh_token_expiry)
+
+        session_expiry = datetime.utcnow() + access_token_expiry
         session = UserSession(user_id=user.id, ip_address=ip_address, expires_at=session_expiry)
         db.session.add(session)
 
-        refresh_token_record = RefreshToken(user_id=user.id, token=refresh_token)
+        refresh_token_record = RefreshToken(user_id=user.id, token=refresh_token, expire_at=datetime.utcnow() + refresh_token_expiry)
         db.session.add(refresh_token_record)
         db.session.commit()
 
@@ -93,6 +97,7 @@ class LoginResource(Resource):
             'message': 'Logged in successfully',
             'access_token': access_token,
             'refresh_token': refresh_token,
+            'expiry': access_token_expiry.total_seconds(),
             'user': user.serialize()
         }, 200
 
@@ -107,13 +112,26 @@ class RefreshTokenResource(Resource):
         """Generate a new access token using a valid refresh token."""
         current_user = get_jwt_identity()
 
-        # Create new access token
-        access_token = create_access_token(identity=current_user)
+        # Check if the refresh token has expired
+        jti_refresh = get_jwt()['jti']
+        refresh_token_record = RefreshToken.query.filter_by(token=jti_refresh, user_id=current_user['id'], revoked=False).first()
+
+        if not refresh_token_record or refresh_token_record.is_expired():
+            logger.error(f"Refresh token for user {current_user['email']} has expired or been revoked.")
+            return {'message': 'Refresh token has expired or been revoked.'}, 401
+
+        # Create a new access token with 1-hour expiration
+        access_token = create_access_token(
+            identity=current_user,
+            expires_delta=timedelta(hours=1)
+        )
 
         logger.info(f"User {current_user['email']} refreshed their access token.")
         return {
             'message': 'Access token refreshed successfully',
-            'access_token': access_token
+            'access_token': access_token,
+            'expiry': timedelta(hours=1).total_seconds(),
+            'user': current_user.serialize()
         }, 200
 
 # Logout resource class with enhanced refresh token revocation and blacklist handling
