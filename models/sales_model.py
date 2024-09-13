@@ -118,7 +118,7 @@ class Sale(db.Model):
             'id': self.id,
             'user_id': self.user_id,
             'sale_manager': self.sale_manager.serialize() if self.sale_manager else None,
-            'sales_executive_id': self.sales_executive_id.serialize() if self.sales_executive_id else None,
+            'sales_executive_id': self.sales_executive_id,
             'client_name': self.client_name,
             'client_id_no': self.client_id_no,
             'client_phone': self.client_phone,

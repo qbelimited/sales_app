@@ -132,6 +132,10 @@ class SaleListResource(Resource):
             if field not in data or not data[field]:
                 return {'message': f'Missing required field: {field}'}, 400
 
+        bank_id = data.get('bank_id')  # Use .get() to safely access bank_id
+        bank_branch_id = data.get('bank_branch_id')
+        paypoint_id = data.get('paypoint_id')
+
         # Create new sale
         new_sale = Sale(
             user_id=current_user['id'],
@@ -147,10 +151,10 @@ class SaleListResource(Resource):
             momo_transaction_id=data.get('momo_transaction_id'),
             first_pay_with_momo=data.get('first_pay_with_momo'),
             subsequent_pay_source_type=data.get('subsequent_pay_source_type'),
-            bank_id=data['bank_id'],
-            bank_branch_id=data['bank_branch_id'],
+            bank_id=bank_id,
+            bank_branch_id=bank_branch_id,
             bank_acc_number=data.get('bank_acc_number'),
-            paypoint_id=data['paypoint_id'],
+            paypoint_id=paypoint_id,
             paypoint_branch=data.get('paypoint_branch'),
             staff_id=data.get('staff_id'),
             policy_type_id=data['policy_type_id'],

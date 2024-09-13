@@ -221,26 +221,33 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Ensure form is valid
     if (!validateForm()) return;
 
     try {
+      // Sanitize and prepare data
       const sanitizedData = {
         ...formData,
         sale_manager_id: parseInt(formData.sale_manager_id, 10),  // Convert to integer
         sales_executive_id: parseInt(formData.sales_executive_id, 10),  // Convert to integer
         policy_type_id: parseInt(formData.policy_type_id, 10),  // Convert to integer
-        amount: parseFloat(formData.amount),
+        amount: parseFloat(formData.amount),  // Convert amount to float
 
-        // Conditionally convert to integer if value exists, otherwise set to null
-        bank_id: formData.bank_id ? parseInt(formData.bank_id, 10) : null,
-        bank_branch_id: formData.bank_branch_id ? parseInt(formData.bank_branch_id, 10) : null,
-        paypoint_id: formData.paypoint_id ? parseInt(formData.paypoint_id, 10) : null,
+        // Conditionally convert to integer if value exists, otherwise omit
+        bank_id: formData.bank_id ? parseInt(formData.bank_id, 10) : undefined,
+        bank_branch_id: formData.bank_branch_id ? parseInt(formData.bank_branch_id, 10) : undefined,
+        paypoint_id: formData.paypoint_id ? parseInt(formData.paypoint_id, 10) : undefined,
       };
 
-      console.log('Submitting sale:', sanitizedData);
+      // Remove any undefined fields from sanitizedData
+      Object.keys(sanitizedData).forEach(key => {
+        if (sanitizedData[key] === undefined) {
+            delete sanitizedData[key];
+        }
+      });
+
       // Make API request to submit the sale
       const response = await api.post('/sales/', sanitizedData);
-      console.log('Response:', response);
 
       // Check if response is successful
       if (response.status === 201 || response.status === 200) {

@@ -297,7 +297,7 @@ const SalesPage = () => {
                 <td>{sale.amount}</td>
                 <td>{sale.policy_type.name}</td>
                 <td>{sale.serial_number}</td>
-                <td>{sale.sales_executive.name}</td>
+                <td>{sale.sales_executive}</td>
                 <td>{sale.source_type}</td>
                 <td>{sale.status}</td>
                 <td>{new Date(sale.created_at).toLocaleDateString()}</td>
