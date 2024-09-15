@@ -134,7 +134,7 @@ class RefreshTokenResource(Resource):
             'user': current_user.serialize()
         }, 200
 
-# Logout resource class with enhanced refresh token revocation and blacklist handling
+# Logout resource class with enhanced refresh token revocation, user sessions update and blacklist handling
 @auth_ns.route('/logout')
 class LogoutResource(Resource):
     @auth_ns.doc(description='Logs the user out by revoking the refresh token and optionally blacklisting the access token.')
@@ -175,12 +175,15 @@ class LogoutResource(Resource):
                     db.session.add(token_blacklist)
                     logger.info(f"Access token {jti_access} for user {current_user['email']} blacklisted.")
 
-            active_sessions = UserSession.get_active_sessions(current_user['id'])
+            # Update the active session's logout time
+            active_sessions = UserSession.query.filter_by(user_id=current_user['id'], is_active=True).all()
             if active_sessions:
                 for session in active_sessions:
-                    session.end_session()
+                    session.logout_time = datetime.utcnow()
+                    session.is_active = False
                 logger.info(f"All active sessions for user {current_user['email']} ended.")
 
+            # Record audit trail for logout
             audit = AuditTrail(
                 user_id=current_user['id'],
                 action='LOGOUT',

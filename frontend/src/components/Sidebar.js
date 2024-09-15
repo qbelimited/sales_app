@@ -150,6 +150,12 @@ function Sidebar() {
                   </NavLink>
                 </li>
                 <li>
+                  <NavLink to="/manage-users-sessions" className={({ isActive }) => (isActive ? 'active' : '')}>
+                    <FaUser />
+                    <span>Manage Users Sessions</span>
+                  </NavLink>
+                </li>
+                <li>
                   <NavLink to="/manage-roles" className={({ isActive }) => (isActive ? 'active' : '')}>
                     <FaLock />
                     <span>Manage Roles</span>

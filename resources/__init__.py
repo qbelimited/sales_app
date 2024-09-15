@@ -19,4 +19,4 @@ from .sales_performance_resource import SalesPerformanceResource, SingleSalesPer
 from .sales_resource import SaleListResource, SaleDetailResource
 from .sales_target_resource import SalesTargetListResource, SalesTargetResource
 from .under_inv_resource import UnderInvestigationResource, UnderInvestigationListResource
-from .user_resource import UserResource, UserListResource, UserSessionResource, SingleUserSessionResource, PasswordUpdateResource
+from .user_resource import UserResource, UserListResource, UserSessionResource, SingleUserSessionResource, PasswordUpdateResource, AllUserSessionsResource

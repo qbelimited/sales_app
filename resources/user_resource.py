@@ -422,3 +422,62 @@ class SingleUserSessionResource(Resource):
         db.session.commit()
 
         return {'message': 'Session deleted successfully'}, 200
+
+@user_ns.route('/sessions')
+class AllUserSessionsResource(Resource):
+    @user_ns.doc(security='Bearer Auth')
+    @jwt_required()
+    @user_ns.param('page', 'Page number for pagination', type='integer', default=1)
+    @user_ns.param('per_page', 'Number of items per page', type='integer', default=1000)
+    @user_ns.param('filter_by', 'Filter by User ID or User name', type='string')
+    @user_ns.param('sort_by', 'Sort by field (e.g., login_time, user_id)', type='string', default='login_time')
+    def get(self):
+        """Retrieve all sessions for all users (admin only)."""
+        current_user = get_jwt_identity()
+
+        # Only admin can access all sessions
+        if current_user['role'].lower() != 'admin':
+            return {'message': 'Unauthorized'}, 403
+
+        # Handle pagination and sorting
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        filter_by = request.args.get('filter_by', None)
+        sort_by = request.args.get('sort_by', 'login_time')
+
+        session_query = UserSession.query
+
+        # Optional filtering by user ID or name
+        if filter_by:
+            user_ids = [user.id for user in User.query.filter(User.name.ilike(f'%{filter_by}%')).all()]
+            session_query = session_query.filter(UserSession.user_id.in_(user_ids))
+
+        # Sorting and pagination
+        sessions = session_query.order_by(sort_by).paginate(page=page, per_page=per_page, error_out=False)
+
+        # Log the access to the audit trail and logger
+        logger.info(f"Admin {current_user['id']} accessed the list of all user sessions.")
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='ACCESS',
+            resource_type='session_list',
+            resource_id=None,
+            details=f"Admin accessed list of all user sessions"
+        )
+        db.session.add(audit)
+        db.session.commit()
+
+        # Include user names in the serialized session data
+        session_data = []
+        for session in sessions.items:
+            user = User.query.get(session.user_id)
+            session_info = session.serialize()
+            session_info['user_name'] = user.name if user else 'Unknown'
+            session_data.append(session_info)
+
+        return {
+            'sessions': session_data,
+            'total': sessions.total,
+            'pages': sessions.pages,
+            'current_page': sessions.page
+        }, 200
