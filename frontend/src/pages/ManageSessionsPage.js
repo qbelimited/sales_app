@@ -14,7 +14,7 @@ const ManageSessionsPage = () => {
   // Fetch all user sessions
   const fetchSessions = async () => {
     try {
-      const response = await api.get('/user/sessions'); // Adjust the endpoint if needed
+      const response = await api.get('/users/sessions'); // Adjust the endpoint if needed
       setSessions(response.data.sessions); // Use sessions array from the response
       setLoading(false);
     } catch (error) {
@@ -26,7 +26,7 @@ const ManageSessionsPage = () => {
   // Handler to end a session
   const handleEndSession = async (sessionId, userId) => {
     try {
-      await api.delete(`/user/${userId}/sessions/${sessionId}`);
+      await api.delete(`/users/${userId}/sessions/${sessionId}`);
       toast.success('Session ended successfully.');
       fetchSessions(); // Refresh session list
     } catch (error) {

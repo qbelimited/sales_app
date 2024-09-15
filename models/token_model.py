@@ -22,7 +22,8 @@ class TokenBlacklist(db.Model):
             'token_type': self.token_type,
             'user_id': self.user_id,
             'revoked': self.revoked,
-            'created_at': self.created_at.isoformat()
+            'created_at': self.created_at.isoformat(),
+            'expire_at': self.expire_at.isoformat()
         }
 
     def revoke(self):
@@ -63,7 +64,8 @@ class RefreshToken(db.Model):
             'token': self.token,
             'created_at': self.created_at.isoformat(),
             'revoked_at': self.revoked_at.isoformat() if self.revoked_at else None,
-            'revoked': self.revoked
+            'revoked': self.revoked,
+            'expire_at': self.expire_at.isoformat()
         }
 
     def revoke(self):

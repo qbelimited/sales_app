@@ -64,7 +64,7 @@ function Sidebar() {
           <li>
             <div onClick={handleSalesClick} className="sidebar-dropdown">
               <FaChartBar />
-              <span>Sales</span>
+              <span>Manage Sales</span>
               <FaCaretDown />
             </div>
             {salesOpen && (
@@ -72,7 +72,7 @@ function Sidebar() {
                 <li>
                   <NavLink to="/sales" className={({ isActive }) => (isActive ? 'active' : '')}>
                     <FaChartBar />
-                    <span>Sales</span>
+                    <span>Make/View Sales</span>
                   </NavLink>
                 </li>
                 <li>
@@ -101,7 +101,7 @@ function Sidebar() {
           <li>
             <div onClick={handleManageItemsClick} className="sidebar-dropdown">
               <FaTasks />
-              <span>Manage Items</span>
+              <span> Manage Items</span>
               <FaCaretDown />
             </div>
             {manageItemsOpen && (
@@ -138,7 +138,7 @@ function Sidebar() {
           <li>
             <div onClick={handleSettingsClick} className="sidebar-dropdown">
               <FaCog />
-              <span>Settings</span>
+              <span> Settings</span>
               <FaCaretDown />
             </div>
             {settingsOpen && (

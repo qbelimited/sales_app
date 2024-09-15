@@ -6,11 +6,9 @@ const authService = {
     try {
       const response = await api.post('/auth/login', credentials);
 
-      // Ensure response and response.data are not undefined
       if (response && response.data) {
         const { access_token, refresh_token, user, expiry } = response.data;
 
-        // Check if access_token and refresh_token exist before storing
         if (access_token && refresh_token) {
           localStorage.setItem('access_token', access_token);
           localStorage.setItem('refresh_token', refresh_token);
@@ -21,7 +19,6 @@ const authService = {
           toast.success('Login successful');
           return response.data;  // Return user data and tokens
         } else {
-          // Handle case where tokens are missing in the response
           throw new Error('Missing access or refresh token in response.');
         }
       } else {
@@ -33,10 +30,11 @@ const authService = {
     }
   },
 
-  logout: async () => {
+  logout: async (sessionId = null, expiredSession = false) => {
     try {
       const accessToken = localStorage.getItem('access_token');
       const refreshToken = localStorage.getItem('refresh_token');
+      const user = JSON.parse(localStorage.getItem('user'));
 
       if (!accessToken && !refreshToken) {
         authService.clearSession();
@@ -44,6 +42,12 @@ const authService = {
         return;
       }
 
+      if (sessionId && user) {
+        // Call API to end the specific session if sessionId exists
+        await api.delete(`/users/${user.id}/sessions/${sessionId}`);
+      }
+
+      // Call API to log out if tokens exist
       await api.post('/auth/logout', {
         refresh_token: refreshToken,
       }, {
@@ -53,6 +57,12 @@ const authService = {
       });
 
       authService.clearSession();
+
+      if (expiredSession) {
+        toast.error('Session expired. You have been logged out.');
+      } else {
+        toast.success('Logout successful');
+      }
     } catch (error) {
       console.error('Logout failed:', error);
       authService.clearSession();
@@ -73,6 +83,7 @@ const authService = {
         if (access_token) {
           localStorage.setItem('access_token', access_token);
           localStorage.setItem('expiry', Date.now() + expiry * 1000);  // Update expiry in ms
+          toast.success('Session refreshed successfully');
           return access_token;
         } else {
           throw new Error('Missing access token in response.');
@@ -83,7 +94,7 @@ const authService = {
     } catch (error) {
       console.error('Token refresh failed:', error);
       authService.clearSession();
-      toast.error('Token refresh failed. Please log in again.');
+      toast.error('Session expired. Please log in again.');
     }
   },
 
@@ -102,8 +113,7 @@ const authService = {
         await authService.refreshToken();
         return true;
       } catch (error) {
-        authService.logout();
-        toast.error('Session expired. Please log in again.');
+        authService.logout(null, true);
       }
     } else {
       authService.logout();
@@ -113,8 +123,8 @@ const authService = {
 
   isTokenExpired: (token) => {
     try {
-      const decoded = JSON.parse(atob(token.split('.')[1]));  // Decode the token payload
-      return decoded.exp * 1000 < Date.now();  // Check if token is expired
+      const decoded = JSON.parse(atob(token.split('.')[1]));
+      return decoded.exp * 1000 < Date.now();
     } catch (e) {
       console.error('Token expiration check failed:', e);
       return true;
