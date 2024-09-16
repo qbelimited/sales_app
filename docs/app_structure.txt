@@ -1,4 +1,5 @@
 sales_app/
+    .cpanel.yml
     .devdbrc
     .env
     .gitignore
@@ -42,8 +43,11 @@ sales_app/
                 AuditTrail.js
                 BankManagement.js
                 BranchManagement.js
+                HelpTour.js
                 InceptedSales.js
-                Logout.js
+                LoadingSpinner.css
+                LoadingSpinner.js
+                Navbar.css
                 Navbar.js
                 PaypointManagement.js
                 ProtectedRoute.js
@@ -51,47 +55,43 @@ sales_app/
                 QueryResponseForm.js
                 RolesManagement.js
                 SalesForm.js
-                SalesTable.js
+                SessionTable.js
                 Sidebar.css
                 Sidebar.js
+                SidebarComponent.js
+                TableWithPagination.js
                 Toaster.js
-                UserManagement.js
             pages/
-                AdminPage.js
                 AuditTrailPage.js
-                BranchManagementPage.js
-                HomePage.js
+                BankBranchManagementPage.js
+                DashboardPage.js
+                FlaggedInvestigationsPage.js
                 InceptedSalesPage.js
                 LoginPage.js
                 LogsPage.js
                 ManageAccessPage.js
                 ManageBanksPage.js
+                ManageBranchesPage.js
+                ManagePaypointsPage.js
                 ManageProductsPage.js
+                ManageRolesPage.js
+                ManageSessionsPage.js
                 ManageUsersPage.js
                 NotFoundPage.js
-                OverallManagerPage.js
-                PaypointManagementPage.js
+                QueriesPage.js
+                ReportsPage.js
                 RetentionPolicyPage.js
                 RolesManagementPage.js
+                SaleDetailsPage.js
+                SalesExecutiveManagementPage.js
                 SalesPage.js
                 SessionManagementPage.js
+                UnauthorizedPage.css
                 UnauthorizedPage.js
-                UpdatePasswordPage.js
             services/
-                accessService.js
                 api.js
-                auditTrailService.js
                 authService.js
-                bankService.js
-                branchService.js
-                inceptedSalesService.js
-                paypointService.js
-                reportService.js
-                rolesService.js
-                salesService.js
-                sessionService.js
-                userManagementService.js
-                userService.js
+                serviceWorkerRegistration.js
             utils/
                 validators.js
     migrations/
@@ -100,7 +100,7 @@ sales_app/
         README
         script.py.mako
         versions/
-            56076466046a_initial_migration.py
+            89129970ddf0_initial_migration.py
     models/
         access_model.py
         audit_model.py
@@ -144,14 +144,4 @@ sales_app/
         sales_target_resource.py
         under_inv_resource.py
         user_resource.py
-        __init__.py
-    services/
-        auth_service.py
-        report_service.py
-        sales_service.py
-        user_service.py
-        __init__.py
-    templates/
-    utils/
-        db_utils.py
         __init__.py
