@@ -122,7 +122,7 @@ class UserListResource(Resource):
 
 @user_ns.route('/<int:user_id>')
 class UserResource(Resource):
-    @user_ns.doc(security='Bearer Auth', responses={200: 'Success', 404: 'User not found', 403: 'Unauthorized'})
+    @user_ns.doc(security='Bearer Auth', responses={200: 'Success', 404: 'User not found'})
     @jwt_required()
     def get(self, user_id):
         """Retrieve a specific User by ID."""
@@ -150,9 +150,11 @@ class UserResource(Resource):
     @jwt_required()
     @user_ns.expect(user_model, validate=True)
     def put(self, user_id):
-        """Update an existing User (admin only)."""
+        """Update an existing User (self or admin only)."""
         current_user = get_jwt_identity()
-        if current_user['role'].lower() != 'admin':
+
+        # Only allow the user themselves or an admin to update
+        if current_user['id'] != user_id and current_user['role'].lower() != 'admin':
             logger.warning(f"Unauthorized update attempt by User {current_user['id']} on User {user_id}.")
             return {'message': 'Unauthorized'}, 403
 
@@ -214,19 +216,18 @@ class UserResource(Resource):
 
         return {'message': 'User deleted successfully'}, 200
 
-
-# Password Management
+# Password Update Resource
 @user_ns.route('/<int:user_id>/password')
 class PasswordUpdateResource(Resource):
     @user_ns.doc(security='Bearer Auth')
     @user_ns.expect(password_model, validate=True)
     @jwt_required()
     def put(self, user_id):
-        """Update the password for the authenticated user."""
+        """Update the password for the authenticated user or admin."""
         current_user = get_jwt_identity()
 
-        # Ensure that only the user themselves can update their password
-        if current_user['id'] != user_id:
+        # Ensure that only the user themselves or an admin can update their password
+        if current_user['id'] != user_id and current_user['role'].lower() != 'admin':
             return {'message': 'Unauthorized'}, 403
 
         user = User.query.filter_by(id=user_id, is_deleted=False).first()
@@ -237,8 +238,8 @@ class PasswordUpdateResource(Resource):
         current_password = data['current_password']
         new_password = data['new_password']
 
-        # Verify the current password
-        if not user.check_password(current_password):
+        # If the current user is not an admin, verify the current password
+        if current_user['role'].lower() != 'admin' and not user.check_password(current_password):
             return {'message': 'Current password is incorrect'}, 400
 
         # Update the password
@@ -247,7 +248,7 @@ class PasswordUpdateResource(Resource):
         db.session.commit()
 
         # Log the password update to the audit trail and logger
-        logger.info(f"User {current_user['id']} updated their password.")
+        logger.info(f"User {current_user['id']} updated password for user {user_id}.")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='UPDATE',
@@ -260,7 +261,6 @@ class PasswordUpdateResource(Resource):
 
         return {'message': 'Password updated successfully'}, 200
 
-
 # User Sessions Management
 @user_ns.route('/<int:user_id>/sessions')
 class UserSessionResource(Resource):
@@ -271,12 +271,22 @@ class UserSessionResource(Resource):
         """Retrieve active sessions for a specific user."""
         current_user = get_jwt_identity()
 
-        # Only admin or the user themselves can access session details
-        if current_user['id'] != user_id and current_user['role'].lower() != 'admin':
-            return {'message': 'Unauthorized'}, 403
-
+        # Retrieve active sessions for the specified user
         sessions = UserSession.get_active_sessions(user_id=user_id)
+
+        # Log the access to the sessions
         logger.info(f"User {current_user['id']} accessed sessions of user {user_id}.")
+
+        # Add audit trail entry
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='ACCESS',
+            resource_type='user_sessions',
+            resource_id=user_id,
+            details=f"Accessed active sessions for user {user_id}"
+        )
+        db.session.add(audit)
+        db.session.commit()
 
         return [session.serialize() for session in sessions], 200
 
@@ -334,9 +344,21 @@ class UserSessionResource(Resource):
         for session in sessions:
             session.end_session()
 
+        # Log the action to the logger
         logger.info(f"User {current_user['id']} ended all active sessions for user {user_id}.")
-        return {'message': 'All active sessions ended successfully'}, 200
 
+        # Add audit trail entry
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='DELETE',
+            resource_type='user_sessions',
+            resource_id=user_id,
+            details=f"Ended all active sessions for user {user_id}"
+        )
+        db.session.add(audit)
+        db.session.commit()
+
+        return {'message': 'All active sessions ended successfully'}, 200
 
 @user_ns.route('/<int:user_id>/sessions/<int:session_id>')
 class SingleUserSessionResource(Resource):
@@ -356,7 +378,20 @@ class SingleUserSessionResource(Resource):
         if not session:
             return {'message': 'Session not found'}, 404
 
+        # Log the access to the logger
         logger.info(f"User {current_user['id']} accessed session {session_id} for user {user_id}.")
+
+        # Add audit trail entry
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='ACCESS',
+            resource_type='user_session',
+            resource_id=session_id,
+            details=f"Accessed session {session_id} for user {user_id}"
+        )
+        db.session.add(audit)
+        db.session.commit()
+
         return session.serialize(), 200
 
     @user_ns.doc(security='Bearer Auth')
@@ -423,6 +458,7 @@ class SingleUserSessionResource(Resource):
 
         return {'message': 'Session deleted successfully'}, 200
 
+# All User Sessions Management
 @user_ns.route('/sessions')
 class AllUserSessionsResource(Resource):
     @user_ns.doc(security='Bearer Auth')
@@ -432,12 +468,8 @@ class AllUserSessionsResource(Resource):
     @user_ns.param('filter_by', 'Filter by User ID or User name', type='string')
     @user_ns.param('sort_by', 'Sort by field (e.g., login_time, user_id)', type='string', default='login_time')
     def get(self):
-        """Retrieve all sessions for all users (admin only)."""
+        """Retrieve all sessions for all users (authenticated users)."""
         current_user = get_jwt_identity()
-
-        # Only admin can access all sessions
-        if current_user['role'].lower() != 'admin':
-            return {'message': 'Unauthorized'}, 403
 
         # Handle pagination and sorting
         page = request.args.get('page', 1, type=int)
@@ -456,13 +488,13 @@ class AllUserSessionsResource(Resource):
         sessions = session_query.order_by(sort_by).paginate(page=page, per_page=per_page, error_out=False)
 
         # Log the access to the audit trail and logger
-        logger.info(f"Admin {current_user['id']} accessed the list of all user sessions.")
+        logger.info(f"User {current_user['id']} accessed the list of all user sessions.")
         audit = AuditTrail(
             user_id=current_user['id'],
             action='ACCESS',
             resource_type='session_list',
             resource_id=None,
-            details=f"Admin accessed list of all user sessions"
+            details=f"User accessed list of all user sessions"
         )
         db.session.add(audit)
         db.session.commit()

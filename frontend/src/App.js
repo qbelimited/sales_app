@@ -108,7 +108,7 @@ function App() {
             <Route
               path="/sales"
               element={
-                <ProtectedRoute allowedRoles={[1, 3, 4]} userRole={parseInt(role)}>
+                <ProtectedRoute allowedRoles={[1, 3, 2, 4]} userRole={parseInt(role)}>
                   <SalesPage showToast={showToast} />
                 </ProtectedRoute>
               }
@@ -116,7 +116,7 @@ function App() {
             <Route
               path="/sales/:saleId"
               element={
-                <ProtectedRoute allowedRoles={[1, 3, 4]} userRole={parseInt(role)}>
+                <ProtectedRoute allowedRoles={[1, 3, 2, 4]} userRole={parseInt(role)}>
                   <SaleDetailsPage showToast={showToast} />
                 </ProtectedRoute>
               }
@@ -172,7 +172,7 @@ function App() {
             <Route
               path="/manage-users-sessions"
               element={
-                <ProtectedRoute allowedRoles={[3]} userRole={parseInt(role)}>
+                <ProtectedRoute allowedRoles={[2, 3]} userRole={parseInt(role)}>
                   <ManageSessionsPage showToast={showToast} />
                 </ProtectedRoute>
               }
