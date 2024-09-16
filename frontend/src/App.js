@@ -6,7 +6,6 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Toaster from './components/Toaster';
 import authService from './services/authService';
 import HelpTour from './components/HelpTour';
-import * as serviceWorkerRegistration from './services/serviceWorkerRegistration';
 import './App.css';
 
 // Lazy-loaded components

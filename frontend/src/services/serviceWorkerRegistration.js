@@ -1,12 +1,22 @@
-// src/serviceWorkerRegistration.js
-import { register } from 'serviceWorkerRegistration';
+// In services/serviceWorkerRegistration.js
 
-register({
-  onUpdate: registration => {
-    if (window.confirm("New version available! Would you like to update?")) {
-      registration.unregister().then(() => {
-        window.location.reload();
+export function register() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker
+      .register('/service-worker.js')
+      .then((registration) => {
+        console.log('Service Worker registered with scope:', registration.scope);
+      })
+      .catch((error) => {
+        console.error('Service Worker registration failed:', error);
       });
-    }
-  },
-});
+  }
+}
+
+export function unregister() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.ready.then((registration) => {
+      registration.unregister();
+    });
+  }
+}
