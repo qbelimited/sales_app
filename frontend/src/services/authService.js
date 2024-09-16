@@ -1,8 +1,7 @@
 import api from './api';
-import { toast } from 'react-toastify';
 
 const authService = {
-  login: async (credentials) => {
+  login: async (credentials, showToast) => {
     try {
       const response = await api.post('/auth/login', credentials);
 
@@ -16,7 +15,13 @@ const authService = {
           localStorage.setItem('userRole', user.role.id);  // Store role in localStorage
           localStorage.setItem('expiry', Date.now() + expiry * 1000);  // Store expiry in ms
 
-          toast.success('Login successful');
+          // Store user agent and IP address in localStorage for audit logging
+          const userAgent = navigator.userAgent;
+          const ipAddress = await authService.getIpAddress();
+          localStorage.setItem('userAgent', userAgent);
+          localStorage.setItem('ipAddress', ipAddress);
+
+          showToast('success', 'Login successful');
           return response.data;  // Return user data and tokens
         } else {
           throw new Error('Missing access or refresh token in response.');
@@ -26,11 +31,11 @@ const authService = {
       }
     } catch (error) {
       console.error('Login failed:', error);
-      toast.error('Login failed. Please check your credentials or try again later.');
+      showToast('danger', 'Login failed. Please check your credentials or try again later.');
     }
   },
 
-  logout: async (sessionId = null, expiredSession = false) => {
+  logout: async (sessionId = null, expiredSession = false, showToast) => {
     try {
       const accessToken = localStorage.getItem('access_token');
       const refreshToken = localStorage.getItem('refresh_token');
@@ -38,7 +43,7 @@ const authService = {
 
       if (!accessToken && !refreshToken) {
         authService.clearSession();
-        toast.error('Already logged out.');
+        showToast('danger', 'Already logged out.');
         return;
       }
 
@@ -59,18 +64,18 @@ const authService = {
       authService.clearSession();
 
       if (expiredSession) {
-        toast.error('Session expired. You have been logged out.');
+        showToast('danger', 'Session expired. You have been logged out.');
       } else {
-        toast.success('Logout successful');
+        showToast('success', 'Logout successful');
       }
     } catch (error) {
       console.error('Logout failed:', error);
       authService.clearSession();
-      toast.error('Logout failed');
+      showToast('danger', 'Logout failed');
     }
   },
 
-  refreshToken: async () => {
+  refreshToken: async (showToast) => {
     try {
       const refreshToken = localStorage.getItem('refresh_token');
       if (!refreshToken) throw new Error('No refresh token available.');
@@ -83,7 +88,7 @@ const authService = {
         if (access_token) {
           localStorage.setItem('access_token', access_token);
           localStorage.setItem('expiry', Date.now() + expiry * 1000);  // Update expiry in ms
-          toast.success('Session refreshed successfully');
+          showToast('success', 'Session refreshed successfully');
           return access_token;
         } else {
           throw new Error('Missing access token in response.');
@@ -94,7 +99,7 @@ const authService = {
     } catch (error) {
       console.error('Token refresh failed:', error);
       authService.clearSession();
-      toast.error('Session expired. Please log in again.');
+      showToast('danger', 'Session expired. Please log in again.');
     }
   },
 
@@ -102,7 +107,7 @@ const authService = {
     return localStorage.getItem('access_token') || null;
   },
 
-  isLoggedIn: async () => {
+  isLoggedIn: async (showToast) => {
     const token = localStorage.getItem('access_token');
     const expiry = localStorage.getItem('expiry');
 
@@ -110,14 +115,14 @@ const authService = {
       return true;
     } else if (token && expiry && Date.now() >= expiry) {
       try {
-        await authService.refreshToken();
+        await authService.refreshToken(showToast);
         return true;
       } catch (error) {
-        authService.logout(null, true);
+        authService.logout(null, true, showToast);
       }
     } else {
-      authService.logout();
-      toast.error('You are not logged in. Please log in.');
+      authService.logout(null, true, showToast);
+      showToast('danger', 'You are not logged in. Please log in.');
     }
   },
 
@@ -137,7 +142,20 @@ const authService = {
     localStorage.removeItem('user');
     localStorage.removeItem('userRole');
     localStorage.removeItem('expiry');
-  }
+    localStorage.removeItem('userAgent');
+    localStorage.removeItem('ipAddress');
+  },
+
+  getIpAddress: async () => {
+    try {
+      const response = await fetch('https://api.ipify.org?format=json');
+      const data = await response.json();
+      return data.ip;
+    } catch (error) {
+      console.error('Failed to fetch IP address:', error);
+      return 'Unknown IP';
+    }
+  },
 };
 
 export default authService;
