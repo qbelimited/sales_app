@@ -48,6 +48,7 @@ function App() {
     }
   }, []);
 
+
   // Function to show toast messages without duplicates
   const showToast = (variant, message, heading) => {
     const newToast = {

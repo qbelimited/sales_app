@@ -10,23 +10,35 @@
   line-height: 60px; /* Center text vertically */
   position: sticky; /* Make the navbar sticky */
   top: 0; /* Stick to the top */
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Add subtle shadow */
 }
 
+/* Left and right section links */
 .navbar-left a, .navbar-right a {
   color: #fff;
   text-decoration: none;
   margin-right: 1rem;
+  padding: 0.5rem 0; /* Increase clickable area */
+  transition: color 0.3s ease; /* Smooth color transition */
 }
 
+/* Active link styling */
 .navbar-left a.active, .navbar-right a.active {
   border-bottom: 2px solid #fff;
 }
 
+/* Hover effect for links */
+.navbar-left a:hover, .navbar-right a:hover {
+  color: #f0f0f0; /* Lighten color on hover */
+}
+
+/* Right section */
 .navbar-right {
   display: flex;
   align-items: center;
 }
 
+/* Profile section */
 .navbar-profile {
   display: flex;
   align-items: center;
@@ -37,15 +49,45 @@
   margin-left: 0.5rem;
 }
 
+/* Logout button */
 .logout-button {
   margin-right: 15px; /* Add right margin */
   border: none;
   background: none;
   cursor: pointer;
+  color: #fff;
+  font-size: 1rem; /* Adjust font size */
   transition: transform 0.2s ease, color 0.2s ease; /* Animation on hover */
 }
 
+/* Hover effect for logout button */
 .logout-button:hover {
   color: red;
   transform: scale(1.1); /* Slight pop-up effect */
+}
+
+/* Responsive design for small screens */
+@media (max-width: 768px) {
+  .navbar {
+    flex-direction: column; /* Stack navbar items */
+    align-items: flex-start;
+    padding: 1rem; /* Adjust padding */
+    height: auto; /* Adjust height */
+    line-height: normal; /* Reset line-height */
+  }
+
+  .navbar-left, .navbar-right {
+    width: 100%; /* Full width for navigation items */
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem; /* Add spacing between sections */
+  }
+
+  .navbar-left a, .navbar-right a {
+    margin-right: 0; /* Remove right margin */
+  }
+
+  .logout-button {
+    margin-right: 0; /* Remove right margin */
+  }
 }
