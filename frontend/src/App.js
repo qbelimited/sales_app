@@ -10,6 +10,7 @@ import ManageAccessPage from './pages/ManageAccessPage';
 import LogsPage from './pages/LogsPage';
 import RetentionPolicyPage from './pages/RetentionPolicyPage';
 import ManageUsersPage from './pages/ManageUsersPage';
+import ManageRolesPage from './pages/ManageRolesPage';
 import ManageSessionsPage from './pages/ManageSessionsPage';
 import ManageProductsPage from './pages/ManageProductsPage';
 import ManageBanksPage from './pages/ManageBanksPage';
@@ -117,6 +118,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={[3]} userRole={parseInt(role)}>
                 <ManageAccessPage showToast={showToast} />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/manage-roles"
+            element={
+              <ProtectedRoute allowedRoles={[3]} userRole={parseInt(role)}>
+                <ManageRolesPage showToast={showToast} />
               </ProtectedRoute>
             }
           />

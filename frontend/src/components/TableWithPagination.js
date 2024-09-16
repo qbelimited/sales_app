@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Spinner, Row, Col, Button, Form, Modal } from 'react-bootstrap';
-import { FaSort, FaSortUp, FaSortDown } from 'react-icons/fa';
+import { FaSort, FaSortUp, FaSortDown, FaPen, FaTrash, FaKey } from 'react-icons/fa'; // Import icons
 import api from '../services/api';
-import { toast } from 'react-toastify';
 
-const TableWithPagination = ({ endpoint, columns, title }) => {
+const TableWithPagination = ({ endpoint, columns, title, showToast }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null); // Added error state
+  const [error, setError] = useState(null);
   const [sortBy, setSortBy] = useState('created_at');
   const [sortDirection, setSortDirection] = useState('asc');
   const [filterBy, setFilterBy] = useState('');
@@ -15,14 +14,21 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
   const [page, setPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
-  const [showEditModal, setShowEditModal] = useState(false); // Modal for editing user
-  const [currentUser, setCurrentUser] = useState(null); // Store the user being edited
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [branches, setBranches] = useState([]);
+  const [selectedBranches, setSelectedBranches] = useState([]);
+  const [roles, setRoles] = useState([]);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      setError(null); // Reset error on new fetch
+      setError(null);
       try {
+        // Fetch users
         const response = await api.get(endpoint, {
           params: {
             sort_by: sortBy,
@@ -36,18 +42,25 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
         setData(response.data.users || []);
         setTotalItems(response.data.total || 0);
         setTotalPages(response.data.pages || 1);
+
+        // Fetch branches
+        const branchResponse = await api.get('/branches/?sort_by=created_at&per_page=1000&page=1');
+        setBranches(branchResponse.data.branches || []);
+
+        // Fetch roles
+        const roleResponse = await api.get('/roles/');
+        setRoles(roleResponse.data || []);
       } catch (error) {
         console.error('Error fetching data:', error);
-        setError('Failed to fetch data. Please try again later.'); // Set error message
-        toast.error('Failed to fetch data. Please try again later.');
+        setError('Failed to fetch data. Please try again later.');
+        showToast('danger', 'Failed to fetch data. Please try again later.', 'Error');
       } finally {
         setLoading(false);
       }
     };
     fetchData();
-  }, [endpoint, sortBy, sortDirection, filterBy, perPage, page]);
+  }, [endpoint, sortBy, sortDirection, filterBy, perPage, page, showToast]);
 
-  // Handle sorting
   const handleSort = (column) => {
     if (sortBy === column) {
       setSortDirection((prevDirection) => (prevDirection === 'asc' ? 'desc' : 'asc'));
@@ -57,7 +70,6 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
     }
   };
 
-  // Get sort icon based on the sorting direction
   const getSortIcon = (column) => {
     if (sortBy === column) {
       return sortDirection === 'asc' ? <FaSortUp /> : <FaSortDown />;
@@ -65,48 +77,78 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
     return <FaSort />;
   };
 
-  // Handle filter change
   const handleFilterChange = (e) => {
     setFilterBy(e.target.value);
     setPage(1);
   };
 
-  // Handle per page change
   const handlePerPageChange = (e) => {
     setPerPage(Number(e.target.value));
     setPage(1);
   };
 
-  // Handle edit click
   const handleEditClick = (user) => {
     setCurrentUser(user);
+    setSelectedBranches(user.branches || []);
     setShowEditModal(true);
   };
 
-  // Handle delete click
   const handleDeleteClick = async (userId) => {
     if (window.confirm('Are you sure you want to delete this user?')) {
       try {
         await api.delete(`/users/${userId}`);
-        setData(data.filter(user => user.id !== userId)); // Remove the user from the list
-        toast.success('User deleted successfully');
+        setData(data.filter(user => user.id !== userId));
+        showToast('success', 'User deleted successfully', 'Success');
       } catch (error) {
         console.error('Error deleting user:', error);
-        toast.error('Error deleting user');
+        showToast('danger', 'Error deleting user', 'Error');
       }
     }
   };
 
-  // Handle save changes for edit
   const handleSaveChanges = async () => {
     try {
-      await api.put(`/users/${currentUser.id}`, currentUser); // Update the user via API
-      setData(data.map(user => (user.id === currentUser.id ? currentUser : user))); // Update the state
-      setShowEditModal(false); // Close modal
+      await api.put(`/users/${currentUser.id}`, {
+        ...currentUser,
+        branches: selectedBranches,
+        role_id: parseInt(currentUser.role_id, 10), // Ensure role_id is an integer
+      });
+      setData(data.map(user => (user.id === currentUser.id ? currentUser : user)));
+      setShowEditModal(false);
+      showToast('success', 'User updated successfully.', 'Success');
     } catch (error) {
       console.error('Error updating user:', error);
-      toast.error('Error updating user');
+      showToast('danger', 'Error updating user', 'Error');
     }
+  };
+
+  const handleBranchChange = (branchId) => {
+    setSelectedBranches((prevSelected) =>
+      prevSelected.includes(branchId)
+        ? prevSelected.filter((id) => id !== branchId)
+        : [...prevSelected, branchId]
+    );
+  };
+
+  // Handle password update
+  const handleUpdatePassword = async () => {
+    try {
+      await api.put(`/users/${currentUser.id}/password`, {
+        current_password: currentPassword,
+        new_password: newPassword, // Only new password since it's an admin update
+      });
+      showToast('success', 'Password updated successfully!', 'Success');
+      setShowPasswordModal(false);
+      setNewPassword('');
+    } catch (error) {
+      console.error('Password update failed:', error);
+      showToast('danger', 'Failed to update password! Please try again.', 'Error');
+    }
+  };
+
+  const handleShowPasswordModal = (user) => {
+    setCurrentUser(user);
+    setShowPasswordModal(true);
   };
 
   if (loading) return <Spinner animation="border" />;
@@ -122,10 +164,8 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
         </Col>
       </Row>
 
-      {/* Display error message if there's an error */}
       {error && <p className="text-center text-danger">{error}</p>}
 
-      {/* Filtering and Pagination Controls */}
       <Row className="mb-3">
         <Col md={4}>
           <Form.Control
@@ -148,7 +188,6 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
         </Col>
       </Row>
 
-      {/* Data Table */}
       <Table striped bordered hover responsive>
         <thead>
           <tr>
@@ -173,16 +212,22 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
                 <td>{(page - 1) * perPage + index + 1}</td>
                 {columns.map((col) => (
                   <td key={col.Header}>
-                    {/* Check if col.accessor is a function or a string */}
                     {typeof col.accessor === 'function'
-                      ? col.accessor(item) // If function, call the accessor
-                      : item[col.accessor] // If string, access the field directly
+                      ? col.accessor(item)
+                      : item[col.accessor]
                     }
                   </td>
                 ))}
                 <td>
-                  <Button variant="primary" size="sm" onClick={() => handleEditClick(item)}>Edit</Button>{' '}
-                  <Button variant="danger" size="sm" onClick={() => handleDeleteClick(item.id)}>Delete</Button>
+                  <Button variant="link" size="sm" onClick={() => handleEditClick(item)}>
+                    <FaPen />
+                  </Button>
+                  <Button variant="link" size="sm" onClick={() => handleShowPasswordModal(item)}>
+                    <FaKey />
+                  </Button>
+                  <Button variant="link" size="sm" onClick={() => handleDeleteClick(item.id)}>
+                    <FaTrash />
+                  </Button>
                 </td>
               </tr>
             ))
@@ -194,7 +239,6 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
         </tbody>
       </Table>
 
-      {/* Pagination Controls */}
       <Row className="align-items-center">
         <Col md="auto">
           <p className="mb-0">Showing {(page - 1) * perPage + 1} to {Math.min(page * perPage, totalItems)} of {totalItems} users</p>
@@ -248,15 +292,25 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
                 <Form.Label>Role</Form.Label>
                 <Form.Control
                   as="select"
-                  value={currentUser.role?.name || ''}
-                  onChange={(e) => setCurrentUser({ ...currentUser, role: { name: e.target.value } })}
+                  value={currentUser.role_id || ''}
+                  onChange={(e) => setCurrentUser({ ...currentUser, role_id: parseInt(e.target.value, 10) })}
                 >
-                  <option value="Back Office">Back Office</option>
-                  <option value="Manager">Manager</option>
-                  <option value="Admin">Admin</option>
-                  <option value="Sales Manager">Sales Manager</option>
-                  <option value="Super Admin">Super Admin</option>
+                  {roles.map(role => (
+                    <option key={role.id} value={role.id}>{role.name}</option>
+                  ))}
                 </Form.Control>
+              </Form.Group>
+              <Form.Group className="mb-3">
+                <Form.Label>Branches</Form.Label>
+                {branches.map((branch) => (
+                  <Form.Check
+                    key={branch.id}
+                    type="checkbox"
+                    label={branch.name}
+                    checked={selectedBranches.includes(branch.id)}
+                    onChange={() => handleBranchChange(branch.id)}
+                  />
+                ))}
               </Form.Group>
             </Form>
           </Modal.Body>
@@ -266,6 +320,45 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
             </Button>
             <Button variant="primary" onClick={handleSaveChanges}>
               Save Changes
+            </Button>
+          </Modal.Footer>
+        </Modal>
+      )}
+
+      {/* Update Password Modal */}
+      {currentUser && (
+        <Modal show={showPasswordModal} onHide={() => setShowPasswordModal(false)}>
+          <Modal.Header closeButton>
+            <Modal.Title>Update Password</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            <Form>
+            <Form.Group>
+              <Form.Label>Current Password</Form.Label>
+              <Form.Control
+                type="password"
+                placeholder="Enter current password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+              />
+            </Form.Group>
+              <Form.Group>
+                <Form.Label>New Password</Form.Label>
+                <Form.Control
+                  type="password"
+                  placeholder="Enter new password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+              </Form.Group>
+            </Form>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowPasswordModal(false)}>
+              Close
+            </Button>
+            <Button variant="primary" onClick={handleUpdatePassword}>
+              Update Password
             </Button>
           </Modal.Footer>
         </Modal>

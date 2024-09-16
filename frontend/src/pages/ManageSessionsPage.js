@@ -1,37 +1,36 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import SessionTable from '../components/SessionTable';
-import { toast } from 'react-toastify';
 
-const ManageSessionsPage = () => {
+const ManageSessionsPage = ({ showToast }) => {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchSessions();
-  }, []);
-
   // Fetch all user sessions
-  const fetchSessions = async () => {
+  const fetchSessions = useCallback(async () => {
     try {
       const response = await api.get('/users/sessions'); // Adjust the endpoint if needed
       setSessions(response.data.sessions); // Use sessions array from the response
       setLoading(false);
     } catch (error) {
       console.error('Error fetching sessions:', error);
-      toast.error('Failed to fetch user sessions.');
+      showToast('danger', 'Failed to fetch user sessions.', 'Error');
     }
-  };
+  }, [showToast]); // Add showToast to the dependency array
+
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]); // Include fetchSessions in the dependency array
 
   // Handler to end a session
   const handleEndSession = async (sessionId, userId) => {
     try {
       await api.delete(`/users/${userId}/sessions/${sessionId}`);
-      toast.success('Session ended successfully.');
+      showToast('success', 'Session ended successfully.', 'Success');
       fetchSessions(); // Refresh session list
     } catch (error) {
       console.error('Error ending session:', error);
-      toast.error('Failed to end the session.');
+      showToast('danger', 'Failed to end the session.', 'Error');
     }
   };
 

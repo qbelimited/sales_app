@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import TableWithPagination from '../components/TableWithPagination';
-import { toast } from 'react-toastify';
 import api from '../services/api';
 
-const ManageUsersPage = () => {
+const ManageUsersPage = ({ showToast }) => { // Correct destructuring
   // State for loading, error, and users data
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -26,20 +25,19 @@ const ManageUsersPage = () => {
     // Fetch users data on component mount
     const fetchUsers = async () => {
       try {
-        // Assuming you have a function to fetch users data
-        const response = await api.get(`/users/`)
+        const response = await api.get(`/users/`);
         return response.data.users;
       } catch (err) {
         console.error('Failed to fetch users:', err);
         setError('Failed to load users. Please try again later.');
-        toast.error('Failed to load users.');
+        showToast('danger', 'Failed to load users.', 'Error'); // Use showToast for error
       } finally {
         setLoading(false);
       }
     };
 
     fetchUsers();
-  }, []);
+  }, [showToast]);
 
   return (
     <div className="container mt-5">
@@ -56,6 +54,7 @@ const ManageUsersPage = () => {
         endpoint="/users/"  // API endpoint to fetch users
         columns={userColumns}  // Columns to display in the table
         title="Users List"  // Title for the table
+        showToast={showToast}  // Pass showToast to the component
       />
     </div>
   );

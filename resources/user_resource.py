@@ -250,7 +250,7 @@ class PasswordUpdateResource(Resource):
         logger.info(f"User {current_user['id']} updated their password.")
         audit = AuditTrail(
             user_id=current_user['id'],
-            action='UPDATE_PASSWORD',
+            action='UPDATE',
             resource_type='user',
             resource_id=user_id,
             details=f"User updated password"

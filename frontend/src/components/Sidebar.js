@@ -158,7 +158,7 @@ function Sidebar() {
                 <li>
                   <NavLink to="/manage-roles" className={({ isActive }) => (isActive ? 'active' : '')}>
                     <FaLock />
-                    <span>Manage Roles</span>
+                    <span>Manage Roles & Permissions</span>
                   </NavLink>
                 </li>
               </ul>

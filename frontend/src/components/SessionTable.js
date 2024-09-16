@@ -7,17 +7,30 @@ const SessionTable = ({ sessions, loading, onEndSession }) => {
     return <p>Loading sessions...</p>;
   }
 
-  // Get unique active users from sessions
-  const uniqueUsers = Array.from(new Set(sessions
-    .filter(session => session.is_active)  // Filter out inactive sessions
-    .map(session => session.user_id)))
+  // Get unique users from sessions
+  const uniqueUsers = Array.from(new Set(sessions.map(session => session.user_id)))
     .map(userId => {
-      return sessions.find(session => session.user_id === userId && session.is_active);
+      return sessions.find(session => session.user_id === userId);
+    })
+    .sort((a, b) => {
+      // Sort by active session count descending
+      const aActiveCount = sessions.filter(session => session.user_id === a.user_id && session.is_active).length;
+      const bActiveCount = sessions.filter(session => session.user_id === b.user_id && session.is_active).length;
+      return bActiveCount - aActiveCount;
     });
 
-  // Filter active sessions for a specific user
+  // Filter sessions for a specific user
   const filterSessionsForUser = (userId) => {
-    return sessions.filter(session => session.user_id === userId && session.is_active);
+    return sessions.filter(session => session.user_id === userId);
+  };
+
+  // Calculate session duration
+  const calculateSessionDuration = (loginTime, logoutTime) => {
+    if (logoutTime) {
+      const duration = new Date(logoutTime) - new Date(loginTime);
+      return `${Math.floor(duration / 60000)} minutes`;
+    }
+    return 'Active';
   };
 
   return (
@@ -37,6 +50,7 @@ const SessionTable = ({ sessions, loading, onEndSession }) => {
                 <th>User Name</th>
                 <th>Login Time</th>
                 <th>Logout Time</th>
+                <th>Session Duration</th> {/* Added column for session duration */}
                 <th>IP Address</th>
                 <th>Status</th>
                 <th>Actions</th>
@@ -50,6 +64,7 @@ const SessionTable = ({ sessions, loading, onEndSession }) => {
                     <td>{session.user_name}</td>
                     <td>{new Date(session.login_time).toLocaleString()}</td>
                     <td>{session.logout_time ? new Date(session.logout_time).toLocaleString() : 'Active'}</td>
+                    <td>{calculateSessionDuration(session.login_time, session.logout_time)}</td> {/* Display session duration */}
                     <td>{session.ip_address}</td>
                     <td>{session.is_active ? 'Active' : 'Inactive'}</td>
                     <td>
@@ -66,7 +81,7 @@ const SessionTable = ({ sessions, loading, onEndSession }) => {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="7">No active sessions found for this user.</td>
+                  <td colSpan="8">No active sessions found for this user.</td>
                 </tr>
               )}
             </tbody>
