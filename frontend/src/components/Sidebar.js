@@ -17,6 +17,7 @@ import {
   FaHistory,
   FaUser,
   FaCog,
+  FaFolder,
 } from 'react-icons/fa';
 import './Sidebar.css';
 
@@ -184,6 +185,12 @@ function Sidebar() {
                   <NavLink to="/logs" className={({ isActive }) => (isActive ? 'active' : '')}>
                     <FaFileAlt />
                     <span>Logs</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink to="/retention-policy" className={({ isActive }) => (isActive ? 'active' : '')}>
+                    <FaFolder />
+                    <span>Retention Policy</span>
                   </NavLink>
                 </li>
               </ul>
