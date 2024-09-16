@@ -161,18 +161,6 @@ function Sidebar() {
                     <span>Manage Roles</span>
                   </NavLink>
                 </li>
-                <li>
-                  <NavLink to="/audit-trail" className={({ isActive }) => (isActive ? 'active' : '')}>
-                    <FaHistory />
-                    <span>Audit Trail</span>
-                  </NavLink>
-                </li>
-                <li>
-                  <NavLink to="/logs" className={({ isActive }) => (isActive ? 'active' : '')}>
-                    <FaFileAlt />
-                    <span>Logs</span>
-                  </NavLink>
-                </li>
               </ul>
             )}
           </li>

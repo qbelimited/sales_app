@@ -7,6 +7,7 @@ import { toast } from 'react-toastify';
 const TableWithPagination = ({ endpoint, columns, title }) => {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null); // Added error state
   const [sortBy, setSortBy] = useState('created_at');
   const [sortDirection, setSortDirection] = useState('asc');
   const [filterBy, setFilterBy] = useState('');
@@ -20,6 +21,7 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
+      setError(null); // Reset error on new fetch
       try {
         const response = await api.get(endpoint, {
           params: {
@@ -36,6 +38,8 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
         setTotalPages(response.data.pages || 1);
       } catch (error) {
         console.error('Error fetching data:', error);
+        setError('Failed to fetch data. Please try again later.'); // Set error message
+        toast.error('Failed to fetch data. Please try again later.');
       } finally {
         setLoading(false);
       }
@@ -96,9 +100,9 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
   // Handle save changes for edit
   const handleSaveChanges = async () => {
     try {
-      await api.put(`/users/${currentUser.id}`, currentUser);  // Update the user via API
-      setData(data.map(user => (user.id === currentUser.id ? currentUser : user)));  // Update the state
-      setShowEditModal(false);  // Close modal
+      await api.put(`/users/${currentUser.id}`, currentUser); // Update the user via API
+      setData(data.map(user => (user.id === currentUser.id ? currentUser : user))); // Update the state
+      setShowEditModal(false); // Close modal
     } catch (error) {
       console.error('Error updating user:', error);
       toast.error('Error updating user');
@@ -117,6 +121,9 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
           <h5>Total Users: {totalItems}</h5>
         </Col>
       </Row>
+
+      {/* Display error message if there's an error */}
+      {error && <p className="text-center text-danger">{error}</p>}
 
       {/* Filtering and Pagination Controls */}
       <Row className="mb-3">
@@ -147,7 +154,12 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
           <tr>
             <th>#</th>
             {columns.map((col) => (
-              <th key={col.accessor} onClick={() => handleSort(col.accessor)} style={{ cursor: 'pointer' }}>
+              <th
+                key={col.accessor}
+                onClick={() => handleSort(col.accessor)}
+                style={{ cursor: 'pointer' }}
+                aria-sort={sortBy === col.accessor ? sortDirection : 'none'}
+              >
                 {col.Header} {getSortIcon(col.accessor)}
               </th>
             ))}
@@ -164,7 +176,7 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
                     {/* Check if col.accessor is a function or a string */}
                     {typeof col.accessor === 'function'
                       ? col.accessor(item) // If function, call the accessor
-                      : item[col.accessor]  // If string, access the field directly
+                      : item[col.accessor] // If string, access the field directly
                     }
                   </td>
                 ))}
@@ -236,14 +248,14 @@ const TableWithPagination = ({ endpoint, columns, title }) => {
                 <Form.Label>Role</Form.Label>
                 <Form.Control
                   as="select"
-                  value={currentUser.role.name}
-                  onChange={(e) => setCurrentUser({ ...currentUser, role_name: e.target.value })}
+                  value={currentUser.role?.name || ''}
+                  onChange={(e) => setCurrentUser({ ...currentUser, role: { name: e.target.value } })}
                 >
-                  <option value={1}>Back Office</option>
-                  <option value={2}>Manager</option>
-                  <option value={3}>Admin</option>
-                  <option value={4}>Sales Manager</option>
-                  <option value={5}>Super Admin</option>
+                  <option value="Back Office">Back Office</option>
+                  <option value="Manager">Manager</option>
+                  <option value="Admin">Admin</option>
+                  <option value="Sales Manager">Sales Manager</option>
+                  <option value="Super Admin">Super Admin</option>
                 </Form.Control>
               </Form.Group>
             </Form>

@@ -34,9 +34,14 @@
   }
 
   .logout-button {
-    background: none;
+    margin-right: 15px; /* Add right margin */
     border: none;
-    color: #fff;
+    background: none;
     cursor: pointer;
-    font-size: 1.5rem;
+    transition: transform 0.2s ease, color 0.2s ease; /* Animation on hover */
+  }
+
+  .logout-button:hover {
+    color: red;
+    transform: scale(1.1); /* Slight pop-up effect */
   }

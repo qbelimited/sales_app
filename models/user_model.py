@@ -70,6 +70,10 @@ class User(db.Model):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
+    # Method to set password
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
     # Serialize method to return user data safely
     def serialize(self):
         return {

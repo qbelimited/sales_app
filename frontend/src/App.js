@@ -4,6 +4,7 @@ import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import LoginPage from './pages/LoginPage';
 import SalesPage from './pages/SalesPage';
+import SaleDetailsPage from './pages/SaleDetailsPage';
 import AuditTrailPage from './pages/AuditTrailPage';
 import ManageAccessPage from './pages/ManageAccessPage';
 import LogsPage from './pages/LogsPage';
@@ -92,6 +93,14 @@ function App() {
             element={
               <ProtectedRoute allowedRoles={[1, 3, 4]} userRole={parseInt(role)}>
                 <SalesPage showToast={showToast} />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/sales/:saleId"
+            element={
+              <ProtectedRoute allowedRoles={[1, 3, 4]} userRole={parseInt(role)}>
+                <SaleDetailsPage showToast={showToast} />
               </ProtectedRoute>
             }
           />

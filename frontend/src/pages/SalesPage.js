@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Table, Button, Pagination, Spinner, Form, Row, Col, Modal } from 'react-bootstrap';
+import { Table, Button, Pagination, Spinner, Form, Row, Col, Modal, Badge } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEdit, faTrash, faSort, faSortUp, faSortDown } from '@fortawesome/free-solid-svg-icons';
+import { faEdit, faTrash, faSort, faSortUp, faSortDown, faEye } from '@fortawesome/free-solid-svg-icons';
 import api from '../services/api';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import SalesForm from '../components/SalesForm';
+import { useNavigate } from 'react-router-dom';
 
-const SalesPage = () => {
+const SalesPage = ({ userRole, loggedInUserId }) => {
   const [salesRecords, setSalesRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortConfig, setSortConfig] = useState({ key: 'client_name', direction: 'asc' });
@@ -18,14 +19,21 @@ const SalesPage = () => {
   const [currentSale, setCurrentSale] = useState(null);
   const [banks, setBanks] = useState([]);
   const [branches, setBranches] = useState([]);
+  const [salesExecutives, setSalesExecutives] = useState([]);
+  const navigate = useNavigate(); // Use useNavigate instead of useHistory
 
   const limit = 10;
   const maxPageDisplay = 5;
 
+  // Function to navigate to the details page
+  const handleViewDetails = (saleId) => {
+      navigate(`/sales/${saleId}`); // Use navigate to change the route
+  };
+
   // Fetch banks and branches data
   const fetchBanks = async () => {
     try {
-      const response = await api.get('/bank/'); // Assuming you have an endpoint for fetching banks
+      const response = await api.get('/bank/');
       setBanks(response.data);
     } catch (error) {
       console.error('Error fetching banks:', error);
@@ -47,6 +55,25 @@ const SalesPage = () => {
     }
   };
 
+  // Fetch sales executives
+  const fetchSalesExecutives = async () => {
+    try {
+        // Modify the API call if necessary to handle pagination
+        const response = await api.get('/sales_executives/', {
+            params: {
+                sort_by: 'created_at',
+                per_page: 10000,
+                page: 1
+            }
+        });
+        // Check if response.data.sales_executives is an array
+        setSalesExecutives(Array.isArray(response.data.sales_executives) ? response.data.sales_executives : []);
+    } catch (error) {
+        console.error('Error fetching sales executives:', error);
+        setSalesExecutives([]);
+    }
+  };
+
   const fetchSalesRecords = useCallback(async (currentPage, sortKey, sortDirection, filterParams) => {
     setLoading(true);
     try {
@@ -58,6 +85,11 @@ const SalesPage = () => {
         ...filterParams,
       };
 
+      // If the user is a sales manager, include their ID for filtering
+      if (userRole === 'sales_manager') {
+        params.sales_manager_id = loggedInUserId;
+      }
+
       const response = await api.get('/sales/', { params });
       setSalesRecords(response.data.sales || []);
       setTotalPages(response.data.pages || 1);
@@ -66,7 +98,7 @@ const SalesPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [limit]);
+  }, [limit, userRole, loggedInUserId]);
 
   const handleSort = (key) => {
     let direction = 'asc';
@@ -91,7 +123,7 @@ const SalesPage = () => {
     const { name, value } = e.target;
     setFilters((prevFilters) => ({ ...prevFilters, [name]: value }));
     if (name === 'bankId') {
-      fetchBranches(value); // Load branches when a bank is selected
+      fetchBranches(value);
     }
   };
 
@@ -146,9 +178,23 @@ const SalesPage = () => {
     setCurrentSale(null);
   };
 
+  // Function to render the status with color coding
+  const renderStatusBadge = (status) => {
+    let variant = 'secondary'; // Default color
+    if (status === 'submitted') {
+        variant = 'success'; // Green for submitted
+    } else if (status === 'under investigation') {
+        variant = 'warning'; // Yellow for under investigation
+    } else if (status === 'rejected') {
+        variant = 'danger'; // Red for rejected
+    }
+    return <Badge bg={variant} className="text-white">{status}</Badge>;
+  };
+
   useEffect(() => {
     fetchSalesRecords(page, sortConfig.key, sortConfig.direction, filters);
-    fetchBanks(); // Load banks on component mount
+    fetchBanks();
+    fetchSalesExecutives();
   }, [page, sortConfig, filters, fetchSalesRecords]);
 
   const renderPaginationItems = () => {
@@ -273,8 +319,11 @@ const SalesPage = () => {
             <th onClick={() => handleSort('serial_number')}>
               Serial Number {getSortIcon('serial_number')}
             </th>
-            <th onClick={() => handleSort('sales_executive')}>
-              Sales Executive {getSortIcon('sales_executive')}
+            <th onClick={() => handleSort('sales_manager')}>
+              Sales Manager {getSortIcon('sales_manager')}
+            </th>
+            <th onClick={() => handleSort('sales_executive_id')}>
+              Sales Executive {getSortIcon('sales_executive_id')}
             </th>
             <th onClick={() => handleSort('source_type')}>
               Source Type {getSortIcon('source_type')}
@@ -297,11 +346,24 @@ const SalesPage = () => {
                 <td>{sale.amount}</td>
                 <td>{sale.policy_type.name}</td>
                 <td>{sale.serial_number}</td>
-                <td>{sale.sales_executive}</td>
+                <td>{sale.sale_manager?.name || 'N/A'}</td>
+                <td>
+                    {
+                        salesExecutives.find(executive => executive.id === sale.sales_executive_id)?.name || sale.sales_executive_id
+                    }
+                </td>
                 <td>{sale.source_type}</td>
-                <td>{sale.status}</td>
+                <td>{renderStatusBadge(sale.status)}</td>
                 <td>{new Date(sale.created_at).toLocaleDateString()}</td>
                 <td>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="me-2"
+                    onClick={() => handleViewDetails(sale.id)}
+                  >
+                    <FontAwesomeIcon icon={faEye} />
+                  </Button>
                   <Button
                     variant="warning"
                     size="sm"

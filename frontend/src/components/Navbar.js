@@ -1,12 +1,91 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { FaUser, FaSignOutAlt } from 'react-icons/fa';
-import { toast } from 'react-toastify'; // Import toast
-import authService from '../services/authService'; // Assuming you have authService for logout
-import 'react-toastify/dist/ReactToastify.css'; // Import Toastify CSS
-import './Navbar.css'; // Ensure this file exists for styling
+import { toast } from 'react-toastify';
+import { Modal, Button, Form } from 'react-bootstrap';
+import authService from '../services/authService';
+import api from '../services/api';
+import 'react-toastify/dist/ReactToastify.css';
+import './Navbar.css';
 
 const Navbar = ({ onLogout }) => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showUpdatePasswordModal, setShowUpdatePasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [lastLoginTime, setLastLoginTime] = useState(null);
+  const [lastSessionDuration, setLastSessionDuration] = useState(null);
+
+  // Fetch user data and session data on component mount
+  useEffect(() => {
+    const fetchUserAndSessions = async () => {
+      try {
+        // Get the userId from local storage
+        const storedUser = JSON.parse(localStorage.getItem('user'));
+        if (!storedUser || !storedUser.id) {
+          throw new Error('User not found in local storage');
+        }
+        const userId = storedUser.id;
+
+        // Fetch user data using the userId
+        const userResponse = await api.get(`/users/${userId}`);
+        setUser(userResponse.data);
+
+        // Fetch user sessions to get last login and session duration
+        const sessionResponse = await api.get('/users/sessions');
+        const sessions = sessionResponse.data.sessions;
+        calculateLastLoginAndDuration(sessions);
+
+      } catch (err) {
+        console.error('Failed to fetch user or sessions:', err);
+        setError('Failed to load user data.');
+        toast.error('Failed to load user data.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserAndSessions();
+  }, []);
+
+  // Calculate the last login time and last session duration
+  const calculateLastLoginAndDuration = (sessions) => {
+    if (sessions.length > 0) {
+        // Sort sessions by start time in descending order to get the latest session
+        const sortedSessions = [...sessions].sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+        const lastSession = sortedSessions[0];
+
+        // Check if startTime is valid and parse it correctly
+        if (lastSession.startTime) {
+            const lastLogin = new Date(lastSession.startTime);
+            if (!isNaN(lastLogin.getTime())) { // Check if the date is valid
+                setLastLoginTime(lastLogin);
+            } else {
+                setLastLoginTime(null); // Handle invalid date
+            }
+        } else {
+            setLastLoginTime(null); // Handle missing startTime
+        }
+
+        // Last session duration is the difference between end time and start time
+        if (lastSession.endTime) {
+            const endTime = new Date(lastSession.endTime);
+            const startTime = new Date(lastSession.startTime);
+            if (!isNaN(endTime.getTime()) && !isNaN(startTime.getTime())) { // Check if both dates are valid
+                const duration = endTime - startTime;
+                setLastSessionDuration(duration);
+            } else {
+                setLastSessionDuration(null); // Handle invalid dates
+            }
+        } else {
+            setLastSessionDuration(null); // If the session is still active
+        }
+    }
+  };
+
   // Function to handle logout
   const handleLogout = async () => {
     try {
@@ -20,6 +99,28 @@ const Navbar = ({ onLogout }) => {
     }
   };
 
+  // Function to handle password update
+  const handleUpdatePassword = async () => {
+    try {
+      // Get the userId from local storage
+      const storedUser = JSON.parse(localStorage.getItem('user'));
+      const userId = storedUser.id;
+
+      // Make the PUT request to update the password
+      await api.put(`/users/${userId}/password`, {
+        current_password: currentPassword,
+        new_password: newPassword,
+      });
+
+      toast.success('Password updated successfully!');
+      setShowUpdatePasswordModal(false);
+      setShowProfileModal(false);
+    } catch (error) {
+      console.error('Password update failed:', error);
+      toast.error('Failed to update password! Please try again.');
+    }
+  };
+
   return (
     <nav className="navbar">
       <div className="navbar-left">
@@ -29,7 +130,7 @@ const Navbar = ({ onLogout }) => {
         {/* Add more links if needed */}
       </div>
       <div className="navbar-right">
-        <div className="navbar-profile">
+        <div className="navbar-profile" onClick={() => setShowProfileModal(true)}>
           <FaUser />
           <span>Profile</span>
         </div>
@@ -37,6 +138,60 @@ const Navbar = ({ onLogout }) => {
           <FaSignOutAlt />
         </button>
       </div>
+
+      {/* Profile Modal */}
+      <Modal show={showProfileModal} onHide={() => setShowProfileModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Profile Details</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {loading && <p>Loading...</p>}
+          {error && <p className="text-danger">{error}</p>}
+          {user && (
+            <>
+              <p><strong>Name:</strong> {user.name || 'N/A'}</p>
+              <p><strong>Email:</strong> {user.email || 'N/A'}</p>
+              <p><strong>Role:</strong> {user.role?.name || 'No Role'}</p>
+              <p><strong>Last Login Time:</strong> {lastLoginTime ? lastLoginTime.toLocaleString() : 'N/A'}</p>
+              <p><strong>Last Session Duration:</strong> {lastSessionDuration ? `${Math.floor(lastSessionDuration / 60000)} minutes` : 'N/A'}</p>
+              <p><strong>Branches:</strong> {user.branches ? user.branches.join(', ') : 'N/A'}</p>
+              <Button variant="primary" onClick={() => setShowUpdatePasswordModal(true)}>Update Password</Button>
+            </>
+          )}
+        </Modal.Body>
+      </Modal>
+
+      {/* Update Password Modal */}
+      <Modal show={showUpdatePasswordModal} onHide={() => setShowUpdatePasswordModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Update Password</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            <Form.Group>
+              <Form.Label>Current Password</Form.Label>
+              <Form.Control
+                type="password"
+                placeholder="Enter current password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+              />
+            </Form.Group>
+            <Form.Group>
+              <Form.Label>New Password</Form.Label>
+              <Form.Control
+                type="password"
+                placeholder="Enter new password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </Form.Group>
+            <Button variant="primary" onClick={handleUpdatePassword} className="mt-3">
+              Update Password
+            </Button>
+          </Form>
+        </Modal.Body>
+      </Modal>
     </nav>
   );
 };
