@@ -81,7 +81,7 @@ function App() {
 
   return (
     <div>
-      {role && <Navbar onLogout={handleLogout} />}
+      {role && <Navbar onLogout={handleLogout} showToast={showToast}/>}
       {role && <Sidebar />}
 
       <div style={{ marginLeft: role ? '250px' : '0' }}>

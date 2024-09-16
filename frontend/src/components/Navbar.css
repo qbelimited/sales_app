@@ -1,47 +1,51 @@
 /* Navbar.css */
 .navbar {
-    display: flex;
-    justify-content: space-between;
-    padding: 0 1rem;
-    background-color: #333;
-    color: #fff;
-    align-items: center;
-  }
+  display: flex;
+  justify-content: space-between;
+  padding: 0 1rem;
+  background-color: #333;
+  color: #fff;
+  align-items: center;
+  height: 60px; /* Increase the height */
+  line-height: 60px; /* Center text vertically */
+  position: sticky; /* Make the navbar sticky */
+  top: 0; /* Stick to the top */
+}
 
-  .navbar-left a, .navbar-right a {
-    color: #fff;
-    text-decoration: none;
-    margin-right: 1rem;
-  }
+.navbar-left a, .navbar-right a {
+  color: #fff;
+  text-decoration: none;
+  margin-right: 1rem;
+}
 
-  .navbar-left a.active, .navbar-right a.active {
-    border-bottom: 2px solid #fff;
-  }
+.navbar-left a.active, .navbar-right a.active {
+  border-bottom: 2px solid #fff;
+}
 
-  .navbar-right {
-    display: flex;
-    align-items: center;
-  }
+.navbar-right {
+  display: flex;
+  align-items: center;
+}
 
-  .navbar-profile {
-    display: flex;
-    align-items: center;
-    margin-right: 1rem;
-  }
+.navbar-profile {
+  display: flex;
+  align-items: center;
+  margin-right: 1rem;
+}
 
-  .navbar-profile span {
-    margin-left: 0.5rem;
-  }
+.navbar-profile span {
+  margin-left: 0.5rem;
+}
 
-  .logout-button {
-    margin-right: 15px; /* Add right margin */
-    border: none;
-    background: none;
-    cursor: pointer;
-    transition: transform 0.2s ease, color 0.2s ease; /* Animation on hover */
-  }
+.logout-button {
+  margin-right: 15px; /* Add right margin */
+  border: none;
+  background: none;
+  cursor: pointer;
+  transition: transform 0.2s ease, color 0.2s ease; /* Animation on hover */
+}
 
-  .logout-button:hover {
-    color: red;
-    transform: scale(1.1); /* Slight pop-up effect */
-  }
+.logout-button:hover {
+  color: red;
+  transform: scale(1.1); /* Slight pop-up effect */
+}

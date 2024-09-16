@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { FaUser, FaSignOutAlt } from 'react-icons/fa';
-import { toast } from 'react-toastify';
 import { Modal, Button, Form } from 'react-bootstrap';
 import authService from '../services/authService';
 import api from '../services/api';
-import 'react-toastify/dist/ReactToastify.css';
 import './Navbar.css';
 
-const Navbar = ({ onLogout }) => {
+const Navbar = ({ onLogout, showToast }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -19,11 +17,9 @@ const Navbar = ({ onLogout }) => {
   const [lastLoginTime, setLastLoginTime] = useState(null);
   const [lastSessionDuration, setLastSessionDuration] = useState(null);
 
-  // Fetch user data and session data on component mount
   useEffect(() => {
     const fetchUserAndSessions = async () => {
       try {
-        // Get the userId from local storage
         const storedUser = JSON.parse(localStorage.getItem('user'));
         if (!storedUser || !storedUser.id) {
           throw new Error('User not found in local storage');
@@ -34,90 +30,102 @@ const Navbar = ({ onLogout }) => {
         const userResponse = await api.get(`/users/${userId}`);
         setUser(userResponse.data);
 
-        // Fetch user sessions to get last login and session duration
-        const sessionResponse = await api.get('/users/sessions');
+        // Fetch all user sessions to get last login and session duration
+        const sessionResponse = await api.get(`/users/sessions?sort_by=user_id&filter_by=&per_page=100000&page=1`);
         const sessions = sessionResponse.data.sessions;
-        calculateLastLoginAndDuration(sessions);
+
+        // Manually loop through the sessions and select those matching the userId
+        const userSessions = [];
+        for (let session of sessions) {
+          if (session.user_id === userId) {
+            userSessions.push(session);
+          }
+        }
+
+        calculateLastLoginAndDuration(userSessions);
 
       } catch (err) {
         console.error('Failed to fetch user or sessions:', err);
         setError('Failed to load user data.');
-        toast.error('Failed to load user data.');
+        showToast('danger', 'Failed to load user data.', 'Error');
       } finally {
         setLoading(false);
       }
     };
 
     fetchUserAndSessions();
-  }, []);
+  }, [showToast]);
 
-  // Calculate the last login time and last session duration
   const calculateLastLoginAndDuration = (sessions) => {
     if (sessions.length > 0) {
-        // Sort sessions by start time in descending order to get the latest session
-        const sortedSessions = [...sessions].sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
-        const lastSession = sortedSessions[0];
+      // Sort sessions by login_time in descending order
+      const sortedSessions = [...sessions].sort((a, b) => new Date(b.login_time) - new Date(a.login_time));
 
-        // Check if startTime is valid and parse it correctly
-        if (lastSession.startTime) {
-            const lastLogin = new Date(lastSession.startTime);
-            if (!isNaN(lastLogin.getTime())) { // Check if the date is valid
-                setLastLoginTime(lastLogin);
-            } else {
-                setLastLoginTime(null); // Handle invalid date
-            }
+      // Get the most recent session for the last login time
+      const lastSession = sortedSessions[0];
+      if (lastSession && lastSession.login_time) {
+        const lastLogin = new Date(lastSession.login_time);
+        if (!isNaN(lastLogin.getTime())) {
+          setLastLoginTime(lastLogin);
         } else {
-            setLastLoginTime(null); // Handle missing startTime
+          setLastLoginTime(null);
         }
+      } else {
+        setLastLoginTime(null);
+      }
 
-        // Last session duration is the difference between end time and start time
-        if (lastSession.endTime) {
-            const endTime = new Date(lastSession.endTime);
-            const startTime = new Date(lastSession.startTime);
-            if (!isNaN(endTime.getTime()) && !isNaN(startTime.getTime())) { // Check if both dates are valid
-                const duration = endTime - startTime;
-                setLastSessionDuration(duration);
-            } else {
-                setLastSessionDuration(null); // Handle invalid dates
-            }
+      // Get the second most recent session for the last session duration
+      if (sortedSessions.length > 1) {
+        const previousSession = sortedSessions[1];
+        if (previousSession && previousSession.logout_time) {
+          const logoutTime = new Date(previousSession.logout_time);
+          const loginTime = new Date(previousSession.login_time);
+          if (!isNaN(logoutTime.getTime()) && !isNaN(loginTime.getTime())) {
+            const duration = logoutTime - loginTime;
+            setLastSessionDuration(duration);
+          } else {
+            setLastSessionDuration(null);
+          }
         } else {
-            setLastSessionDuration(null); // If the session is still active
+          setLastSessionDuration(null);
         }
+      } else {
+        setLastSessionDuration(null);
+      }
+    } else {
+      setLastLoginTime(null);
+      setLastSessionDuration(null);
     }
   };
 
   // Function to handle logout
   const handleLogout = async () => {
     try {
-      await authService.logout(); // Call the logout function from authService
-      toast.success('Logged out successfully!'); // Show success toast
-      if (onLogout) onLogout(); // Optionally call a passed prop function to handle further actions
-      window.location.href = '/login'; // Redirect to login page after logout
+      await authService.logout();
+      if (onLogout) onLogout();
     } catch (error) {
       console.error('Logout failed:', error);
-      toast.error('Logout failed! Please try again.'); // Show error toast
+      showToast('danger', 'Logout failed! Please try again.', 'Error');
     }
   };
 
   // Function to handle password update
   const handleUpdatePassword = async () => {
     try {
-      // Get the userId from local storage
       const storedUser = JSON.parse(localStorage.getItem('user'));
       const userId = storedUser.id;
 
-      // Make the PUT request to update the password
       await api.put(`/users/${userId}/password`, {
         current_password: currentPassword,
         new_password: newPassword,
       });
 
-      toast.success('Password updated successfully!');
+      showToast('success', 'Password updated successfully!', 'Success');
       setShowUpdatePasswordModal(false);
       setShowProfileModal(false);
     } catch (error) {
       console.error('Password update failed:', error);
-      toast.error('Failed to update password! Please try again.');
+      showToast('danger', 'Failed to update password! Please try again.', 'Error');
     }
   };
 
