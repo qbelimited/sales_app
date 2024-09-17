@@ -92,31 +92,31 @@ const authService = {
 
   refreshToken: async () => {
     try {
-      const refreshToken = localStorage.getItem('refresh_token');
-      if (!refreshToken) throw new Error('No refresh token available.');
+        const refreshToken = localStorage.getItem('refresh_token');
+        if (!refreshToken) throw new Error('No refresh token available.');
 
-      const response = await api.post('/auth/refresh', { refresh_token: refreshToken });
+        const response = await api.post('/auth/refresh', { refresh_token: refreshToken });
 
-      if (response?.data) {
-        const { access_token, expiry } = response.data;
+        if (response?.data) {
+            const { access_token, expiry } = response.data;
 
-        if (access_token) {
-          localStorage.setItem('access_token', access_token);
-          localStorage.setItem('expiry', Date.now() + expiry * 1000);
-          toast.success('Session refreshed successfully');
-          return access_token;
+            if (access_token) {
+                // Store the new access token and update the expiry
+                authService.storeSession(access_token, refreshToken, JSON.parse(localStorage.getItem('user')), expiry);
+                toast.success('Session refreshed successfully');
+                return access_token;
+            } else {
+                console.error('Missing access token in response.');
+                throw new Error('Missing access token in response.');
+            }
         } else {
-          console.error('Missing access token in response.');
-          throw new Error('Missing access token in response.');
+            console.error('Invalid response from server.');
+            throw new Error('Invalid response from server');
         }
-      } else {
-        console.error('Invalid response from server.');
-        throw new Error('Invalid response from server');
-      }
     } catch (error) {
-      console.error('Token refresh failed:', error);
-      authService.handleSessionExpired();
-      throw error;
+        console.error('Token refresh failed:', error);
+        authService.handleSessionExpired();
+        throw error;
     }
   },
 
@@ -146,7 +146,10 @@ const authService = {
   },
 
   handleSessionExpired: () => {
-    authService.logout(null, true);
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (refreshToken) {
+        authService.logout(null, true);
+    }
     toast.error('You are not logged in. Please log in.');
   },
 

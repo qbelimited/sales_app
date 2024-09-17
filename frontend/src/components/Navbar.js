@@ -35,7 +35,6 @@ const Navbar = ({ onLogout, showToast }) => {
         const sessions = sessionResponse.data.sessions || [];
 
         calculateLastLoginAndDuration(sessions);
-
       } catch (err) {
         console.error('Failed to fetch user or sessions:', err);
         setError('Failed to load user data.');
@@ -83,6 +82,7 @@ const Navbar = ({ onLogout, showToast }) => {
   const handleLogout = async () => {
     try {
       await authService.logout();
+      showToast('success', 'Logged out successfully.', 'Success'); // Show success toast on logout
       if (onLogout) onLogout();
     } catch (error) {
       console.error('Logout failed:', error);
@@ -152,7 +152,7 @@ const Navbar = ({ onLogout, showToast }) => {
               <p><strong>Role:</strong> {user.role?.name || 'No Role'}</p>
               <p><strong>Last Login Time:</strong> {lastLoginTime ? lastLoginTime.toLocaleString() : 'N/A'}</p>
               <p><strong>Last Session Duration:</strong> {lastSessionDuration ? `${Math.floor(lastSessionDuration / 60000)} minutes` : 'N/A'}</p>
-              <p><strong>Branches:</strong> {user.branches ? user.branches.join(', ') : 'N/A'}</p>
+              <p><strong>Branches:</strong> {user.branches?.length > 0 ? user.branches.map(branch => branch.name).join(', ') : 'N/A'}</p>
               <Button variant="primary" onClick={() => setShowUpdatePasswordModal(true)}>Update Password</Button>
             </>
           ) : (
