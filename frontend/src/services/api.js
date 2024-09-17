@@ -1,3 +1,4 @@
+// api.js
 import axios from 'axios';
 import authService from './authService';
 import { toast } from 'react-toastify';
@@ -12,7 +13,7 @@ const api = axios.create({
 
 let isRefreshing = false;
 let refreshSubscribers = [];
-let isRedirecting = false; // Prevent multiple redirects or page refreshes
+let isRedirecting = false;
 
 // Notify all subscribers once the token is refreshed
 const onRefreshed = (token) => {
@@ -32,12 +33,6 @@ api.interceptors.request.use(
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`;
     }
-
-    // Ensure the Content-Type is always set to application/json
-    if (!config.headers['Content-Type']) {
-      config.headers['Content-Type'] = 'application/json';
-    }
-
     return config;
   },
   (error) => Promise.reject(error)
@@ -49,11 +44,11 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // If the error is a 401 (Unauthorized) and the request has not been retried yet
+    // Handle 401 Unauthorized
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      // If a token refresh is already in progress, queue this request until the token is refreshed
+      // Queue requests while refreshing token
       if (isRefreshing) {
         return new Promise((resolve) => {
           subscribeTokenRefresh((newToken) => {
@@ -66,32 +61,28 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // Refresh the token
         const newToken = await authService.refreshToken();
         isRefreshing = false;
-
-        // Notify all queued requests with the new token
         onRefreshed(newToken);
 
-        // Update the Authorization header with the new token
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
         return api(originalRequest);
       } catch (err) {
         isRefreshing = false;
         if (!isRedirecting) {
-          isRedirecting = true; // Set the redirect flag
-          authService.logout(); // Log the user out
-          window.location.href = '/login'; // Redirect to login page
+          isRedirecting = true;
+          authService.logout();
+          window.location.href = '/login';
         }
         return Promise.reject(err);
       }
     }
 
-    // Handle case where refresh token is invalid or expired (403 Forbidden)
+    // Handle 403 Forbidden (token misuse or blacklist)
     if (error.response?.status === 403 && !isRedirecting) {
-      isRedirecting = true; // Prevent multiple refreshes or redirects
-      authService.logout(); // Log the user out
-      window.location.href = '/login'; // Redirect to login page
+      isRedirecting = true;
+      authService.logout();
+      window.location.href = '/login';
       return Promise.reject(error);
     }
 

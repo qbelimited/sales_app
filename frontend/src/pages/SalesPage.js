@@ -8,7 +8,7 @@ import 'react-datepicker/dist/react-datepicker.css';
 import SalesForm from '../components/SalesForm';
 import { useNavigate } from 'react-router-dom';
 
-const SalesPage = ({ userRole, loggedInUserId }) => {
+const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
   const [salesRecords, setSalesRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortConfig, setSortConfig] = useState({ key: 'client_name', direction: 'asc' });
@@ -20,25 +20,26 @@ const SalesPage = ({ userRole, loggedInUserId }) => {
   const [banks, setBanks] = useState([]);
   const [branches, setBranches] = useState([]);
   const [salesExecutives, setSalesExecutives] = useState([]);
-  const navigate = useNavigate(); // Use useNavigate instead of useHistory
+  const navigate = useNavigate();
 
   const limit = 10;
   const maxPageDisplay = 5;
 
   // Function to navigate to the details page
   const handleViewDetails = (saleId) => {
-      navigate(`/sales/${saleId}`); // Use navigate to change the route
+    navigate(`/sales/${saleId}`);
   };
 
   // Fetch banks and branches data
-  const fetchBanks = async () => {
+  const fetchBanksAndBranches = useCallback(async () => {
     try {
       const response = await api.get('/bank/');
       setBanks(response.data);
     } catch (error) {
       console.error('Error fetching banks:', error);
+      showToast('danger', 'Failed to fetch banks.', 'Error');
     }
-  };
+  }, [showToast]);
 
   const fetchBranches = async (bankId) => {
     try {
@@ -52,27 +53,27 @@ const SalesPage = ({ userRole, loggedInUserId }) => {
       }
     } catch (error) {
       console.error('Error fetching branches:', error);
+      showToast('danger', 'Failed to fetch branches.', 'Error');
     }
   };
 
   // Fetch sales executives
-  const fetchSalesExecutives = async () => {
+  const fetchSalesExecutives = useCallback(async () => {
     try {
-        // Modify the API call if necessary to handle pagination
-        const response = await api.get('/sales_executives/', {
-            params: {
-                sort_by: 'created_at',
-                per_page: 10000,
-                page: 1
-            }
-        });
-        // Check if response.data.sales_executives is an array
-        setSalesExecutives(Array.isArray(response.data.sales_executives) ? response.data.sales_executives : []);
+      const response = await api.get('/sales_executives/', {
+        params: {
+          sort_by: 'created_at',
+          per_page: 10000,
+          page: 1,
+        },
+      });
+      setSalesExecutives(Array.isArray(response.data.sales_executives) ? response.data.sales_executives : []);
     } catch (error) {
-        console.error('Error fetching sales executives:', error);
-        setSalesExecutives([]);
+      console.error('Error fetching sales executives:', error);
+      showToast('danger', 'Failed to fetch sales executives.', 'Error');
+      setSalesExecutives([]);
     }
-  };
+  }, [showToast]);
 
   const fetchSalesRecords = useCallback(async (currentPage, sortKey, sortDirection, filterParams) => {
     setLoading(true);
@@ -95,10 +96,11 @@ const SalesPage = ({ userRole, loggedInUserId }) => {
       setTotalPages(response.data.pages || 1);
     } catch (error) {
       console.error('Error fetching sales records:', error);
+      showToast('danger', 'Failed to fetch sales records.', 'Error');
     } finally {
       setLoading(false);
     }
-  }, [limit, userRole, loggedInUserId]);
+  }, [limit, userRole, loggedInUserId, showToast]);
 
   const handleSort = (key) => {
     let direction = 'asc';
@@ -114,17 +116,18 @@ const SalesPage = ({ userRole, loggedInUserId }) => {
     }
   };
 
-  const handleFilterSubmit = (e) => {
-    e.preventDefault();
-    fetchSalesRecords(page, sortConfig.key, sortConfig.direction, filters);
-  };
-
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters((prevFilters) => ({ ...prevFilters, [name]: value }));
     if (name === 'bankId') {
       fetchBranches(value);
     }
+  };
+
+  const handleFilterSubmit = (e) => {
+    e.preventDefault();
+    setPage(1); // Reset to the first page when filters are applied
+    fetchSalesRecords(1, sortConfig.key, sortConfig.direction, filters);
   };
 
   const handleEdit = (sale) => {
@@ -137,8 +140,10 @@ const SalesPage = ({ userRole, loggedInUserId }) => {
     try {
       await api.delete(`/sales/${saleId}`);
       setSalesRecords(salesRecords.filter((sale) => sale.id !== saleId));
+      showToast('success', 'Sale deleted successfully.', 'Success');
     } catch (error) {
       console.error('Error deleting sale:', error);
+      showToast('danger', 'Failed to delete sale.', 'Error');
     }
   };
 
@@ -162,15 +167,19 @@ const SalesPage = ({ userRole, loggedInUserId }) => {
             sale.id === currentSale.id ? { ...sale, ...response.data } : sale
           )
         );
+        showToast('success', 'Sale updated successfully.', 'Success');
       } catch (error) {
         console.error('Error updating sale record:', error);
+        showToast('danger', 'Failed to update sale.', 'Error');
       }
     } else {
       try {
         const response = await api.post('/sales/', newSaleData);
         setSalesRecords([...salesRecords, response.data]);
+        showToast('success', 'Sale added successfully.', 'Success');
       } catch (error) {
         console.error('Error adding new sale record:', error);
+        showToast('danger', 'Failed to add new sale.', 'Error');
       }
     }
 
@@ -182,20 +191,23 @@ const SalesPage = ({ userRole, loggedInUserId }) => {
   const renderStatusBadge = (status) => {
     let variant = 'secondary'; // Default color
     if (status === 'submitted') {
-        variant = 'success'; // Green for submitted
+      variant = 'success'; // Green for submitted
     } else if (status === 'under investigation') {
-        variant = 'warning'; // Yellow for under investigation
+      variant = 'warning'; // Yellow for under investigation
     } else if (status === 'rejected') {
-        variant = 'danger'; // Red for rejected
+      variant = 'danger'; // Red for rejected
     }
     return <Badge bg={variant} className="text-white">{status}</Badge>;
   };
 
   useEffect(() => {
     fetchSalesRecords(page, sortConfig.key, sortConfig.direction, filters);
-    fetchBanks();
-    fetchSalesExecutives();
   }, [page, sortConfig, filters, fetchSalesRecords]);
+
+  useEffect(() => {
+    fetchBanksAndBranches();
+    fetchSalesExecutives();
+  }, [fetchBanksAndBranches, fetchSalesExecutives]);
 
   const renderPaginationItems = () => {
     const pages = [];
@@ -344,13 +356,13 @@ const SalesPage = ({ userRole, loggedInUserId }) => {
                 <td>{(page - 1) * limit + index + 1}</td>
                 <td>{sale.client_name}</td>
                 <td>{sale.amount}</td>
-                <td>{sale.policy_type.name}</td>
+                <td>{sale.policy_type?.name || 'N/A'}</td>
                 <td>{sale.serial_number}</td>
                 <td>{sale.sale_manager?.name || 'N/A'}</td>
                 <td>
-                    {
-                        salesExecutives.find(executive => executive.id === sale.sales_executive_id)?.name || sale.sales_executive_id
-                    }
+                  {
+                    salesExecutives.find(executive => executive.id === sale.sales_executive_id)?.name || sale.sales_executive_id
+                  }
                 </td>
                 <td>{sale.source_type}</td>
                 <td>{renderStatusBadge(sale.status)}</td>
@@ -384,7 +396,7 @@ const SalesPage = ({ userRole, loggedInUserId }) => {
             ))
           ) : (
             <tr>
-              <td colSpan="10" className="text-center">
+              <td colSpan="11" className="text-center">
                 No sales records available.
               </td>
             </tr>

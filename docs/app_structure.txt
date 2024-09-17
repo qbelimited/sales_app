@@ -27,6 +27,7 @@ sales_app/
             logo512.png
             manifest.json
             robots.txt
+            service-worker.js
         src/
             App.css
             App.js

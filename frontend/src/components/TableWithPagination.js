@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Table, Spinner, Row, Col, Button, Form, Modal } from 'react-bootstrap';
-import { FaSort, FaSortUp, FaSortDown, FaPen, FaTrash, FaKey } from 'react-icons/fa'; // Import icons
+import React, { useState, useEffect, useCallback } from 'react';
+import { Table, Spinner, Row, Col, Button, Form, Modal, Badge } from 'react-bootstrap';
+import { FaSort, FaSortUp, FaSortDown, FaPen, FaTrash, FaKey } from 'react-icons/fa';
 import api from '../services/api';
 
 const TableWithPagination = ({ endpoint, columns, title, showToast }) => {
@@ -23,43 +23,59 @@ const TableWithPagination = ({ endpoint, columns, title, showToast }) => {
   const [newPassword, setNewPassword] = useState('');
   const [currentPassword, setCurrentPassword] = useState('');
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        // Fetch users
-        const response = await api.get(endpoint, {
-          params: {
-            sort_by: sortBy,
-            sort_direction: sortDirection,
-            filter_by: filterBy,
-            per_page: perPage,
-            page,
-          },
-        });
+  // State for deletion modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState(null);
 
-        setData(response.data.users || []);
-        setTotalItems(response.data.total || 0);
-        setTotalPages(response.data.pages || 1);
+  const fetchBranches = useCallback(async () => {
+    try {
+      const branchResponse = await api.get('/branches/?sort_by=created_at&per_page=1000&page=1');
+      setBranches(branchResponse.data.branches || []);
+    } catch (error) {
+      console.error('Error fetching branches:', error);
+    }
+  }, []);
 
-        // Fetch branches
-        const branchResponse = await api.get('/branches/?sort_by=created_at&per_page=1000&page=1');
-        setBranches(branchResponse.data.branches || []);
+  const fetchRoles = useCallback(async () => {
+    try {
+      const roleResponse = await api.get('/roles/');
+      setRoles(roleResponse.data || []);
+    } catch (error) {
+      console.error('Error fetching roles:', error);
+    }
+  }, []);
 
-        // Fetch roles
-        const roleResponse = await api.get('/roles/');
-        setRoles(roleResponse.data || []);
-      } catch (error) {
-        console.error('Error fetching data:', error);
-        setError('Failed to fetch data. Please try again later.');
-        showToast('danger', 'Failed to fetch data. Please try again later.', 'Error');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.get(endpoint, {
+        params: {
+          sort_by: sortBy,
+          sort_direction: sortDirection,
+          filter_by: filterBy,
+          per_page: perPage,
+          page,
+        },
+      });
+
+      setData(response.data.users || []);
+      setTotalItems(response.data.total || 0);
+      setTotalPages(response.data.pages || 1);
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setError('Failed to fetch data. Please try again later.');
+      showToast('danger', 'Failed to fetch data. Please try again later.', 'Error');
+    } finally {
+      setLoading(false);
+    }
   }, [endpoint, sortBy, sortDirection, filterBy, perPage, page, showToast]);
+
+  useEffect(() => {
+    fetchData();
+    fetchBranches();
+    fetchRoles();
+  }, [fetchData, fetchBranches, fetchRoles]);
 
   const handleSort = (column) => {
     if (sortBy === column) {
@@ -88,21 +104,30 @@ const TableWithPagination = ({ endpoint, columns, title, showToast }) => {
   };
 
   const handleEditClick = (user) => {
-    setCurrentUser(user);
-    setSelectedBranches(user.branches || []);
+    setCurrentUser({
+      ...user,
+      role_id: user.role ? user.role.id : '' // Set the role_id based on the user's current role
+    });
+    setSelectedBranches(user.branches ? user.branches.map(branch => branch.id) : []);
     setShowEditModal(true);
   };
 
-  const handleDeleteClick = async (userId) => {
-    if (window.confirm('Are you sure you want to delete this user?')) {
-      try {
-        await api.delete(`/users/${userId}`);
-        setData(data.filter(user => user.id !== userId));
-        showToast('success', 'User deleted successfully', 'Success');
-      } catch (error) {
-        console.error('Error deleting user:', error);
-        showToast('danger', 'Error deleting user', 'Error');
-      }
+  const handleDeleteClick = (userId) => {
+    setUserToDelete(userId);
+    setShowDeleteModal(true); // Show delete confirmation modal
+  };
+
+  const confirmDelete = async () => {
+    try {
+      await api.delete(`/users/${userToDelete}`);
+      setData(data.filter((user) => user.id !== userToDelete));
+      showToast('success', 'User deleted successfully', 'Success');
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      showToast('danger', 'Error deleting user', 'Error');
+    } finally {
+      setShowDeleteModal(false); // Hide delete confirmation modal
+      setUserToDelete(null);
     }
   };
 
@@ -111,9 +136,11 @@ const TableWithPagination = ({ endpoint, columns, title, showToast }) => {
       await api.put(`/users/${currentUser.id}`, {
         ...currentUser,
         branches: selectedBranches,
-        role_id: parseInt(currentUser.role_id, 10), // Ensure role_id is an integer
+        role_id: parseInt(currentUser.role_id, 10),
       });
-      setData(data.map(user => (user.id === currentUser.id ? currentUser : user)));
+      setData((prevData) =>
+        prevData.map((user) => (user.id === currentUser.id ? currentUser : user))
+      );
       setShowEditModal(false);
       showToast('success', 'User updated successfully.', 'Success');
     } catch (error) {
@@ -130,16 +157,16 @@ const TableWithPagination = ({ endpoint, columns, title, showToast }) => {
     );
   };
 
-  // Handle password update
   const handleUpdatePassword = async () => {
     try {
       await api.put(`/users/${currentUser.id}/password`, {
         current_password: currentPassword,
-        new_password: newPassword, // Only new password since it's an admin update
+        new_password: newPassword,
       });
       showToast('success', 'Password updated successfully!', 'Success');
       setShowPasswordModal(false);
       setNewPassword('');
+      setCurrentPassword(''); // Clear current password
     } catch (error) {
       console.error('Password update failed:', error);
       showToast('danger', 'Failed to update password! Please try again.', 'Error');
@@ -176,11 +203,7 @@ const TableWithPagination = ({ endpoint, columns, title, showToast }) => {
           />
         </Col>
         <Col md={4}>
-          <Form.Control
-            as="select"
-            value={perPage}
-            onChange={handlePerPageChange}
-          >
+          <Form.Control as="select" value={perPage} onChange={handlePerPageChange}>
             <option value={5}>5 per page</option>
             <option value={10}>10 per page</option>
             <option value={20}>20 per page</option>
@@ -214,8 +237,7 @@ const TableWithPagination = ({ endpoint, columns, title, showToast }) => {
                   <td key={col.Header}>
                     {typeof col.accessor === 'function'
                       ? col.accessor(item)
-                      : item[col.accessor]
-                    }
+                      : item[col.accessor]}
                   </td>
                 ))}
                 <td>
@@ -233,7 +255,9 @@ const TableWithPagination = ({ endpoint, columns, title, showToast }) => {
             ))
           ) : (
             <tr>
-              <td colSpan={columns.length + 2} className="text-center">No records found</td>
+              <td colSpan={columns.length + 2} className="text-center">
+                No records found
+              </td>
             </tr>
           )}
         </tbody>
@@ -241,24 +265,19 @@ const TableWithPagination = ({ endpoint, columns, title, showToast }) => {
 
       <Row className="align-items-center">
         <Col md="auto">
-          <p className="mb-0">Showing {(page - 1) * perPage + 1} to {Math.min(page * perPage, totalItems)} of {totalItems} users</p>
+          <p className="mb-0">
+            Showing {(page - 1) * perPage + 1} to {Math.min(page * perPage, totalItems)} of{' '}
+            {totalItems} users
+          </p>
         </Col>
         <Col md="auto">
           <p className="mb-0">Page {page} of {totalPages}</p>
         </Col>
         <Col md="auto" className="ml-auto">
-          <Button
-            variant="primary"
-            onClick={() => setPage(page - 1)}
-            disabled={page === 1}
-          >
+          <Button variant="primary" onClick={() => setPage(page - 1)} disabled={page === 1}>
             Previous
           </Button>{' '}
-          <Button
-            variant="primary"
-            onClick={() => setPage(page + 1)}
-            disabled={page === totalPages}
-          >
+          <Button variant="primary" onClick={() => setPage(page + 1)} disabled={page === totalPages}>
             Next
           </Button>
         </Col>
@@ -295,22 +314,47 @@ const TableWithPagination = ({ endpoint, columns, title, showToast }) => {
                   value={currentUser.role_id || ''}
                   onChange={(e) => setCurrentUser({ ...currentUser, role_id: parseInt(e.target.value, 10) })}
                 >
-                  {roles.map(role => (
-                    <option key={role.id} value={role.id}>{role.name}</option>
+                  {roles.map((role) => (
+                    <option key={role.id} value={role.id}>
+                      {role.name}
+                    </option>
                   ))}
                 </Form.Control>
               </Form.Group>
               <Form.Group className="mb-3">
                 <Form.Label>Branches</Form.Label>
-                {branches.map((branch) => (
-                  <Form.Check
-                    key={branch.id}
-                    type="checkbox"
-                    label={branch.name}
-                    checked={selectedBranches.includes(branch.id)}
-                    onChange={() => handleBranchChange(branch.id)}
-                  />
-                ))}
+                <Form.Control
+                  as="select"
+                  onChange={(e) => handleBranchChange(parseInt(e.target.value, 10))}
+                  value=""
+                >
+                  <option value="" disabled>Select Branch to Add</option>
+                  {branches
+                    .filter(branch => !selectedBranches.includes(branch.id))
+                    .map((branch) => (
+                      <option key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </option>
+                    ))}
+                </Form.Control>
+                <div className="mt-2">
+                  {selectedBranches.map(branchId => {
+                    const branch = branches.find(b => b.id === branchId);
+                    return (
+                      <Badge key={branchId} pill variant="primary" className="mr-2">
+                        {branch ? branch.name : branchId}
+                        <Button
+                          variant="link"
+                          size="sm"
+                          onClick={() => handleBranchChange(branchId)}
+                          className="ml-1 text-white"
+                        >
+                          x
+                        </Button>
+                      </Badge>
+                    );
+                  })}
+                </div>
               </Form.Group>
             </Form>
           </Modal.Body>
@@ -333,15 +377,6 @@ const TableWithPagination = ({ endpoint, columns, title, showToast }) => {
           </Modal.Header>
           <Modal.Body>
             <Form>
-            <Form.Group>
-              <Form.Label>Current Password</Form.Label>
-              <Form.Control
-                type="password"
-                placeholder="Enter current password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-              />
-            </Form.Group>
               <Form.Group>
                 <Form.Label>New Password</Form.Label>
                 <Form.Control
@@ -363,6 +398,24 @@ const TableWithPagination = ({ endpoint, columns, title, showToast }) => {
           </Modal.Footer>
         </Modal>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirm Deletion</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Are you sure you want to delete this user? This action cannot be undone.
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={confirmDelete}>
+            Delete
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 };

@@ -1,6 +1,7 @@
 from flask_restx import Namespace, Resource, fields
 from flask import request
 from models.user_model import User
+from models.branch_model import Branch
 from models.user_session_model import UserSession
 from models.audit_model import AuditTrail
 from app import db, logger
@@ -16,6 +17,7 @@ user_model = user_ns.model('User', {
     'email': fields.String(required=True, description='User Email'),
     'name': fields.String(required=True, description='User Name'),
     'role_id': fields.Integer(required=True, description='Role ID'),
+    'branches': fields.List(fields.Integer, description='List of Branch IDs'),
     'is_active': fields.Boolean(description='Is Active'),
     'is_deleted': fields.Boolean(description='Is Deleted'),
     'created_at': fields.String(description='Created At'),
@@ -102,6 +104,11 @@ class UserListResource(Resource):
         )
         new_user.set_password(data['password'])  # Assuming you have a method to hash the password
 
+        # Assign branches to the user
+        if 'branches' in data:
+            branches = Branch.query.filter(Branch.id.in_(data['branches'])).all()
+            new_user.branches = branches
+
         db.session.add(new_user)
         db.session.commit()
 
@@ -168,6 +175,11 @@ class UserResource(Resource):
         user.name = data.get('name', user.name)
         user.role_id = data.get('role_id', user.role_id)
         user.updated_at = datetime.utcnow()
+
+        # Assign branches to the user
+        if 'branches' in data:
+            branches = Branch.query.filter(Branch.id.in_(data['branches'])).all()
+            user.branches = branches
 
         db.session.commit()
 

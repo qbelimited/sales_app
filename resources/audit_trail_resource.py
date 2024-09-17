@@ -1,7 +1,7 @@
 from flask_restx import Namespace, Resource, fields
 from flask import request
 from models.audit_model import AuditTrail, AuditAction
-from app import logger
+from app import logger, db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 
@@ -146,5 +146,25 @@ class FilteredAuditTrailResource(Resource):
 
         filtered_audits = query.all()
 
-        logger.info(f"User ID {current_user['id']} filtered audit logs.")
+        # Capture IP and User Agent
+        ip_address = request.remote_addr
+        user_agent = request.headers.get('User-Agent')
+
+        # Log this action with IP and user agent
+        new_audit_entry = AuditTrail(
+            user_id=current_user['id'],
+            action='UPDATE',
+            resource_type='audit_trail',
+            timestamp=datetime.utcnow(),
+            details=f"Filtered audit logs for resource type: {resource_type}, action: {action}, dates: {start_date} - {end_date}.",
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+        db.session.add(new_audit_entry)
+        db.session.commit()
+
+        logger.info(f"User ID {current_user['id']} filtered audit logs with IP {ip_address} and User Agent {user_agent}.")
         return filtered_audits, 200
+
+
+

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import { FaUser, FaSignOutAlt } from 'react-icons/fa';
-import { Modal, Button, Form } from 'react-bootstrap';
+import { Modal, Button, Form, Spinner } from 'react-bootstrap';
 import authService from '../services/authService';
 import api from '../services/api';
 import './Navbar.css';
@@ -30,19 +30,11 @@ const Navbar = ({ onLogout, showToast }) => {
         const userResponse = await api.get(`/users/${userId}`);
         setUser(userResponse.data);
 
-        // Fetch all user sessions to get last login and session duration
-        const sessionResponse = await api.get(`/users/sessions?sort_by=user_id&filter_by=&per_page=100000&page=1`);
-        const sessions = sessionResponse.data.sessions;
+        // Fetch user sessions with filtering
+        const sessionResponse = await api.get(`/users/sessions?user_id=${userId}&per_page=100000`);
+        const sessions = sessionResponse.data.sessions || [];
 
-        // Manually loop through the sessions and select those matching the userId
-        const userSessions = [];
-        for (let session of sessions) {
-          if (session.user_id === userId) {
-            userSessions.push(session);
-          }
-        }
-
-        calculateLastLoginAndDuration(userSessions);
+        calculateLastLoginAndDuration(sessions);
 
       } catch (err) {
         console.error('Failed to fetch user or sessions:', err);
@@ -63,13 +55,8 @@ const Navbar = ({ onLogout, showToast }) => {
 
       // Get the most recent session for the last login time
       const lastSession = sortedSessions[0];
-      if (lastSession && lastSession.login_time) {
-        const lastLogin = new Date(lastSession.login_time);
-        if (!isNaN(lastLogin.getTime())) {
-          setLastLoginTime(lastLogin);
-        } else {
-          setLastLoginTime(null);
-        }
+      if (lastSession?.login_time) {
+        setLastLoginTime(new Date(lastSession.login_time));
       } else {
         setLastLoginTime(null);
       }
@@ -77,15 +64,9 @@ const Navbar = ({ onLogout, showToast }) => {
       // Get the second most recent session for the last session duration
       if (sortedSessions.length > 1) {
         const previousSession = sortedSessions[1];
-        if (previousSession && previousSession.logout_time) {
-          const logoutTime = new Date(previousSession.logout_time);
-          const loginTime = new Date(previousSession.login_time);
-          if (!isNaN(logoutTime.getTime()) && !isNaN(loginTime.getTime())) {
-            const duration = logoutTime - loginTime;
-            setLastSessionDuration(duration);
-          } else {
-            setLastSessionDuration(null);
-          }
+        if (previousSession?.login_time && previousSession?.logout_time) {
+          const duration = new Date(previousSession.logout_time) - new Date(previousSession.login_time);
+          setLastSessionDuration(duration);
         } else {
           setLastSessionDuration(null);
         }
@@ -112,6 +93,11 @@ const Navbar = ({ onLogout, showToast }) => {
   // Function to handle password update
   const handleUpdatePassword = async () => {
     try {
+      if (!currentPassword || !newPassword) {
+        showToast('warning', 'Please fill in both password fields.', 'Warning');
+        return;
+      }
+
       const storedUser = JSON.parse(localStorage.getItem('user'));
       const userId = storedUser.id;
 
@@ -123,6 +109,8 @@ const Navbar = ({ onLogout, showToast }) => {
       showToast('success', 'Password updated successfully!', 'Success');
       setShowUpdatePasswordModal(false);
       setShowProfileModal(false);
+      setCurrentPassword('');
+      setNewPassword('');
     } catch (error) {
       console.error('Password update failed:', error);
       showToast('danger', 'Failed to update password! Please try again.', 'Error');
@@ -153,9 +141,11 @@ const Navbar = ({ onLogout, showToast }) => {
           <Modal.Title>Profile Details</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          {loading && <p>Loading...</p>}
-          {error && <p className="text-danger">{error}</p>}
-          {user && (
+          {loading ? (
+            <Spinner animation="border" />
+          ) : error ? (
+            <p className="text-danger">{error}</p>
+          ) : user ? (
             <>
               <p><strong>Name:</strong> {user.name || 'N/A'}</p>
               <p><strong>Email:</strong> {user.email || 'N/A'}</p>
@@ -165,6 +155,8 @@ const Navbar = ({ onLogout, showToast }) => {
               <p><strong>Branches:</strong> {user.branches ? user.branches.join(', ') : 'N/A'}</p>
               <Button variant="primary" onClick={() => setShowUpdatePasswordModal(true)}>Update Password</Button>
             </>
+          ) : (
+            <p>User data not available</p>
           )}
         </Modal.Body>
       </Modal>

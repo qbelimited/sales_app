@@ -1,27 +1,28 @@
 import React, { useState } from 'react';
 import { Button, Spinner, Card, Form, Container, Row, Col } from 'react-bootstrap';
-import { useNavigate } from 'react-router-dom';
-import authService from '../services/authService';  // Use authService for login
-import { isValidEmail } from '../utils/validators';  // Utility for email validation
+import { isValidEmail } from '../utils/validators'; // Utility for email validation
+import useAuth from '../hooks/useAuth'; // Import the custom hook
 
-function LoginPage({ onLogin, showToast }) {
+function LoginPage({ showToast }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const navigate = useNavigate();
+  const { handleLogin } = useAuth(); // Use handleLogin from useAuth
 
-  const handleLogin = async () => {
-    // Reset previous errors
+  const onSubmit = async (e) => {
+    e.preventDefault();
     setError(null);
 
-    // Client-side validation before making the API request
+    // Client-side validation
     if (!email || !password) {
+      setError('Please fill in all fields');
       showToast('warning', 'Please fill in all fields', 'Missing Fields');
       return;
     }
 
     if (!isValidEmail(email)) {
+      setError('Please enter a valid email address');
       showToast('warning', 'Please enter a valid email address', 'Invalid Email');
       return;
     }
@@ -29,34 +30,8 @@ function LoginPage({ onLogin, showToast }) {
     setLoading(true);
 
     try {
-      // Use the authService to handle login
-      const response = await authService.login({
-        email,
-        password,
-      });
-
-      if (response && response.access_token && response.user) {
-        const { access_token, refresh_token, user } = response;
-
-        // Store tokens and user info in localStorage for persistence
-        localStorage.setItem('accessToken', access_token);  // Store access token
-        localStorage.setItem('refreshToken', refresh_token);  // Store refresh token
-        localStorage.setItem('userRole', user.role.id);  // Store user role
-        localStorage.setItem('userID', user.id);         // Store user ID
-        localStorage.setItem('user', JSON.stringify(user));  // Store user details
-
-        // Call the onLogin function to set the role in the App state
-        onLogin(user.role.id);
-
-        // Show success toast
-        showToast('success', 'Login successful!', 'Success');
-
-        // Redirect to the appropriate page based on role immediately after successful login
-        navigate(user.role.id === 3 ? '/manage-users' : '/sales');
-      } else {
-        throw new Error('Invalid login response, please try again.');
-      }
-
+      await handleLogin({ email, password });
+      showToast('success', 'Login successful!', 'Success');
     } catch (error) {
       console.error('Login error:', error);
       setError(error.message || 'Login failed. Please try again.');
@@ -73,7 +48,7 @@ function LoginPage({ onLogin, showToast }) {
           <Card className="p-4 shadow-sm">
             <Card.Body>
               <h2 className="text-center mb-4">Login</h2>
-              <Form>
+              <Form onSubmit={onSubmit}>
                 <Form.Group controlId="formEmail" className="mb-3">
                   <Form.Label>Email address</Form.Label>
                   <Form.Control
@@ -81,11 +56,11 @@ function LoginPage({ onLogin, showToast }) {
                     placeholder="Enter email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    isInvalid={!!error}
+                    isInvalid={!!error && !isValidEmail(email)}
                     required
                   />
                   <Form.Control.Feedback type="invalid">
-                    {error && 'Please enter a valid email.'}
+                    {error && !isValidEmail(email) ? error : 'Please enter a valid email.'}
                   </Form.Control.Feedback>
                 </Form.Group>
 
@@ -96,18 +71,18 @@ function LoginPage({ onLogin, showToast }) {
                     placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    isInvalid={!!error}
+                    isInvalid={!!error && isValidEmail(email)}
                     required
                   />
                   <Form.Control.Feedback type="invalid">
-                    {error && 'Incorrect password.'}
+                    {error && isValidEmail(email) ? error : 'Incorrect password.'}
                   </Form.Control.Feedback>
                 </Form.Group>
 
                 {error && <div className="text-danger text-center mb-3">{error}</div>}
 
                 <div className="d-grid">
-                  <Button variant="primary" size="lg" onClick={handleLogin} disabled={loading}>
+                  <Button variant="primary" size="lg" type="submit" disabled={loading}>
                     {loading ? <Spinner animation="border" size="sm" /> : 'Login'}
                   </Button>
                 </div>

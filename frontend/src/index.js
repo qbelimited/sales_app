@@ -10,6 +10,9 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 // Import FontAwesome
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { fas } from '@fortawesome/free-solid-svg-icons';
+// Import AuthProvider
+import { AuthProvider } from './contexts/AuthContext';
+
 library.add(fas);  // Add FontAwesome icons to the library
 
 // Find the root DOM node
@@ -18,11 +21,13 @@ const container = document.getElementById('root');
 // Use createRoot instead of ReactDOM.render
 const root = createRoot(container);
 
-// Wrap App inside BrowserRouter
+// Wrap App inside BrowserRouter and AuthProvider
 root.render(
-  <BrowserRouter>
-    <App />
-  </BrowserRouter>
+  <AuthProvider>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </AuthProvider>
 );
 
 // Register the service worker to enable offline capabilities

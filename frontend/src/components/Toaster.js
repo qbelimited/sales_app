@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { Toast, ToastContainer } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTimesCircle, faCheckCircle, faExclamationTriangle, faClock } from '@fortawesome/free-solid-svg-icons';
+import { faTimesCircle, faCheckCircle, faExclamationTriangle, faInfoCircle, faClock } from '@fortawesome/free-solid-svg-icons';
 import moment from 'moment';
 
-const Toaster = ({ toasts, removeToast, autohideDelay = 5000 }) => {
+const Toaster = React.memo(({ toasts, removeToast, autohideDelay = 5000 }) => {
   // Helper function to render the appropriate icon based on the toast variant
   const renderIcon = (variant) => {
     switch (variant) {
@@ -15,20 +15,21 @@ const Toaster = ({ toasts, removeToast, autohideDelay = 5000 }) => {
       case 'warning':
         return <FontAwesomeIcon icon={faExclamationTriangle} />;
       default:
-        return null;
+        return <FontAwesomeIcon icon={faInfoCircle} />;  // Default icon for unknown or missing variant
     }
   };
 
   // Helper function to render each toast
-  const renderToast = (toast) => {
+  const renderToast = useCallback((toast) => {
     return (
       <Toast
-        key={toast.id}  // Unique key for each toast
-        className={`mb-3 fade`}  // Add a fade animation class
-        onClose={() => removeToast(toast.id)}  // Handle close
+        key={toast.id} // Unique key for each toast
+        className={`mb-3 fade`} // Add a fade animation class
+        onClose={() => removeToast(toast.id)} // Handle close
         autohide
-        delay={autohideDelay}  // Autohide after a configurable delay
-        aria-live="assertive"  // Accessibility: Ensure toasts are read immediately
+        delay={autohideDelay} // Autohide after a configurable delay
+        aria-live="assertive" // Accessibility: Ensure toasts are read immediately
+        role="alert" // Accessibility: Alert role to ensure screen readers announce the toast
       >
         <Toast.Header className={`bg-${toast.variant} text-white`}>
           {renderIcon(toast.variant)} &nbsp;
@@ -38,18 +39,18 @@ const Toaster = ({ toasts, removeToast, autohideDelay = 5000 }) => {
           {toast.message}
           <div className="mt-3 text-dark p-1 d-flex justify-content-end align-items-center">
             <FontAwesomeIcon icon={faClock} /> &nbsp;
-            <small>{moment(toast.time).fromNow()}</small>  {/* Display time passed in a friendly format */}
+            <small>{moment(toast.time).fromNow()}</small> {/* Display time passed in a friendly format */}
           </div>
         </Toast.Body>
       </Toast>
     );
-  };
+  }, [autohideDelay, removeToast]);
 
   return (
     <ToastContainer position="top-end" className="p-3" style={{ zIndex: 1050 }}>
       {toasts.length > 0 && toasts.map((toast) => renderToast(toast))} {/* Render toasts if available */}
     </ToastContainer>
   );
-};
+});
 
 export default Toaster;
