@@ -24,7 +24,7 @@ const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
   const [salesExecutives, setSalesExecutives] = useState([]);
   const navigate = useNavigate();
 
-  const limit = 10;
+  const limit = 20;
   const maxPageDisplay = 5;
 
   // Function to navigate to the details page
@@ -211,37 +211,40 @@ const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
   }, [fetchBanksAndBranches, fetchSalesExecutives]);
 
   const renderActions = (sale) => {
-    console.log(loggedInUserId);
-    if (loggedInUserId === 3) { // Check if user is admin
-      return (
-        <>
-          <Button
-            variant="primary"
-            size="sm"
-            className="me-2"
-            onClick={() => handleViewDetails(sale.id)}
-          >
-            <FontAwesomeIcon icon={faEye} />
-          </Button>
-          <Button
-            variant="warning"
-            size="sm"
-            className="me-2"
-            onClick={() => handleEdit(sale)}
-          >
-            <FontAwesomeIcon icon={faEdit} />
-          </Button>
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={() => handleDelete(sale.id)}
-          >
-            <FontAwesomeIcon icon={faTrash} />
-          </Button>
-        </>
-      );
-    }
-    return null;
+    const local_user = JSON.parse(localStorage.getItem('user'));
+    const role_id = parseInt(local_user.role_id) || local_user.role.id;
+
+    return (
+      <>
+        <Button
+          variant="primary"
+          size="sm"
+          className="me-2"
+          onClick={() => handleViewDetails(sale.id)}
+        >
+          <FontAwesomeIcon icon={faEye} />
+        </Button>
+        {role_id === 3 || role_id === 2 ? ( // Check if user is admin or manager
+          <>
+            <Button
+              variant="warning"
+              size="sm"
+              className="me-2"
+              onClick={() => handleEdit(sale)}
+            >
+              <FontAwesomeIcon icon={faEdit} />
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => handleDelete(sale.id)}
+            >
+              <FontAwesomeIcon icon={faTrash} />
+            </Button>
+          </>
+        ) : null}
+      </>
+    );
   };
 
   const renderPaginationItems = () => {

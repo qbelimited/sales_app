@@ -78,7 +78,7 @@ function App() {
       const redirectPath = role.id === userRoles.ADMIN ? '/manage-users' : '/sales';
       // Only navigate if the user is on the login page
       if (window.location.pathname === '/login') {
-        console.log('Redirecting to:', redirectPath);
+        // console.log('Redirecting to:', redirectPath);
         navigate(redirectPath);
       }
     }

@@ -8,7 +8,7 @@ export function register(config) {
       navigator.serviceWorker
         .register(swUrl)
         .then((registration) => {
-          console.log('Service Worker registered with scope:', registration.scope);
+          // console.log('Service Worker registered with scope:', registration.scope);
 
           // Check for updates to the service worker
           registration.onupdatefound = () => {
@@ -20,7 +20,7 @@ export function register(config) {
               if (installingWorker.state === 'installed') {
                 if (navigator.serviceWorker.controller) {
                   // New update found
-                  console.log('New content is available; please refresh.');
+                  // console.log('New content is available; please refresh.');
 
                   // Execute callback
                   if (config && config.onUpdate) {
@@ -28,7 +28,7 @@ export function register(config) {
                   }
                 } else {
                   // Content cached for offline use.
-                  console.log('Content is cached for offline use.');
+                  // console.log('Content is cached for offline use.');
 
                   // Execute callback
                   if (config && config.onSuccess) {
