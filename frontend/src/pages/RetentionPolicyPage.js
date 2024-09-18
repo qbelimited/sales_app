@@ -7,7 +7,7 @@ const RetentionPolicyPage = ({ showToast }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showModal, setShowModal] = useState(false);
-  const [retentionDays, setRetentionDays] = useState(0);
+  const [retentionDays, setRetentionDays] = useState(''); // Initialize as an empty string
 
   // Fetch the retention policy
   const fetchRetentionPolicy = useCallback(async () => {
@@ -16,7 +16,7 @@ const RetentionPolicyPage = ({ showToast }) => {
     try {
       const response = await api.get('/retention/');
       setRetentionPolicy(response.data);
-      setRetentionDays(response.data.retention_days);
+      setRetentionDays(response.data.retention_days || ''); // Set to empty string if undefined
     } catch (error) {
       console.error('Error fetching retention policy:', error);
       setError('Failed to fetch retention policy. Please try again later.');
@@ -32,9 +32,14 @@ const RetentionPolicyPage = ({ showToast }) => {
 
   // Update the retention policy
   const handleSaveRetention = async () => {
+    if (isNaN(retentionDays) || retentionDays < 0) {
+      showToast('warning', 'Please enter a valid number for retention days.', 'Warning');
+      return;
+    }
+
     try {
       await api.put('/retention/', {
-        retention_days: retentionDays,
+        retention_days: parseInt(retentionDays, 10),
       });
       showToast('success', 'Retention policy updated successfully!', 'Success');
       fetchRetentionPolicy(); // Refresh the policy
@@ -72,7 +77,8 @@ const RetentionPolicyPage = ({ showToast }) => {
               <Form.Control
                 type="number"
                 value={retentionDays}
-                onChange={(e) => setRetentionDays(parseInt(e.target.value, 10))}
+                onChange={(e) => setRetentionDays(e.target.value || '')} // Ensure it can be empty
+                placeholder="Enter retention days"
               />
             </Form.Group>
           </Form>

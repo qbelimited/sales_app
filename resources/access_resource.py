@@ -24,10 +24,13 @@ role_id_model = access_ns.model('RoleID', {
     'role_id': fields.Integer(required=True, description='Role ID')
 })
 
+
 # Utility function to check admin privileges
 def is_admin():
     current_user = get_jwt_identity()
-    return current_user.get('role') == 'admin'
+    if current_user and 'role' in current_user:
+        return current_user.get('role').lower() == 'admin'
+    return False
 
 @access_ns.route('/')
 class AccessResource(Resource):

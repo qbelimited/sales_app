@@ -4,7 +4,6 @@ from models.user_model import Role
 from models.audit_model import AuditTrail
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from datetime import datetime
 
 # Define namespace for roles
 role_ns = Namespace('roles', description='Role management operations')
@@ -118,19 +117,25 @@ class RoleByIdResource(Resource):
             logger.error(f"Role ID {role_id} not found for deletion by User ID {current_user['id']}.")
             return {'message': 'Role not found'}, 404
 
-        role.is_deleted = True
-        db.session.commit()
+        try:
+            # Soft delete the role
+            role.is_deleted = True
+            db.session.commit()
 
-        # Log the role deletion in the audit trail
-        audit = AuditTrail(
-            user_id=current_user['id'],
-            action='DELETE',
-            resource_type='role',
-            resource_id=role.id,
-            details=f"Admin soft-deleted role with ID {role.id}"
-        )
-        db.session.add(audit)
-        db.session.commit()
+            # Log the role deletion in the audit trail
+            audit = AuditTrail(
+                user_id=current_user['id'],
+                action='DELETE',
+                resource_type='role',
+                resource_id=role.id,
+                details=f"Admin soft-deleted role with ID {role.id}"
+            )
+            db.session.add(audit)
+            db.session.commit()
 
-        logger.info(f"Role ID {role.id} soft-deleted by Admin (User ID {current_user['id']}).")
-        return {'message': 'Role deleted successfully'}, 200
+            logger.info(f"Role ID {role.id} soft-deleted by Admin (User ID {current_user['id']}).")
+            return {'message': 'Role deleted successfully'}, 200
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error deleting role ID {role_id}: {str(e)}")
+            return {'message': 'Failed to delete role. Please try again later.'}, 500

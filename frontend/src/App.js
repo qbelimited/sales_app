@@ -74,14 +74,16 @@ function App() {
 
   // Handle navigation based on user role
   useEffect(() => {
-    if (role) {
-      const redirectPath = role.id === userRoles.ADMIN ? '/manage-users' : '/sales';
-      // Only navigate if the user is on the login page
-      if (window.location.pathname === '/login') {
-        // console.log('Redirecting to:', redirectPath);
-        navigate(redirectPath);
+    const redirectUser = () => {
+      if (role) {
+        const redirectPath = role.id === userRoles.ADMIN ? '/manage-users' : '/sales';
+        // Only navigate if the user is on the login page
+        if (window.location.pathname === '/login') {
+          navigate(redirectPath);
+        }
       }
-    }
+    };
+    redirectUser();
   }, [role, navigate]);
 
   // Register service worker and listen for updates

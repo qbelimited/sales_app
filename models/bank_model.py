@@ -31,7 +31,7 @@ class Bank(db.Model):
         }
 
     @staticmethod
-    def get_active_banks(page=1, per_page=10):
+    def get_active_banks(page=1, per_page=10000):
         """Retrieve paginated list of active banks."""
         try:
             return Bank.query.filter_by(is_deleted=False).paginate(page=page, per_page=per_page).items

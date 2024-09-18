@@ -79,6 +79,51 @@ const ManageRolesPage = ({ showToast }) => {
     }
   };
 
+  // Handle create/update access
+  const handleSaveAccess = async () => {
+    try {
+      if (currentAccess.role_id) {
+        // Update existing access
+        const response = await api.put(`/access/${currentAccess.role_id}`, {
+          ...currentAccess,
+          role_id: parseInt(currentAccess.role_id, 10),
+        });
+        console.log(response.data);
+        showToast('success', 'Access updated successfully!', 'Success');
+      } else {
+        // Create new access
+        const response = await api.post('/access/', {
+          ...currentAccess,
+          role_id: parseInt(currentAccess.role_id, 10),
+        });
+        console.log(response.data);
+        showToast('success', 'Access created successfully!', 'Success');
+      }
+      fetchRolesAndAccess();
+      setShowAccessModal(false);
+      setCurrentAccess({
+        role_id: '',
+        can_create: false,
+        can_update: false,
+        can_delete: false,
+        can_view_logs: false,
+        can_manage_users: false,
+        can_view_audit_trail: false,
+      });
+    } catch (error) {
+      console.error('Error saving access:', error.response ? error.response.data : error.message);
+
+      // Check for specific error status
+      if (error.response && error.response.status === 401) {
+        showToast('danger', 'Unauthorized. Please log in again.', 'Error');
+      } else if (error.response && error.response.status === 403) {
+        showToast('danger', 'Forbidden. You do not have permission to update access.', 'Error');
+      } else {
+        showToast('danger', 'Failed to save access. Please try again.', 'Error');
+      }
+    }
+  };
+
   // Handle delete role and its access
   const handleDeleteRole = async (roleId) => {
     setShowDeleteModal(false);
@@ -101,41 +146,6 @@ const ManageRolesPage = ({ showToast }) => {
     setRoleName(role.name);
     setRoleDescription(role.description);
     setShowModal(true);
-  };
-
-  // Handle create/update access
-  const handleSaveAccess = async () => {
-    try {
-      if (currentAccess.role_id) {
-        // Update existing access
-        await api.put(`/access/${currentAccess.role_id}`, {
-          ...currentAccess,
-          role_id: parseInt(currentAccess.role_id, 10),
-        });
-        showToast('success', 'Access updated successfully!', 'Success');
-      } else {
-        // Create new access
-        await api.post('/access/', {
-          ...currentAccess,
-          role_id: parseInt(currentAccess.role_id, 10),
-        });
-        showToast('success', 'Access created successfully!', 'Success');
-      }
-      fetchRolesAndAccess();
-      setShowAccessModal(false);
-      setCurrentAccess({
-        role_id: '',
-        can_create: false,
-        can_update: false,
-        can_delete: false,
-        can_view_logs: false,
-        can_manage_users: false,
-        can_view_audit_trail: false,
-      });
-    } catch (error) {
-      console.error('Error saving access:', error);
-      showToast('danger', 'Failed to save access. Please try again.', 'Error');
-    }
   };
 
   // Handle show delete access modal

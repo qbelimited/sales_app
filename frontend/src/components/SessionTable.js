@@ -7,6 +7,7 @@ const SessionTable = ({ showToast, onEndSession }) => {
   const [viewAllSessionsForUser, setViewAllSessionsForUser] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState(null);
+  const [visibleInactiveSessions, setVisibleInactiveSessions] = useState({}); // Track which user's inactive sessions are visible
 
   if (loading) {
     return <p>Loading sessions...</p>;
@@ -25,8 +26,8 @@ const SessionTable = ({ showToast, onEndSession }) => {
     });
 
   // Filter sessions for a specific user
-  const filterSessionsForUser = (userId) => {
-    return sessions.filter(session => session.user_id === userId);
+  const filterSessionsForUser = (userId, isActive = true) => {
+    return sessions.filter(session => session.user_id === userId && session.is_active === isActive);
   };
 
   // Calculate session duration
@@ -50,6 +51,13 @@ const SessionTable = ({ showToast, onEndSession }) => {
       setShowConfirmModal(false);
       setSessionToDelete(null);
     }
+  };
+
+  const toggleInactiveSessions = (userId) => {
+    setVisibleInactiveSessions(prevState => ({
+      ...prevState,
+      [userId]: !prevState[userId]
+    }));
   };
 
   return (
@@ -76,9 +84,31 @@ const SessionTable = ({ showToast, onEndSession }) => {
               </tr>
             </thead>
             <tbody>
-              {filterSessionsForUser(viewAllSessionsForUser).length > 0 ? (
-                filterSessionsForUser(viewAllSessionsForUser).map((session) => (
-                  <tr key={session.id}>
+              {filterSessionsForUser(viewAllSessionsForUser).map((session) => (
+                <tr key={session.id}>
+                  <td>{session.id}</td>
+                  <td>{session.user_name}</td>
+                  <td>{new Date(session.login_time).toLocaleString()}</td>
+                  <td>{session.logout_time ? new Date(session.logout_time).toLocaleString() : 'Active'}</td>
+                  <td>{calculateSessionDuration(session.login_time, session.logout_time)}</td>
+                  <td>{session.ip_address}</td>
+                  <td>{session.is_active ? 'Active' : 'Inactive'}</td>
+                  <td>
+                    {session.is_active && (
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handleDeleteSession(session.id, session.user_id)} // Trigger delete confirmation
+                      >
+                        End Session
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {/* Render Inactive Sessions */}
+              {visibleInactiveSessions[viewAllSessionsForUser] && (
+                filterSessionsForUser(viewAllSessionsForUser, false).map((session) => (
+                  <tr key={session.id} className="table-secondary">
                     <td>{session.id}</td>
                     <td>{session.user_name}</td>
                     <td>{new Date(session.login_time).toLocaleString()}</td>
@@ -86,25 +116,18 @@ const SessionTable = ({ showToast, onEndSession }) => {
                     <td>{calculateSessionDuration(session.login_time, session.logout_time)}</td>
                     <td>{session.ip_address}</td>
                     <td>{session.is_active ? 'Active' : 'Inactive'}</td>
-                    <td>
-                      {session.is_active && (
-                        <button
-                          className="btn btn-danger btn-sm"
-                          onClick={() => handleDeleteSession(session.id, session.user_id)} // Trigger delete confirmation
-                        >
-                          End Session
-                        </button>
-                      )}
-                    </td>
+                    <td>N/A</td>
                   </tr>
                 ))
-              ) : (
-                <tr>
-                  <td colSpan="8">No active sessions found for this user.</td>
-                </tr>
               )}
             </tbody>
           </table>
+          <button
+            className="btn btn-info btn-sm"
+            onClick={() => toggleInactiveSessions(viewAllSessionsForUser)}
+          >
+            {visibleInactiveSessions[viewAllSessionsForUser] ? 'Hide Inactive Sessions' : 'Show Inactive Sessions'}
+          </button>
         </div>
       ) : (
         <table className="table table-striped">
@@ -120,7 +143,7 @@ const SessionTable = ({ showToast, onEndSession }) => {
               uniqueUsers.map(user => (
                 <tr key={user.user_id}>
                   <td>{user.user_name}</td>
-                  <td>{sessions.filter(session => session.user_id === user.user_id && session.is_active).length}</td>
+                  <td>{filterSessionsForUser(user.user_id).length}</td>
                   <td>
                     <button
                       className="btn btn-info btn-sm"
