@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 
 const useToasts = () => {
   const [toasts, setToasts] = useState([]);
+  const [toastTimeout] = useState(5000); // Default duration for toast visibility
 
   const showToast = useCallback((variant, message, heading) => {
     const newToast = {
@@ -9,27 +10,30 @@ const useToasts = () => {
       variant,
       message,
       heading,
-      time: new Date(), // Include time to display how long ago the toast was created
+      time: new Date(),
     };
-    // Check if a toast with the same message and variant already exists
-    const isDuplicate = toasts.some((toast) => toast.message === message && toast.variant === variant);
-    if (!isDuplicate) setToasts((prevToasts) => [...prevToasts, newToast]);
+
+    // Use a Set to track existing messages for efficient duplicate checking
+    const existingMessages = new Set(toasts.map(toast => toast.message));
+    if (!existingMessages.has(message)) {
+      setToasts(prevToasts => [...prevToasts, newToast]);
+    }
   }, [toasts]);
 
   const removeToast = useCallback((id) => {
-    setToasts((prevToasts) => prevToasts.filter((toast) => toast.id !== id));
+    setToasts(prevToasts => prevToasts.filter(toast => toast.id !== id));
   }, []);
 
-  // Auto-remove toasts after 5 seconds
+  // Auto-remove toasts after the specified duration
   useEffect(() => {
     if (toasts.length > 0) {
       const timer = setTimeout(() => {
-        setToasts((prevToasts) => prevToasts.slice(1));
-      }, 5000);
+        setToasts(prevToasts => prevToasts.slice(1)); // Remove the oldest toast
+      }, toastTimeout);
 
-      return () => clearTimeout(timer);
+      return () => clearTimeout(timer); // Clear the timeout on cleanup
     }
-  }, [toasts]);
+  }, [toasts, toastTimeout]);
 
   return { toasts, showToast, removeToast };
 };

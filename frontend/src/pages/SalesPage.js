@@ -6,6 +6,7 @@ import api from '../services/api';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import SalesForm from '../components/SalesForm';
+import SalesEditForm from '../components/SalesEditForm';
 import { useNavigate } from 'react-router-dom';
 
 const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
@@ -16,6 +17,7 @@ const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
   const [totalPages, setTotalPages] = useState(1);
   const [filters, setFilters] = useState({ startDate: null, endDate: null, clientName: '', bankId: '', branchId: '' });
   const [showModal, setShowModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [currentSale, setCurrentSale] = useState(null);
   const [banks, setBanks] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -136,7 +138,6 @@ const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
   };
 
   const handleDelete = async (saleId) => {
-    if (!window.confirm('Are you sure you want to delete this sale?')) return;
     try {
       await api.delete(`/sales/${saleId}`);
       setSalesRecords(salesRecords.filter((sale) => sale.id !== saleId));
@@ -208,6 +209,40 @@ const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
     fetchBanksAndBranches();
     fetchSalesExecutives();
   }, [fetchBanksAndBranches, fetchSalesExecutives]);
+
+  const renderActions = (sale) => {
+    console.log(loggedInUserId);
+    if (loggedInUserId === 3) { // Check if user is admin
+      return (
+        <>
+          <Button
+            variant="primary"
+            size="sm"
+            className="me-2"
+            onClick={() => handleViewDetails(sale.id)}
+          >
+            <FontAwesomeIcon icon={faEye} />
+          </Button>
+          <Button
+            variant="warning"
+            size="sm"
+            className="me-2"
+            onClick={() => handleEdit(sale)}
+          >
+            <FontAwesomeIcon icon={faEdit} />
+          </Button>
+          <Button
+            variant="danger"
+            size="sm"
+            onClick={() => handleDelete(sale.id)}
+          >
+            <FontAwesomeIcon icon={faTrash} />
+          </Button>
+        </>
+      );
+    }
+    return null;
+  };
 
   const renderPaginationItems = () => {
     const pages = [];
@@ -367,31 +402,7 @@ const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
                 <td>{sale.source_type}</td>
                 <td>{renderStatusBadge(sale.status)}</td>
                 <td>{new Date(sale.created_at).toLocaleDateString()}</td>
-                <td>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    className="me-2"
-                    onClick={() => handleViewDetails(sale.id)}
-                  >
-                    <FontAwesomeIcon icon={faEye} />
-                  </Button>
-                  <Button
-                    variant="warning"
-                    size="sm"
-                    className="me-2"
-                    onClick={() => handleEdit(sale)}
-                  >
-                    <FontAwesomeIcon icon={faEdit} />
-                  </Button>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => handleDelete(sale.id)}
-                  >
-                    <FontAwesomeIcon icon={faTrash} />
-                  </Button>
-                </td>
+                <td>{renderActions(sale)}</td>
               </tr>
             ))
           ) : (
@@ -412,16 +423,43 @@ const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
         <Pagination.Last onClick={() => handlePageChange(totalPages)} disabled={page === totalPages} />
       </Pagination>
 
+      {/* Delete Confirmation Modal */}
+      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirm Deletion</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          Are you sure you want to delete this sale record?
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>Cancel</Button>
+          <Button variant="danger" onClick={() => {
+            handleDelete(currentSale.id);
+            setShowDeleteModal(false);
+          }}>
+            Delete
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Sales Modal for Create/Edit */}
       <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
         <Modal.Header closeButton>
           <Modal.Title>{currentSale ? 'Edit Sale' : 'Add New Sale'}</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          <SalesForm
-            onSubmit={handleFormSubmit}
-            saleData={currentSale}
-            onCancel={() => setShowModal(false)}
-          />
+          {currentSale ? (
+            <SalesEditForm
+              saleData={currentSale}
+              onCancel={() => setShowModal(false)}
+              onSubmit={handleFormSubmit}
+            />
+          ) : (
+            <SalesForm
+              onSubmit={handleFormSubmit}
+              onCancel={() => setShowModal(false)}
+            />
+          )}
         </Modal.Body>
       </Modal>
     </div>

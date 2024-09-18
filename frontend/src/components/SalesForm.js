@@ -237,6 +237,12 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
         bank_id: formData.bank_id ? parseInt(formData.bank_id, 10) : undefined,
         bank_branch_id: formData.bank_branch_id ? parseInt(formData.bank_branch_id, 10) : undefined,
         paypoint_id: formData.paypoint_id ? parseInt(formData.paypoint_id, 10) : undefined,
+
+        // Destructure and prepare geolocation
+        geolocation: {
+          latitude: parseFloat(formData.geolocation_latitude),
+          longitude: parseFloat(formData.geolocation_longitude),
+        },
       };
 
       // Remove any undefined fields from sanitizedData
@@ -247,7 +253,11 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
       });
 
       // Make API request to submit the sale
-      const response = await api.post('/sales/', sanitizedData);
+      const response = await api.post('/sales/', sanitizedData, {
+        headers: {
+          'Content-Type': 'application/json', // Ensure the correct content type
+        },
+      });
 
       // Check if response is successful
       if (response.status === 201 || response.status === 200) {

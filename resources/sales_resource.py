@@ -136,6 +136,11 @@ class SaleListResource(Resource):
         bank_branch_id = data.get('bank_branch_id')
         paypoint_id = data.get('paypoint_id')
 
+        # Extract geolocation from data
+        geolocation = data.get('geolocation', {})
+        geolocation_latitude = geolocation.get('latitude')
+        geolocation_longitude = geolocation.get('longitude')
+
         # Create new sale
         new_sale = Sale(
             user_id=current_user['id'],
@@ -160,8 +165,8 @@ class SaleListResource(Resource):
             policy_type_id=data['policy_type_id'],
             amount=data.get('amount'),
             customer_called=data.get('customer_called'),
-            geolocation_latitude=data.get('geolocation_latitude'),
-            geolocation_longitude=data.get('geolocation_longitude')
+            geolocation_latitude=geolocation_latitude,
+            geolocation_longitude=geolocation_longitude
         )
 
         # Check for duplicates

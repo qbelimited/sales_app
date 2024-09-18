@@ -72,7 +72,7 @@ class UserListResource(Resource):
             action='ACCESS',
             resource_type='user_list',
             resource_id=None,
-            details=f"User {current_user['name']} | ID: {current_user['id']} accessed list of users"
+            details=f"User {current_user['id']} accessed list of users"
         )
         db.session.add(audit)
         db.session.commit()

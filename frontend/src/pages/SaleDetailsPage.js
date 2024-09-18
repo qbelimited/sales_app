@@ -72,7 +72,7 @@ const SaleDetailsPage = () => {
                             {renderField('Serial Number', saleDetails.serial_number)}
                             {renderField('Source Type', saleDetails.source_type)}
                             {renderField('Policy Type', saleDetails.policy_type?.name)}
-                            {renderField('Amount', `$${saleDetails.amount}`)}
+                            {renderField('Amount', `GHS ${saleDetails.amount}`)}
                             {renderField('Sales Executive', `${salesExecutive?.name} (Code: ${salesExecutive?.code})`)}
                             {renderField('Sales Manager', saleDetails.sale_manager?.name)}
                             {renderField('Date & Time', new Date(saleDetails.created_at).toLocaleString())}

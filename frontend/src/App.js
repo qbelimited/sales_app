@@ -1,4 +1,3 @@
-// App.js
 import React, { useEffect, Suspense, useState } from 'react';
 import { Route, Routes, Navigate, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
@@ -6,12 +5,11 @@ import Sidebar from './components/Sidebar';
 import ProtectedRoute from './components/ProtectedRoute';
 import Toaster from './components/Toaster';
 import HelpTour from './components/HelpTour';
-import ErrorBoundary from './components/ErrorBoundary';
 import Loading from './components/Loading';
 import { useAuth } from './contexts/AuthContext';
 import useToasts from './hooks/useToasts';
-import './App.css';
 import * as serviceWorkerRegistration from './services/serviceWorkerRegistration';
+import './App.css';
 
 // Lazy-loaded pages
 const LoginPage = React.lazy(() => import('./pages/LoginPage'));
@@ -21,7 +19,6 @@ const AuditTrailPage = React.lazy(() => import('./pages/AuditTrailPage'));
 const SalesPerformancePage = React.lazy(() => import('./pages/SalesPerformancePage'));
 const QueriesPage = React.lazy(() => import('./pages/QueriesPage'));
 const FlaggedInvestigationsPage = React.lazy(() => import('./pages/FlaggedInvestigationsPage'));
-const ManageAccessPage = React.lazy(() => import('./pages/ManageAccessPage'));
 const ManageRolesPage = React.lazy(() => import('./pages/ManageRolesPage'));
 const LogsPage = React.lazy(() => import('./pages/LogsPage'));
 const RetentionPolicyPage = React.lazy(() => import('./pages/RetentionPolicyPage'));
@@ -53,7 +50,6 @@ const appRoutes = [
   { path: '/manage-banks', component: ManageBanksPage, allowedRoles: [1, 2, 3] },
   { path: '/audit-trail', component: AuditTrailPage, allowedRoles: [2, 3] },
   { path: '/manage-users', component: ManageUsersPage, allowedRoles: [2, 3] },
-  { path: '/manage-access', component: ManageAccessPage, allowedRoles: [3] },
   { path: '/manage-roles', component: ManageRolesPage, allowedRoles: [3] },
   { path: '/logs', component: LogsPage, allowedRoles: [3] },
   { path: '/retention-policy', component: RetentionPolicyPage, allowedRoles: [3] },
@@ -70,31 +66,37 @@ function App() {
 
   // Show help tour if it's the user's first time
   useEffect(() => {
-    const helpTourShown = localStorage.getItem('helpTourShown');
-    if (!helpTourShown) {
+    if (!localStorage.getItem('helpTourShown')) {
       setShowHelpTour(true);
       localStorage.setItem('helpTourShown', 'true');
     }
   }, []);
 
-  // Handle navigation after login or logout
+  // Handle navigation based on user role
   useEffect(() => {
-    const redirectPath = role?.id && appRoutes.some(route => route.allowedRoles.includes(role.id))
-      ? (role.id === userRoles.ADMIN ? '/manage-users' : '/sales')
-      : '/login';
-
-    navigate(redirectPath);
+    if (role) {
+      const redirectPath = role.id === userRoles.ADMIN ? '/manage-users' : '/sales';
+      // Only navigate if the user is on the login page
+      if (window.location.pathname === '/login') {
+        console.log('Redirecting to:', redirectPath);
+        navigate(redirectPath);
+      }
+    }
   }, [role, navigate]);
 
   // Register service worker and listen for updates
   useEffect(() => {
-    const registerServiceWorker = () => {
-      serviceWorkerRegistration.register({
-        onUpdate: (registration) => {
-          showToast('update', 'A new version is available. Click here to update.', 'Update Available');
-          setWaitingServiceWorker(registration.waiting);
-        },
-      });
+    const registerServiceWorker = async () => {
+      try {
+        await serviceWorkerRegistration.register({
+          onUpdate: (registration) => {
+            showToast('update', 'A new version is available. Click here to update.', 'Update Available');
+            setWaitingServiceWorker(registration.waiting);
+          },
+        });
+      } catch (error) {
+        console.error('Service worker registration failed:', error);
+      }
     };
 
     registerServiceWorker();
@@ -113,46 +115,37 @@ function App() {
   };
 
   return (
-    <ErrorBoundary>
-      <div>
-        {/* Conditionally render Navbar and Sidebar based on user's role */}
-        {role?.id && <Navbar onLogout={logout} showToast={showToast} />}
-        {role?.id && <Sidebar />}
-        {showHelpTour && <HelpTour />}
+    <div>
+      {role?.id && <Navbar onLogout={logout} showToast={showToast} />}
+      {role?.id && <Sidebar />}
+      {showHelpTour && <HelpTour />}
 
-        <div className="content" style={{ marginLeft: role?.id ? '250px' : '0', transition: 'all 0.3s ease-in-out' }}>
-          <Suspense fallback={<Loading />}>
-            <Routes>
-              {/* Login route */}
-              <Route path="/login" element={<LoginPage showToast={showToast} />} />
-
-              {/* Dynamically generate routes */}
-              {appRoutes.map((route) => (
-                <Route
-                  key={route.path}
-                  path={route.path}
-                  element={
-                    <ProtectedRoute allowedRoles={route.allowedRoles} userRole={role?.id} showToast={showToast}>
-                      <route.component showToast={showToast} />
-                    </ProtectedRoute>
-                  }
-                />
-              ))}
-
-              {/* Fallback route */}
-              <Route path="*" element={<Navigate to={role?.id ? "/sales" : "/login"} />} />
-            </Routes>
-          </Suspense>
-        </div>
-
-        {/* Global Toaster for notifications */}
-        <Toaster
-          toasts={toasts}
-          removeToast={removeToast}
-          updateServiceWorker={updateServiceWorker}
-        />
+      <div className="content" style={{ marginLeft: role?.id ? '250px' : '0', transition: 'all 0.3s ease-in-out' }}>
+        <Suspense fallback={<Loading />}>
+          <Routes>
+            <Route path="/login" element={<LoginPage showToast={showToast} />} />
+            {appRoutes.map((route) => (
+              <Route
+                key={route.path}
+                path={route.path}
+                element={
+                  <ProtectedRoute allowedRoles={route.allowedRoles} userRole={role?.id} showToast={showToast}>
+                    <route.component showToast={showToast} />
+                  </ProtectedRoute>
+                }
+              />
+            ))}
+            <Route path="*" element={<Navigate to={role?.id ? "/sales" : "/login"} />} />
+          </Routes>
+        </Suspense>
       </div>
-    </ErrorBoundary>
+
+      <Toaster
+        toasts={toasts}
+        removeToast={removeToast}
+        updateServiceWorker={updateServiceWorker}
+      />
+    </div>
   );
 }
 
