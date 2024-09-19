@@ -10,6 +10,7 @@ class AuditAction(Enum):
     DELETE = 'DELETE'
     LOGIN = 'LOGIN'
     LOGOUT = 'LOGOUT'
+    FILTER = 'FILTER'
     REVOKE_REFRESH_TOKEN = 'REVOKE_REFRESH_TOKEN'
     ACCESS = 'ACCESS'  # Add other actions as needed
 

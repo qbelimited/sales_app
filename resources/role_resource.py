@@ -58,7 +58,9 @@ class RolesResource(Resource):
             action='CREATE',
             resource_type='role',
             resource_id=new_role.id,
-            details=f"Admin created role with ID {new_role.id} and name {new_role.name}"
+            details=f"Admin created role with ID {new_role.id} and name {new_role.name}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -95,7 +97,9 @@ class RoleByIdResource(Resource):
             action='UPDATE',
             resource_type='role',
             resource_id=role.id,
-            details=f"Admin updated role with ID {role.id}"
+            details=f"Admin updated role with ID {role.id}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -128,7 +132,9 @@ class RoleByIdResource(Resource):
                 action='DELETE',
                 resource_type='role',
                 resource_id=role.id,
-                details=f"Admin soft-deleted role with ID {role.id}"
+                details=f"Admin soft-deleted role with ID {role.id}",
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)
             db.session.commit()

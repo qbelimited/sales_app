@@ -59,7 +59,9 @@ class PaypointListResource(Resource):
                 user_id=current_user['id'],
                 action='ACCESS',
                 resource_type='paypoint_list',
-                details="User accessed list of Paypoints"
+                details="User accessed list of Paypoints",
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)
             db.session.commit()
@@ -107,7 +109,9 @@ class PaypointListResource(Resource):
                 action='CREATE',
                 resource_type='paypoint',
                 resource_id=new_paypoint.id,
-                details=f"User created a new Paypoint with ID {new_paypoint.id}"
+                details=f"User created a new Paypoint with ID {new_paypoint.id}",
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)
             db.session.commit()
@@ -138,7 +142,9 @@ class PaypointResource(Resource):
             action='ACCESS',
             resource_type='paypoint',
             resource_id=paypoint_id,
-            details=f"User accessed Paypoint with ID {paypoint_id}"
+            details=f"User accessed Paypoint with ID {paypoint_id}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -175,7 +181,9 @@ class PaypointResource(Resource):
             action='UPDATE',
             resource_type='paypoint',
             resource_id=paypoint.id,
-            details=f"User updated Paypoint with ID {paypoint.id}"
+            details=f"User updated Paypoint with ID {paypoint.id}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -208,7 +216,9 @@ class PaypointResource(Resource):
             action='DELETE',
             resource_type='paypoint',
             resource_id=paypoint.id,
-            details=f"User deleted Paypoint with ID {paypoint.id}"
+            details=f"User deleted Paypoint with ID {paypoint.id}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()

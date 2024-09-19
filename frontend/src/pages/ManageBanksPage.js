@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Card, Typography, Button, Modal, TextField } from '@mui/material';
 import { Container, Row, Col, Table, Spinner, Pagination } from 'react-bootstrap';
 import api from '../services/api'; // Axios instance
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPlus, faEdit, faTrashAlt, faSitemap } from '@fortawesome/free-solid-svg-icons';
 
 const ManageBanksPage = ({ showToast }) => {
   const [banks, setBanks] = useState([]);
@@ -97,6 +99,11 @@ const ManageBanksPage = ({ showToast }) => {
 
   // Handle deleting a bank and its branches
   const handleDeleteBank = async () => {
+    if (!selectedBank) {
+      showToast('error', 'No bank selected for deletion.', 'Error');
+      return;
+    }
+
     try {
       await api.delete(`/bank/${selectedBank.id}`); // Delete bank
       setBanks((prevBanks) => prevBanks.filter((bank) => bank.id !== selectedBank.id));
@@ -111,12 +118,18 @@ const ManageBanksPage = ({ showToast }) => {
 
   // Handle opening delete confirmation modal
   const handleShowDeleteConfirmation = (bank) => {
+    if (!bank) return;
     setSelectedBank(bank);
     setShowDeleteConfirmation(true);
   };
 
   // Handle adding or editing branches
   const handleBranchSubmit = async () => {
+    if (!selectedBank) {
+      showToast('error', 'No bank selected for branch operation.', 'Error');
+      return;
+    }
+
     try {
       if (modalMode === 'add') {
         const response = await api.post(`/bank/bank-branches`, {
@@ -145,6 +158,7 @@ const ManageBanksPage = ({ showToast }) => {
 
   // Handle opening edit branch modal
   const handleEditBranch = (branch) => {
+    if (!branch) return;
     setBranchData({ name: branch.name, sort_code: branch.sort_code, id: branch.id });
     setSelectedBranch(branch);
     setModalMode('edit');
@@ -153,6 +167,11 @@ const ManageBanksPage = ({ showToast }) => {
 
   // Handle deleting a branch
   const handleDeleteBranch = async () => {
+    if (!selectedBranch) {
+      showToast('error', 'No branch selected for deletion.', 'Error');
+      return;
+    }
+
     try {
       await api.delete(`/bank/bank-branches/${selectedBranch.id}`); // Delete branch
       setBranches((prevBranches) => prevBranches.filter((branch) => branch.id !== selectedBranch.id));
@@ -167,6 +186,7 @@ const ManageBanksPage = ({ showToast }) => {
 
   // Handle opening delete branch confirmation modal
   const handleShowDeleteBranchConfirmation = (branch) => {
+    if (!branch) return;
     setSelectedBranch(branch);
     setShowDeleteBranchConfirmation(true);
   };
@@ -189,7 +209,7 @@ const ManageBanksPage = ({ showToast }) => {
             color="primary"
             onClick={() => handleOpenBankModal('add')}
           >
-            <i className="fas fa-plus"></i> Add New Bank
+            <FontAwesomeIcon icon={faPlus} /> Add New Bank
           </Button>
         </Col>
       </Row>
@@ -214,14 +234,14 @@ const ManageBanksPage = ({ showToast }) => {
                       onClick={() => handleOpenBankModal('edit', bank)}
                       className="me-2"
                     >
-                      <i className="fas fa-edit"></i> Edit
+                      <FontAwesomeIcon icon={faEdit} /> Edit
                     </Button>
                     <Button
                       variant="contained"
                       color="error"
                       onClick={() => handleShowDeleteConfirmation(bank)}
                     >
-                      <i className="fas fa-trash-alt"></i> Delete
+                      <FontAwesomeIcon icon={faTrashAlt} /> Delete
                     </Button>
                     <Button
                       variant="contained"
@@ -229,7 +249,7 @@ const ManageBanksPage = ({ showToast }) => {
                       onClick={() => handleOpenBranchModal(bank)}
                       className="ms-2"
                     >
-                      <i className="fas fa-sitemap"></i> Manage Branches
+                      <FontAwesomeIcon icon={faSitemap} /> Manage Branches
                     </Button>
                   </td>
                 </tr>
@@ -309,14 +329,14 @@ const ManageBanksPage = ({ showToast }) => {
                       onClick={() => handleEditBranch(branch)}
                       className="me-2"
                     >
-                      <i className="fas fa-edit"></i> Edit
+                      <FontAwesomeIcon icon={faEdit} /> Edit
                     </Button>
                     <Button
                       variant="contained"
                       color="error"
                       onClick={() => handleShowDeleteBranchConfirmation(branch)}
                     >
-                      <i className="fas fa-trash-alt"></i> Delete
+                      <FontAwesomeIcon icon={faTrashAlt} /> Delete
                     </Button>
                   </td>
                 </tr>
@@ -333,7 +353,7 @@ const ManageBanksPage = ({ showToast }) => {
             }}
             className="mt-3"
           >
-            <i className="fas fa-plus"></i> Add New Branch
+            <FontAwesomeIcon icon={faPlus} /> Add New Branch
           </Button>
         </Card>
       </Modal>
