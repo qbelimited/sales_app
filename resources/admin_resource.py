@@ -93,7 +93,9 @@ class AdminResource(Resource):
             action='GET',
             resource_type='all_resources',
             resource_id=None,
-            details=f"Retrieved data for users, sales executives, banks, branches, paypoints, and products."
+            details=f"Retrieved data for users, sales executives, banks, branches, paypoints, and products.",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -144,7 +146,9 @@ class AdminResource(Resource):
             action='CREATE',
             resource_type=data['type'],
             resource_id=resource.id,
-            details=f"Created {data['type']} with details: {data}"
+            details=f"Created {data['type']} with details: {data}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -185,7 +189,9 @@ class AdminResource(Resource):
             action='UPDATE',
             resource_type=data['type'],
             resource_id=data['id'],
-            details=f"Updated {data['type']} with details: {data}"
+            details=f"Updated {data['type']} with details: {data}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -226,7 +232,9 @@ class AdminResource(Resource):
             action='DELETE',
             resource_type=data['type'],
             resource_id=data['id'],
-            details=f"Deleted {data['type']} with details: {data}"
+            details=f"Deleted {data['type']} with details: {data}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()

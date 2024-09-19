@@ -18,7 +18,6 @@ sales_executive_model = manager_ns.model('SalesExecutive', {
     'phone_number': fields.String(description='Sales Executive Phone Number'),
 })
 
-
 @manager_ns.route('/sales_executives')
 class ManagerSalesExecutiveResource(Resource):
     @manager_ns.doc(security='Bearer Auth')
@@ -47,7 +46,9 @@ class ManagerSalesExecutiveResource(Resource):
             action='ACCESS',
             resource_type='sales_executive_list',
             resource_id=None,
-            details="Manager accessed list of sales executives"
+            details="Manager accessed list of sales executives",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -95,7 +96,9 @@ class ManagerSalesExecutiveResource(Resource):
             action='CREATE',
             resource_type='sales_executive',
             resource_id=new_sales_executive.id,
-            details=f"Manager created a new sales executive with ID {new_sales_executive.id}"
+            details=f"Manager created a new sales executive with ID {new_sales_executive.id}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -143,7 +146,9 @@ class ManagerSalesExecutiveUpdateResource(Resource):
             action='UPDATE',
             resource_type='sales_executive',
             resource_id=sales_executive.id,
-            details=f"Manager updated sales executive with ID {sales_executive.id}"
+            details=f"Manager updated sales executive with ID {sales_executive.id}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()

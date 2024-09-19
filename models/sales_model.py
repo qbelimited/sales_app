@@ -3,7 +3,8 @@ from datetime import datetime
 from sqlalchemy.orm import validates
 from models.under_investigation_model import UnderInvestigation
 from models.bank_model import Bank
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
+
 
 class Sale(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -87,17 +88,55 @@ class Sale(db.Model):
         return value
 
     def check_duplicate(self):
-        """Check for duplicate sale based on client phone, name, and serial number."""
+        """Check for duplicate sale based on various combinations of fields."""
         try:
-            duplicate_conditions = (
-                Sale.client_phone == self.client_phone,
-                Sale.client_name == self.client_name,
-                Sale.serial_number == self.serial_number,
-                Sale.is_deleted == False
+            # Define potential duplicate conditions
+            duplicate_conditions = or_(
+                # 1. Client Phone + Serial Number
+                and_(Sale.client_phone == self.client_phone, Sale.serial_number == self.serial_number),
+
+                # 2. Client Name + Mobile Money Reference Number
+                and_(Sale.client_name == self.client_name, Sale.momo_reference_number == self.momo_reference_number),
+
+                # 3. Client ID Number + Serial Number
+                and_(Sale.client_id_no == self.client_id_no, Sale.serial_number == self.serial_number),
+
+                # 4. Bank Account Number + Serial Number
+                and_(Sale.bank_acc_number == self.bank_acc_number, Sale.serial_number == self.serial_number),
+
+                # 5. Client Phone + Mobile Money Reference Number
+                and_(Sale.client_phone == self.client_phone, Sale.momo_reference_number == self.momo_reference_number),
+
+                # 6. Client ID Number + Mobile Money Reference Number
+                and_(Sale.client_id_no == self.client_id_no, Sale.momo_reference_number == self.momo_reference_number),
+
+                # 7. Client Phone + Bank Account Number
+                and_(Sale.client_phone == self.client_phone, Sale.bank_acc_number == self.bank_acc_number),
+
+                # 8. Client ID Number + Bank Account Number
+                and_(Sale.client_id_no == self.client_id_no, Sale.bank_acc_number == self.bank_acc_number),
+
+                # 9. Client Name + Serial Number
+                and_(Sale.client_name == self.client_name, Sale.serial_number == self.serial_number),
+
+                # 10. Client Name + Client ID Number
+                and_(Sale.client_name == self.client_name, Sale.client_id_no == self.client_id_no),
+
+                # 11. Client Phone Number + Client ID Number
+                and_(Sale.client_phone == self.client_phone, Sale.client_id_no == self.client_id_no),
+
+                # 12. Serial Number + Mobile Money Reference Number
+                and_(Sale.serial_number == self.serial_number, Sale.momo_reference_number == self.momo_reference_number)
             )
-            duplicate_sale = Sale.query.filter(and_(*duplicate_conditions)).first()
+
+            # Check for duplicates in the database
+            duplicate_sale = Sale.query.filter(and_(
+                Sale.is_deleted == False,
+                duplicate_conditions
+            )).first()
 
             if duplicate_sale:
+                # Mark this sale as 'under investigation'
                 self.status = 'under investigation'
                 # Use atomic transaction to ensure consistency in case of duplicate detection
                 with db.session.begin():
@@ -108,6 +147,7 @@ class Sale(db.Model):
                     )
                     db.session.add(investigation)
             return self
+
         except Exception as e:
             db.session.rollback()
             raise ValueError(f"Error checking for duplicates: {e}")

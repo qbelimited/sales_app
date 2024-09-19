@@ -72,7 +72,9 @@ class UserListResource(Resource):
             action='ACCESS',
             resource_type='user_list',
             resource_id=None,
-            details=f"User {current_user['id']} accessed list of users"
+            details=f"User {current_user['id']} accessed list of users",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -119,7 +121,9 @@ class UserListResource(Resource):
             action='CREATE',
             resource_type='user',
             resource_id=new_user.id,
-            details=f"User created a new User with ID {new_user.id}"
+            details=f"User created a new User with ID {new_user.id}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -146,7 +150,9 @@ class UserResource(Resource):
             action='ACCESS',
             resource_type='user',
             resource_id=user_id,
-            details=f"User accessed details of User with ID {user_id}"
+            details=f"User accessed details of User with ID {user_id}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -190,7 +196,9 @@ class UserResource(Resource):
             action='UPDATE',
             resource_type='user',
             resource_id=user.id,
-            details=f"User updated User with ID {user.id}"
+            details=f"User updated User with ID {user.id}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -221,7 +229,9 @@ class UserResource(Resource):
             action='DELETE',
             resource_type='user',
             resource_id=user.id,
-            details=f"User deleted User with ID {user.id}"
+            details=f"User deleted User with ID {user.id}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -266,7 +276,9 @@ class PasswordUpdateResource(Resource):
             action='UPDATE',
             resource_type='user',
             resource_id=user_id,
-            details=f"User updated password"
+            details=f"User updated password",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -295,7 +307,9 @@ class UserSessionResource(Resource):
             action='ACCESS',
             resource_type='user_sessions',
             resource_id=user_id,
-            details=f"Accessed active sessions for user {user_id}"
+            details=f"Accessed active sessions for user {user_id}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()

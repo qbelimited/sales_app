@@ -3,7 +3,7 @@ import { Table, Spinner, Row, Col, Button, Form } from 'react-bootstrap';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import api from '../services/api';
-import { FaSearch } from 'react-icons/fa';
+import { FaSearch, FaArrowLeft, FaArrowRight, FaAngleDoubleLeft, FaAngleDoubleRight, FaUndo } from 'react-icons/fa';
 
 const LogsPage = ({ showToast }) => {
   const [logs, setLogs] = useState([]);
@@ -27,15 +27,14 @@ const LogsPage = ({ showToast }) => {
       const params = {
         page: currentPage,
         per_page: itemsPerPage,
-        type: filter.type,
-        level: filter.level,
-        start_date: filter.startDate ? filter.startDate.toISOString().split('T')[0] : '',
-        end_date: filter.endDate ? filter.endDate.toISOString().split('T')[0] : '',
+        ...(filter.type && { type: filter.type }),
+        ...(filter.level && { level: filter.level }),
+        ...(filter.startDate && { start_date: filter.startDate.toISOString().split('T')[0] }),
+        ...(filter.endDate && { end_date: filter.endDate.toISOString().split('T')[0] }),
       };
 
       const response = await api.get('/logs/', { params });
       setLogs(response.data.logs || []);
-      console.log(response.data);
       setTotalPages(response.data.total_pages || 1);
     } catch (error) {
       console.error('Error fetching logs:', error);
@@ -56,10 +55,25 @@ const LogsPage = ({ showToast }) => {
     fetchLogs();
   };
 
+  // Handle reset filters
+  const handleResetFilters = () => {
+    setFilter({
+      type: '',
+      level: '',
+      startDate: null,
+      endDate: null,
+    });
+    setCurrentPage(1);
+    fetchLogs();
+  };
+
   // Handle page change
   const handlePageChange = (pageNumber) => setCurrentPage(pageNumber);
 
-  if (loading) return <Spinner animation="border" />;
+  // Calculate pagination range
+  const maxPageNumbers = 5;
+  const startPage = Math.max(1, currentPage - Math.floor(maxPageNumbers / 2));
+  const endPage = Math.min(totalPages, startPage + maxPageNumbers - 1);
 
   return (
     <div style={{ marginTop: '20px', padding: '20px' }}>
@@ -71,32 +85,32 @@ const LogsPage = ({ showToast }) => {
 
       {/* Filter Section */}
       <Form className="mb-4">
-        <Row>
-          <Col md={3}>
+        <Row className="align-items-end">
+          <Col md={2}>
             <Form.Control
               as="select"
               value={filter.type}
               onChange={(e) => setFilter({ ...filter, type: e.target.value })}
             >
-              <option value="">Select Log Type</option>
+              <option value="">Log Type</option>
               <option value="general">General</option>
               <option value="error">Error</option>
               <option value="success">Success</option>
             </Form.Control>
           </Col>
-          <Col md={3}>
+          <Col md={2}>
             <Form.Control
               as="select"
               value={filter.level}
               onChange={(e) => setFilter({ ...filter, level: e.target.value })}
             >
-              <option value="">Select Log Level</option>
+              <option value="">Log Level</option>
               <option value="INFO">INFO</option>
               <option value="WARNING">WARNING</option>
               <option value="ERROR">ERROR</option>
             </Form.Control>
           </Col>
-          <Col md={3}>
+          <Col md={2}>
             <DatePicker
               selected={filter.startDate}
               onChange={(date) => setFilter({ ...filter, startDate: date })}
@@ -104,7 +118,7 @@ const LogsPage = ({ showToast }) => {
               className="form-control"
             />
           </Col>
-          <Col md={3}>
+          <Col md={2}>
             <DatePicker
               selected={filter.endDate}
               onChange={(date) => setFilter({ ...filter, endDate: date })}
@@ -112,11 +126,12 @@ const LogsPage = ({ showToast }) => {
               className="form-control"
             />
           </Col>
-        </Row>
-        <Row className="mt-3">
-          <Col>
+          <Col md={2}>
             <Button variant="primary" onClick={handleFilter}>
               <FaSearch /> Filter
+            </Button>
+            <Button variant="secondary" onClick={handleResetFilters} className="ms-2">
+              <FaUndo /> Reset
             </Button>
           </Col>
         </Row>
@@ -124,51 +139,78 @@ const LogsPage = ({ showToast }) => {
 
       {error && <p className="text-center text-danger">{error}</p>}
 
+      {/* Loading Spinner */}
+      {loading && <div className="text-center my-3"><Spinner animation="border" /></div>}
+
       {/* Logs Table */}
-      <Table striped bordered hover responsive>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Timestamp</th>
-            <th>Type</th>
-            <th>Level</th>
-            <th>Message</th>
-          </tr>
-        </thead>
-        <tbody>
-          {logs.length > 0 ? (
-            logs.map((log, index) => (
-              <tr key={log.id}>
-                <td>{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                <td>{new Date(log.timestamp).toLocaleString()}</td>
-                <td>{log.type}</td>
-                <td>{log.level}</td>
-                <td>{log.message}</td>
-              </tr>
-            ))
-          ) : (
+      {!loading && (
+        <Table striped bordered hover responsive>
+          <thead>
             <tr>
-              <td colSpan="5" className="text-center">No logs found</td>
+              <th>#</th>
+              <th>Timestamp</th>
+              <th>Type</th>
+              <th>Level</th>
+              <th>Message</th>
             </tr>
-          )}
-        </tbody>
-      </Table>
+          </thead>
+          <tbody>
+            {logs.length > 0 ? (
+              logs.map((log, index) => (
+                <tr key={log.id || index}>
+                  <td>{(currentPage - 1) * itemsPerPage + index + 1}</td>
+                  <td>{new Date(log.timestamp).toLocaleString()}</td>
+                  <td>{log.type}</td>
+                  <td>{log.level}</td>
+                  <td>{log.message}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="5" className="text-center">No logs found</td>
+              </tr>
+            )}
+          </tbody>
+        </Table>
+      )}
 
       {/* Pagination Controls */}
-      <Row>
-        <Col className="text-center">
-          {[...Array(totalPages).keys()].map((number) => (
-            <Button
-              key={number}
-              variant={currentPage === number + 1 ? 'primary' : 'secondary'}
-              onClick={() => handlePageChange(number + 1)}
-              className="mx-1"
-            >
-              {number + 1}
-            </Button>
-          ))}
-        </Col>
-      </Row>
+      {!loading && totalPages > 1 && (
+        <Row className="mt-3">
+          <Col className="text-center">
+            {currentPage > 1 && (
+              <>
+                <Button variant="secondary" onClick={() => handlePageChange(1)} className="mx-1">
+                  <FaAngleDoubleLeft />
+                </Button>
+                <Button variant="secondary" onClick={() => handlePageChange(currentPage - 1)} className="mx-1">
+                  <FaArrowLeft />
+                </Button>
+              </>
+            )}
+            {[...Array(endPage - startPage + 1).keys()].map((number) => (
+              <Button
+                key={startPage + number}
+                variant={currentPage === startPage + number ? 'primary' : 'secondary'}
+                onClick={() => handlePageChange(startPage + number)}
+                className="mx-1"
+              >
+                {startPage + number}
+              </Button>
+            ))}
+            {currentPage < totalPages && (
+              <>
+                <Button variant="secondary" onClick={() => handlePageChange(currentPage + 1)} className="mx-1">
+                  <FaArrowRight />
+                </Button>
+                <Button variant="secondary" onClick={() => handlePageChange(totalPages)} className="mx-1">
+                  <FaAngleDoubleRight />
+                </Button>
+              </>
+            )}
+          </Col>
+        </Row>
+      )}
     </div>
   );
 };

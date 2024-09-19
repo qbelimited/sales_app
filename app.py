@@ -8,31 +8,6 @@ from dotenv import load_dotenv
 from flask_restx import Api
 from logger import setup_logger
 
-# Import resources (namespaces)
-from resources.auth_resource import auth_ns
-from resources.sales_resource import sales_ns
-from resources.report_resource import report_ns
-from resources.admin_resource import admin_ns
-from resources.manager_resource import manager_ns
-from resources.dropdown_resource import dropdown_ns
-from resources.log_resource import log_ns
-from resources.branch_resource import branch_ns
-from resources.impact_product_resource import impact_product_ns
-from resources.paypoint_resource import paypoint_ns
-from resources.sales_executive_resource import sales_executive_ns
-from resources.user_resource import user_ns
-from resources.audit_trail_resource import audit_ns
-from resources.under_inv_resource import under_inv_ns
-from resources.query_resource import query_ns
-from resources.role_resource import role_ns
-from resources.access_resource import access_ns
-from resources.query_response_resource import query_response_ns
-from resources.sales_performance_resource import sales_performance_ns
-from resources.sales_target_resource import sales_target_ns
-from resources.bank_resource import bank_ns
-from resources.retention_resource import retention_ns
-from resources.inception_resource import inception_ns
-
 # Disable OneDNN for TensorFlow optimizations
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 
@@ -83,6 +58,31 @@ api = Api(app,
           security='Bearer Auth',  # Apply global security
           authorizations=authorizations)  # Add Bearer Auth to the API
 
+# Import resources (namespaces)
+from resources.auth_resource import auth_ns
+from resources.sales_resource import sales_ns
+from resources.report_resource import report_ns
+from resources.admin_resource import admin_ns
+from resources.manager_resource import manager_ns
+from resources.dropdown_resource import dropdown_ns
+from resources.log_resource import log_ns
+from resources.branch_resource import branch_ns
+from resources.impact_product_resource import impact_product_ns
+from resources.paypoint_resource import paypoint_ns
+from resources.sales_executive_resource import sales_executive_ns
+from resources.user_resource import user_ns
+from resources.audit_trail_resource import audit_ns
+from resources.under_inv_resource import under_inv_ns
+from resources.query_resource import query_ns
+from resources.role_resource import role_ns
+from resources.access_resource import access_ns
+from resources.query_response_resource import query_response_ns
+from resources.sales_performance_resource import sales_performance_ns
+from resources.sales_target_resource import sales_target_ns
+from resources.bank_resource import bank_ns
+from resources.retention_resource import retention_ns
+from resources.inception_resource import inception_ns
+
 # Register Namespaces with versioned paths
 api.add_namespace(auth_ns, path=f'/api/{api_version}/auth')
 api.add_namespace(sales_ns, path=f'/api/{api_version}/sales')
@@ -91,7 +91,6 @@ api.add_namespace(admin_ns, path=f'/api/{api_version}/admin')
 api.add_namespace(dropdown_ns, path=f'/api/{api_version}/dropdown')
 api.add_namespace(log_ns, path=f'/api/{api_version}/logs')
 api.add_namespace(branch_ns, path=f'/api/{api_version}/branches')
-api.add_namespace(manager_ns, path=f'/api/{api_version}/manage')
 api.add_namespace(impact_product_ns, path=f'/api/{api_version}/impact_products')
 api.add_namespace(paypoint_ns, path=f'/api/{api_version}/paypoints')
 api.add_namespace(sales_executive_ns, path=f'/api/{api_version}/sales_executives')
