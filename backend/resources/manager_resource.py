@@ -18,6 +18,7 @@ sales_executive_model = manager_ns.model('SalesExecutive', {
     'phone_number': fields.String(description='Sales Executive Phone Number'),
 })
 
+
 @manager_ns.route('/sales_executives')
 class ManagerSalesExecutiveResource(Resource):
     @manager_ns.doc(security='Bearer Auth')
