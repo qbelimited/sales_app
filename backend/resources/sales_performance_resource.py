@@ -68,9 +68,7 @@ class SalesPerformanceResource(Resource):
             user_id=current_user['id'],
             action='ACCESS',
             resource_type='sales_performance_list',
-            details="User accessed sales performance records",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details="User accessed sales performance records"
         )
         db.session.add(audit)
         db.session.commit()
@@ -120,9 +118,7 @@ class SalesPerformanceResource(Resource):
             action='CREATE',
             resource_type='sales_performance',
             resource_id=new_sales_performance.id,
-            details=f"User created sales performance with ID {new_sales_performance.id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User created sales performance with ID {new_sales_performance.id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -149,9 +145,7 @@ class SingleSalesPerformanceResource(Resource):
             action='ACCESS',
             resource_type='sales_performance',
             resource_id=performance_id,
-            details=f"User accessed Sales Performance with ID {performance_id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User accessed Sales Performance with ID {performance_id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -187,9 +181,7 @@ class SingleSalesPerformanceResource(Resource):
             action='UPDATE',
             resource_type='sales_performance',
             resource_id=sales_performance.id,
-            details=f"User updated Sales Performance with ID {sales_performance.id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User updated Sales Performance with ID {sales_performance.id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -220,9 +212,7 @@ class SingleSalesPerformanceResource(Resource):
             action='DELETE',
             resource_type='sales_performance',
             resource_id=sales_performance.id,
-            details=f"User soft-deleted Sales Performance with ID {sales_performance.id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User soft-deleted Sales Performance with ID {sales_performance.id}"
         )
         db.session.add(audit)
         db.session.commit()

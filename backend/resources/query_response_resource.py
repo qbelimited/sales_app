@@ -19,7 +19,6 @@ query_response_model = query_response_ns.model('QueryResponse', {
     'updated_at': fields.DateTime(description='Updated at'),
 })
 
-
 # Helper function to check if the user is an admin or the owner of the resource
 def check_user_authorization(current_user, resource_user_id):
     return current_user['role'].lower() == 'admin' or current_user['id'] == resource_user_id
@@ -46,9 +45,7 @@ class QueryResponseResource(Resource):
             action='ACCESS',
             resource_type='query_response_list',
             resource_id=query_id,
-            details=f"User accessed responses to query/feedback with ID {query_id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User accessed responses to query/feedback with ID {query_id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -91,9 +88,7 @@ class QueryResponseResource(Resource):
             action='CREATE',
             resource_type='query_response',
             resource_id=new_response.id,
-            details=f"User submitted a response to query/feedback with ID {query_id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User submitted a response to query/feedback with ID {query_id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -134,9 +129,7 @@ class QueryResponseByIdResource(Resource):
             action='UPDATE',
             resource_type='query_response',
             resource_id=response.id,
-            details=f"User updated response to query/feedback with ID {query_id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User updated response to query/feedback with ID {query_id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -172,9 +165,7 @@ class QueryResponseByIdResource(Resource):
             action='DELETE',
             resource_type='query_response',
             resource_id=response.id,
-            details=f"User soft-deleted response with ID {response.id} for query/feedback ID {query_id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User soft-deleted response with ID {response.id} for query/feedback ID {query_id}"
         )
         db.session.add(audit)
         db.session.commit()

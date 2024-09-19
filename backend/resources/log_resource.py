@@ -1,5 +1,4 @@
 import os
-import itertools
 from flask_restx import Namespace, Resource
 from config import Config
 from flask import request
@@ -44,30 +43,27 @@ class LogResource(Resource):
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
 
-        # Construct file pattern to match log files
-        log_file_prefix = f"{log_type}_"
-        log_file_suffix = ".log"
-        log_directory = Config.LOG_FILE_PATH
+        log_file_map = {
+            'general': 'general.log',
+            'error': 'error.log',
+            'success': 'success.log'
+        }
 
-        # Find all matching log files in the directory
-        log_files = [
-            os.path.join(log_directory, file)
-            for file in os.listdir(log_directory)
-            if file.startswith(log_file_prefix) and file.endswith(log_file_suffix)
-        ]
+        log_file_path = os.path.join(Config.LOG_FILE_PATH, log_file_map.get(log_type, 'general.log'))
 
         try:
-            # Aggregate logs from multiple files using a generator
-            filtered_logs = self.get_filtered_logs(log_files, level, start_date, end_date)
+            # Check if log file exists
+            if not os.path.exists(log_file_path):
+                return {'message': f'Log file not found: {log_file_map.get(log_type, "general.log")}'}, 404
 
-            # Sort logs by date (newest first) if they have been successfully read
-            sorted_logs = sorted(filtered_logs, key=lambda x: x.split(' ')[0], reverse=True)
+            # Stream logs and apply filters
+            filtered_logs = self.get_filtered_logs(log_file_path, level, start_date, end_date)
 
-            # Paginate the logs using islice for memory efficiency
-            total_logs = len(sorted_logs)
+            # Paginate the logs
+            total_logs = len(filtered_logs)
             start_idx = (page - 1) * per_page
             end_idx = start_idx + per_page
-            paginated_logs = list(itertools.islice(sorted_logs, start_idx, end_idx))
+            paginated_logs = filtered_logs[start_idx:end_idx]
 
             # Log the access to audit trail
             audit = AuditTrail(
@@ -75,9 +71,7 @@ class LogResource(Resource):
                 action='ACCESS',
                 resource_type='log',
                 resource_id=None,
-                details=f"Accessed {log_type} logs with level {level}",
-                ip_address=request.remote_addr,
-                user_agent=request.headers.get('User-Agent')
+                details=f"Accessed {log_type} logs with level {level}"
             )
             db.session.add(audit)
             db.session.commit()
@@ -96,19 +90,18 @@ class LogResource(Resource):
             logger.error(f"Error retrieving logs: {str(e)}")
             return {'message': str(e)}, 500
 
-    def get_filtered_logs(self, log_files, level, start_date, end_date):
-        """Retrieve logs filtered by log level and date range from multiple files."""
+    def get_filtered_logs(self, log_file_path, level, start_date, end_date):
+        """Generator to filter logs by log level and date range."""
         filtered_logs = []
-        for log_file_path in log_files:
-            try:
-                with open(log_file_path, 'r') as log_file:
-                    for log in log_file:
-                        if level in log.upper():
-                            if self.is_log_within_date_range(log, start_date, end_date):
-                                filtered_logs.append(log)
-            except Exception as e:
-                logger.error(f"Error filtering logs from {log_file_path}: {str(e)}")
-                continue
+        try:
+            with open(log_file_path, 'r') as log_file:
+                for log in log_file:
+                    if level in log.upper():
+                        if self.is_log_within_date_range(log, start_date, end_date):
+                            filtered_logs.append(log)
+        except Exception as e:
+            logger.error(f"Error filtering logs: {str(e)}")
+            raise
         return filtered_logs
 
     def is_log_within_date_range(self, log, start_date, end_date):

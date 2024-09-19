@@ -97,11 +97,7 @@ class SaleListResource(Resource):
             sales_query = sales_query.filter(Sale.status == status)
 
         # Apply sorting and pagination
-        try:
-            sales = sales_query.order_by(sort_by).paginate(page=page, per_page=per_page, error_out=False)
-        except Exception as e:
-            logger.error(f"Error retrieving sales list: {str(e)}")
-            return {'message': 'Error retrieving sales list.'}, 500
+        sales = sales_query.order_by(sort_by).paginate(page=page, per_page=per_page, error_out=False)
 
         # Log the access to audit trail
         logger.info(f"User {current_user['id']} accessed sales list.")
@@ -110,9 +106,7 @@ class SaleListResource(Resource):
             action='ACCESS',
             resource_type='sales_list',
             resource_id=None,
-            details="User accessed the list of sales.",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details="User accessed the list of sales."
         )
         db.session.add(audit)
         db.session.commit()
@@ -135,74 +129,66 @@ class SaleListResource(Resource):
         # Validate required fields
         required_fields = ['sales_executive_id', 'client_phone', 'amount', 'sale_manager_id', 'policy_type_id']
         for field in required_fields:
-            if field not in data or data[field] is None:
+            if field not in data or not data[field]:
                 return {'message': f'Missing required field: {field}'}, 400
 
-        try:
-            # Extract optional fields with defaults
-            bank_id = data.get('bank_id')
-            bank_branch_id = data.get('bank_branch_id')
-            paypoint_id = data.get('paypoint_id')
-            geolocation_latitude = data.get('geolocation_latitude')
-            geolocation_longitude = data.get('geolocation_longitude')
+        bank_id = data.get('bank_id')  # Use .get() to safely access bank_id
+        bank_branch_id = data.get('bank_branch_id')
+        paypoint_id = data.get('paypoint_id')
 
-            # Create new sale
-            new_sale = Sale(
-                user_id=current_user['id'],
-                sale_manager_id=data['sale_manager_id'],
-                sales_executive_id=data['sales_executive_id'],
-                client_name=data.get('client_name'),
-                client_id_no=data.get('client_id_no'),
-                client_phone=data.get('client_phone'),
-                serial_number=data.get('serial_number'),
-                collection_platform=data.get('collection_platform'),
-                source_type=data.get('source_type'),
-                momo_reference_number=data.get('momo_reference_number'),
-                momo_transaction_id=data.get('momo_transaction_id'),
-                first_pay_with_momo=data.get('first_pay_with_momo'),
-                subsequent_pay_source_type=data.get('subsequent_pay_source_type'),
-                bank_id=bank_id,
-                bank_branch_id=bank_branch_id,
-                bank_acc_number=data.get('bank_acc_number'),
-                paypoint_id=paypoint_id,
-                paypoint_branch=data.get('paypoint_branch'),
-                staff_id=data.get('staff_id'),
-                policy_type_id=data['policy_type_id'],
-                amount=data['amount'],
-                customer_called=data.get('customer_called'),
-                geolocation_latitude=geolocation_latitude,
-                geolocation_longitude=geolocation_longitude
-            )
+        # Extract geolocation from data
+        geolocation = data.get('geolocation', {})
+        geolocation_latitude = geolocation.get('latitude')
+        geolocation_longitude = geolocation.get('longitude')
 
-            # Check for duplicates and flag them if found
-            duplicate_sale = new_sale.check_duplicate()
-            if duplicate_sale:
-                new_sale.status = 'duplicate'
-                logger.warning(f"Duplicate sale detected for client {data.get('client_name')} with phone {data.get('client_phone')}.")
-            else:
-                new_sale.status = 'new'
+        # Create new sale
+        new_sale = Sale(
+            user_id=current_user['id'],
+            sale_manager_id=data['sale_manager_id'],
+            sales_executive_id=data['sales_executive_id'],
+            client_name=data.get('client_name'),
+            client_id_no=data.get('client_id_no'),
+            client_phone=data.get('client_phone'),
+            serial_number=data.get('serial_number'),
+            collection_platform=data.get('collection_platform'),
+            source_type=data.get('source_type'),
+            momo_reference_number=data.get('momo_reference_number'),
+            momo_transaction_id=data.get('momo_transaction_id'),
+            first_pay_with_momo=data.get('first_pay_with_momo'),
+            subsequent_pay_source_type=data.get('subsequent_pay_source_type'),
+            bank_id=bank_id,
+            bank_branch_id=bank_branch_id,
+            bank_acc_number=data.get('bank_acc_number'),
+            paypoint_id=paypoint_id,
+            paypoint_branch=data.get('paypoint_branch'),
+            staff_id=data.get('staff_id'),
+            policy_type_id=data['policy_type_id'],
+            amount=data.get('amount'),
+            customer_called=data.get('customer_called'),
+            geolocation_latitude=geolocation_latitude,
+            geolocation_longitude=geolocation_longitude
+        )
 
-            db.session.add(new_sale)
-            db.session.commit()
+        # Check for duplicates
+        new_sale.check_duplicate()
 
-            # Log the creation to audit trail
-            logger.info(f"User {current_user['id']} created a new sale with ID {new_sale.id}.")
-            audit = AuditTrail(
-                user_id=current_user['id'],
-                action='CREATE',
-                resource_type='sale',
-                resource_id=new_sale.id,
-                details=f"User created a new sale with ID {new_sale.id}",
-                ip_address=request.remote_addr,
-                user_agent=request.headers.get('User-Agent')
-            )
-            db.session.add(audit)
-            db.session.commit()
+        db.session.add(new_sale)
+        db.session.commit()
 
-            return new_sale.serialize(), 201
-        except Exception as e:
-            logger.error(f"Error creating sale: {str(e)}")
-            return {'message': 'Error creating sale. Please check your input and try again.'}, 400
+        # Log the creation to audit trail
+        logger.info(f"User {current_user['id']} created a new sale with ID {new_sale.id}.")
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='CREATE',
+            resource_type='sale',
+            resource_id=new_sale.id,
+            details=f"User created a new sale with ID {new_sale.id}"
+        )
+        db.session.add(audit)
+        db.session.commit()
+
+        return new_sale.serialize(), 201
+
 
 @sales_ns.route('/<int:sale_id>')
 class SaleDetailResource(Resource):
@@ -242,61 +228,48 @@ class SaleDetailResource(Resource):
 
         data = request.json
 
-        try:
-            # Update fields
-            sale.sale_manager_id = data.get('sale_manager_id', sale.sale_manager_id)
-            sale.sales_executive_id = data.get('sales_executive_id', sale.sales_executive_id)
-            sale.client_name = data.get('client_name', sale.client_name)
-            sale.client_id_no = data.get('client_id_no', sale.client_id_no)
-            sale.client_phone = data.get('client_phone', sale.client_phone)
-            sale.serial_number = data.get('serial_number', sale.serial_number)
-            sale.collection_platform = data.get('collection_platform', sale.collection_platform)
-            sale.source_type = data.get('source_type', sale.source_type)
-            sale.momo_reference_number = data.get('momo_reference_number', sale.momo_reference_number)
-            sale.momo_transaction_id = data.get('momo_transaction_id', sale.momo_transaction_id)
-            sale.first_pay_with_momo = data.get('first_pay_with_momo', sale.first_pay_with_momo)
-            sale.subsequent_pay_source_type = data.get('subsequent_pay_source_type', sale.subsequent_pay_source_type)
-            sale.bank_id = data.get('bank_id', sale.bank_id)
-            sale.bank_branch_id = data.get('bank_branch_id', sale.bank_branch_id)
-            sale.bank_acc_number = data.get('bank_acc_number', sale.bank_acc_number)
-            sale.paypoint_id = data.get('paypoint_id', sale.paypoint_id)
-            sale.paypoint_branch = data.get('paypoint_branch', sale.paypoint_branch)
-            sale.staff_id = data.get('staff_id', sale.staff_id)
-            sale.policy_type_id = data.get('policy_type_id', sale.policy_type_id)
-            sale.amount = data.get('amount', sale.amount)
-            sale.customer_called = data.get('customer_called', sale.customer_called)
-            sale.geolocation_latitude = data.get('geolocation_latitude', sale.geolocation_latitude)
-            sale.geolocation_longitude = data.get('geolocation_longitude', sale.geolocation_longitude)
-            sale.updated_at = datetime.utcnow()
+        # Update fields
+        sale.sale_manager_id = data.get('sale_manager_id', sale.sale_manager_id)
+        sale.sales_executive_id = data.get('sales_executive_id', sale.sales_executive_id)
+        sale.client_name = data.get('client_name', sale.client_name)
+        sale.client_id_no = data.get('client_id_no', sale.client_id_no)
+        sale.client_phone = data.get('client_phone', sale.client_phone)
+        sale.serial_number = data.get('serial_number', sale.serial_number)
+        sale.collection_platform = data.get('collection_platform', sale.collection_platform)
+        sale.source_type = data.get('source_type', sale.source_type)
+        sale.momo_reference_number = data.get('momo_reference_number', sale.momo_reference_number)
+        sale.momo_transaction_id = data.get('momo_transaction_id', sale.momo_transaction_id)
+        sale.first_pay_with_momo = data.get('first_pay_with_momo', sale.first_pay_with_momo)
+        sale.subsequent_pay_source_type = data.get('subsequent_pay_source_type', sale.subsequent_pay_source_type)
+        sale.bank_id = data.get('bank_id', sale.bank_id)
+        sale.bank_branch_id = data.get('bank_branch_id', sale.bank_branch_id)
+        sale.bank_acc_number = data.get('bank_acc_number', sale.bank_acc_number)
+        sale.paypoint_id = data.get('paypoint_id', sale.paypoint_id)
+        sale.paypoint_branch = data.get('paypoint_branch', sale.paypoint_branch)
+        sale.staff_id = data.get('staff_id', sale.staff_id)
+        sale.policy_type_id = data.get('policy_type_id', sale.policy_type_id)
+        sale.amount = data.get('amount', sale.amount)
+        sale.customer_called = data.get('customer_called', sale.customer_called)
+        sale.geolocation_latitude = data.get('geolocation_latitude', sale.geolocation_latitude)
+        sale.geolocation_longitude = data.get('geolocation_longitude', sale.geolocation_longitude)
+        sale.updated_at = datetime.utcnow()
+        sale.status = 'updated'
 
-            # Check for duplicates during update
-            duplicate_sale = sale.check_duplicate()
-            if duplicate_sale:
-                sale.status = 'duplicate'
-                logger.warning(f"Duplicate sale detected during update for sale ID {sale.id}.")
-            else:
-                sale.status = 'updated'
+        db.session.commit()
 
-            db.session.commit()
+        # Log the update to audit trail
+        logger.info(f"User {current_user['id']} updated sale with ID {sale.id}.")
+        audit = AuditTrail(
+            user_id=current_user['id'],
+            action='UPDATE',
+            resource_type='sale',
+            resource_id=sale.id,
+            details=f"User updated sale with ID {sale.id}"
+        )
+        db.session.add(audit)
+        db.session.commit()
 
-            # Log the update to audit trail
-            logger.info(f"User {current_user['id']} updated sale with ID {sale.id}.")
-            audit = AuditTrail(
-                user_id=current_user['id'],
-                action='UPDATE',
-                resource_type='sale',
-                resource_id=sale.id,
-                details=f"User updated sale with ID {sale.id}",
-                ip_address=request.remote_addr,
-                user_agent=request.headers.get('User-Agent')
-            )
-            db.session.add(audit)
-            db.session.commit()
-
-            return sale.serialize(), 200
-        except Exception as e:
-            logger.error(f"Error updating sale: {str(e)}")
-            return {'message': 'Error updating sale. Please check your input and try again.'}, 400
+        return sale.serialize(), 200
 
     @sales_ns.doc(security='Bearer Auth', responses={200: 'Deleted', 404: 'Sale Not Found'})
     @jwt_required()
@@ -317,9 +290,7 @@ class SaleDetailResource(Resource):
             action='DELETE',
             resource_type='sale',
             resource_id=sale.id,
-            details=f"User soft-deleted sale with ID {sale.id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User soft-deleted sale with ID {sale.id}"
         )
         db.session.add(audit)
         db.session.commit()

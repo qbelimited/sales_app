@@ -23,7 +23,7 @@ const ManageRolesPage = ({ showToast }) => {
     can_view_audit_trail: false,
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [roleToDelete, setRoleToDelete] = useState(null);
+  const [accessToDelete, setAccessToDelete] = useState(null);
 
   // Fetch all roles and access
   const fetchRolesAndAccess = useCallback(async () => {
@@ -125,20 +125,13 @@ const ManageRolesPage = ({ showToast }) => {
   };
 
   // Handle delete role and its access
-  const handleDeleteRole = async () => {
+  const handleDeleteRole = async (roleId) => {
     setShowDeleteModal(false);
     try {
-      // Check if role has access
-      const access = accessList.find((access) => access.role_id === roleToDelete.id);
-
       // Delete role
-      await api.delete(`/roles/${roleToDelete.id}`);
-
-      // Delete associated access if it exists
-      if (access) {
-        await api.delete('/access/', { data: { role_id: roleToDelete.id } });
-      }
-
+      await api.delete(`/roles/${roleId}`);
+      // Delete associated access
+      await api.delete('/access/', { data: { role_id: roleId } });
       showToast('success', 'Role and associated access deleted successfully!', 'Success');
       fetchRolesAndAccess();
     } catch (error) {
@@ -156,9 +149,26 @@ const ManageRolesPage = ({ showToast }) => {
   };
 
   // Handle show delete access modal
-  const handleShowDeleteRoleModal = (role) => {
-    setRoleToDelete(role);
+  const handleShowDeleteAccessModal = (access) => {
+    setAccessToDelete(access);
     setShowDeleteModal(true);
+  };
+
+  // Handle delete access and its role
+  const handleDeleteAccess = async () => {
+    if (!accessToDelete) return;
+    setShowDeleteModal(false);
+    try {
+      // Delete access
+      await api.delete('/access/', { data: { role_id: accessToDelete.role_id } });
+      // Delete associated role
+      await api.delete(`/roles/${accessToDelete.role_id}`);
+      showToast('success', 'Access and associated role deleted successfully!', 'Success');
+      fetchRolesAndAccess();
+    } catch (error) {
+      console.error('Error deleting access or role:', error);
+      showToast('danger', 'Failed to delete access and role. Please try again.', 'Error');
+    }
   };
 
   // Handle edit access
@@ -202,7 +212,7 @@ const ManageRolesPage = ({ showToast }) => {
                   <Button variant="link" size="sm" onClick={() => handleEditRole(role)}>
                     <FaPen />
                   </Button>
-                  <Button variant="link" size="sm" onClick={() => handleShowDeleteRoleModal(role)}>
+                  <Button variant="link" size="sm" onClick={() => handleDeleteRole(role.id)}>
                     <FaTrash />
                   </Button>
                 </td>
@@ -256,7 +266,7 @@ const ManageRolesPage = ({ showToast }) => {
                     <Button variant="link" size="sm" onClick={() => handleEditAccess(access)}>
                       <FaPen />
                     </Button>
-                    <Button variant="link" size="sm" onClick={() => handleShowDeleteRoleModal(role)}>
+                    <Button variant="link" size="sm" onClick={() => handleShowDeleteAccessModal(access)}>
                       <FaTrash />
                     </Button>
                   </td>
@@ -379,19 +389,19 @@ const ManageRolesPage = ({ showToast }) => {
         </Modal.Footer>
       </Modal>
 
-      {/* Delete Access/Role Modal */}
+      {/* Delete Access Modal */}
       <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
         <Modal.Header closeButton>
           <Modal.Title>Confirm Deletion</Modal.Title>
         </Modal.Header>
         <Modal.Body>
-          Are you sure you want to delete this role? Any associated access will also be deleted.
+          Are you sure you want to delete this access and its associated role?
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
             Cancel
           </Button>
-          <Button variant="danger" onClick={handleDeleteRole}>
+          <Button variant="danger" onClick={handleDeleteAccess}>
             Confirm Delete
           </Button>
         </Modal.Footer>

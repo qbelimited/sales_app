@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Card, Typography, Button, Modal, TextField, MenuItem, Select, InputLabel, FormControl } from '@mui/material';
 import { Container, Row, Col, Table, Spinner, Pagination } from 'react-bootstrap';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlus, faEdit, faTrashAlt } from '@fortawesome/free-solid-svg-icons';
 import api from '../services/api'; // Axios instance
 
 const ManageProductsPage = ({ showToast }) => {
@@ -20,7 +18,6 @@ const ManageProductsPage = ({ showToast }) => {
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const productsPerPage = 10;
 
   // Fetch all products on component mount and on pagination change
@@ -29,8 +26,7 @@ const ManageProductsPage = ({ showToast }) => {
       setLoading(true);
       try {
         const response = await api.get(`/impact_products/?sort_by=created_at&per_page=${productsPerPage}&page=${currentPage}`);
-        setProducts(response.data.products);
-        setTotalPages(Math.ceil(response.data.total / productsPerPage)); // Update total pages
+        setProducts(response.data.products); // Set the correct array of products
       } catch (error) {
         console.error('Error fetching products:', error);
         showToast('error', 'Failed to fetch products. Please try again later.', 'Error');
@@ -84,11 +80,6 @@ const ManageProductsPage = ({ showToast }) => {
 
   // Handle deleting a product
   const handleDeleteProduct = async () => {
-    if (!selectedProduct) {
-      showToast('error', 'No product selected for deletion.', 'Error');
-      return;
-    }
-
     try {
       await api.delete(`/impact_products/${selectedProduct.id}`); // Delete product
       setProducts((prevProducts) => prevProducts.filter((product) => product.id !== selectedProduct.id));
@@ -103,7 +94,6 @@ const ManageProductsPage = ({ showToast }) => {
 
   // Handle opening delete confirmation modal
   const handleShowDeleteConfirmation = (product) => {
-    if (!product) return;
     setSelectedProduct(product);
     setShowDeleteConfirmation(true);
   };
@@ -126,7 +116,7 @@ const ManageProductsPage = ({ showToast }) => {
             color="primary"
             onClick={() => handleOpenProductModal('add')}
           >
-            <FontAwesomeIcon icon={faPlus} /> Add New Product
+            <i className="fas fa-plus"></i> Add New Product
           </Button>
         </Col>
       </Row>
@@ -155,14 +145,14 @@ const ManageProductsPage = ({ showToast }) => {
                       onClick={() => handleOpenProductModal('edit', product)}
                       className="me-2"
                     >
-                      <FontAwesomeIcon icon={faEdit} /> Edit
+                      <i className="fas fa-edit"></i> Edit
                     </Button>
                     <Button
                       variant="contained"
                       color="error"
                       onClick={() => handleShowDeleteConfirmation(product)}
                     >
-                      <FontAwesomeIcon icon={faTrashAlt} /> Delete
+                      <i className="fas fa-trash-alt"></i> Delete
                     </Button>
                   </td>
                 </tr>
@@ -171,7 +161,7 @@ const ManageProductsPage = ({ showToast }) => {
           </Table>
           {/* Pagination */}
           <Pagination>
-            {Array.from({ length: totalPages }, (_, index) => (
+            {Array.from({ length: Math.ceil(products.length / productsPerPage) }, (_, index) => (
               <Pagination.Item key={index + 1} active={index + 1 === currentPage} onClick={() => paginate(index + 1)}>
                 {index + 1}
               </Pagination.Item>

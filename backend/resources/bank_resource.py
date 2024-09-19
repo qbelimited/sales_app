@@ -25,6 +25,7 @@ bank_model = bank_ns.model('Bank', {
     'bank_branches': fields.List(fields.Nested(bank_branch_model))
 })
 
+
 @bank_ns.route('/')
 class BankResource(Resource):
     @bank_ns.doc(security='Bearer Auth')
@@ -57,9 +58,7 @@ class BankResource(Resource):
             action='CREATE',
             resource_type='bank',
             resource_id=new_bank.id,
-            details=f"Bank '{new_bank.name}' created",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"Bank '{new_bank.name}' created"
         )
         db.session.add(audit)
         db.session.commit()
@@ -110,9 +109,7 @@ class SingleBankResource(Resource):
             action='UPDATE',
             resource_type='bank',
             resource_id=bank.id,
-            details=f"Bank '{bank.name}' updated",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"Bank '{bank.name}' updated"
         )
         db.session.add(audit)
         db.session.commit()
@@ -144,9 +141,7 @@ class SingleBankResource(Resource):
             action='DELETE',
             resource_type='bank',
             resource_id=bank.id,
-            details=f"Bank '{bank.name}' soft deleted",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"Bank '{bank.name}' soft deleted"
         )
         db.session.add(audit)
         db.session.commit()
@@ -190,9 +185,7 @@ class BankBranchResource(Resource):
             action='CREATE',
             resource_type='branch',
             resource_id=new_branch.id,
-            details=f"Branch '{new_branch.name}' created",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"Branch '{new_branch.name}' created"
         )
         db.session.add(audit)
         db.session.commit()
@@ -244,9 +237,7 @@ class SingleBranchResource(Resource):
             action='UPDATE',
             resource_type='branch',
             resource_id=branch.id,
-            details=f"Branch '{branch.name}' updated",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"Branch '{branch.name}' updated"
         )
         db.session.add(audit)
         db.session.commit()
@@ -278,9 +269,7 @@ class SingleBranchResource(Resource):
             action='DELETE',
             resource_type='branch',
             resource_id=branch.id,
-            details=f"Branch '{branch.name}' soft deleted",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"Branch '{branch.name}' soft deleted"
         )
         db.session.add(audit)
         db.session.commit()

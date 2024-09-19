@@ -49,9 +49,7 @@ class UnderInvestigationListResource(Resource):
             action='ACCESS',
             resource_type='under_investigation_list',
             resource_id=None,
-            details=f"User accessed list of under investigation records",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User accessed list of under investigation records"
         )
         db.session.add(audit)
         db.session.commit()
@@ -96,9 +94,7 @@ class UnderInvestigationListResource(Resource):
                 action='CREATE',
                 resource_type='under_investigation',
                 resource_id=new_investigation.id,
-                details=f"User flagged sale with ID {data['sale_id']} as under investigation",
-                ip_address=request.remote_addr,
-                user_agent=request.headers.get('User-Agent')
+                details=f"User flagged sale with ID {data['sale_id']} as under investigation"
             )
             db.session.add(audit)
             db.session.commit()
@@ -131,9 +127,7 @@ class UnderInvestigationResource(Resource):
             action='ACCESS',
             resource_type='under_investigation',
             resource_id=investigation_id,
-            details=f"User accessed investigation with ID {investigation_id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User accessed investigation with ID {investigation_id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -170,9 +164,7 @@ class UnderInvestigationResource(Resource):
                 action='UPDATE',
                 resource_type='under_investigation',
                 resource_id=investigation.id,
-                details=f"User updated investigation with ID {investigation.id}",
-                ip_address=request.remote_addr,
-                user_agent=request.headers.get('User-Agent')
+                details=f"User updated investigation with ID {investigation.id}"
             )
             db.session.add(audit)
             db.session.commit()
@@ -206,9 +198,7 @@ class UnderInvestigationResource(Resource):
                 action='RESOLVE',
                 resource_type='under_investigation',
                 resource_id=investigation.id,
-                details=f"User resolved investigation with ID {investigation.id}",
-                ip_address=request.remote_addr,
-                user_agent=request.headers.get('User-Agent')
+                details=f"User resolved investigation with ID {investigation.id}"
             )
             db.session.add(audit)
             db.session.commit()

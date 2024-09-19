@@ -54,9 +54,7 @@ class SalesTargetListResource(Resource):
             user_id=current_user['id'],
             action='ACCESS',
             resource_type='sales_target_list',
-            details="User accessed list of Sales Targets",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details="User accessed list of Sales Targets"
         )
         db.session.add(audit)
         db.session.commit()
@@ -107,9 +105,7 @@ class SalesTargetListResource(Resource):
             action='CREATE',
             resource_type='sales_target',
             resource_id=new_target.id,
-            details=f"Created new Sales Target for Sales Executive ID {new_target.sales_executive_id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"Created new Sales Target for Sales Executive ID {new_target.sales_executive_id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -137,9 +133,7 @@ class SalesTargetResource(Resource):
             action='ACCESS',
             resource_type='sales_target',
             resource_id=target_id,
-            details=f"User accessed Sales Target with ID {target_id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User accessed Sales Target with ID {target_id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -181,9 +175,7 @@ class SalesTargetResource(Resource):
             action='UPDATE',
             resource_type='sales_target',
             resource_id=target.id,
-            details=f"Updated Sales Target with ID {target.id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"Updated Sales Target with ID {target.id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -217,9 +209,7 @@ class SalesTargetResource(Resource):
             action='DELETE',
             resource_type='sales_target',
             resource_id=target.id,
-            details=f"Deleted Sales Target with ID {target.id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"Deleted Sales Target with ID {target.id}"
         )
         db.session.add(audit)
         db.session.commit()

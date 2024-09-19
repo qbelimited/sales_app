@@ -47,9 +47,7 @@ class ManagerSalesExecutiveResource(Resource):
             action='ACCESS',
             resource_type='sales_executive_list',
             resource_id=None,
-            details="Manager accessed list of sales executives",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details="Manager accessed list of sales executives"
         )
         db.session.add(audit)
         db.session.commit()
@@ -97,9 +95,7 @@ class ManagerSalesExecutiveResource(Resource):
             action='CREATE',
             resource_type='sales_executive',
             resource_id=new_sales_executive.id,
-            details=f"Manager created a new sales executive with ID {new_sales_executive.id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"Manager created a new sales executive with ID {new_sales_executive.id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -147,9 +143,7 @@ class ManagerSalesExecutiveUpdateResource(Resource):
             action='UPDATE',
             resource_type='sales_executive',
             resource_id=sales_executive.id,
-            details=f"Manager updated sales executive with ID {sales_executive.id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"Manager updated sales executive with ID {sales_executive.id}"
         )
         db.session.add(audit)
         db.session.commit()

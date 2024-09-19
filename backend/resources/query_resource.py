@@ -54,9 +54,7 @@ class QueryListResource(Resource):
             action='ACCESS',
             resource_type='query_list',
             resource_id=None,
-            details=f"User accessed list of queries/feedback",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User accessed list of queries/feedback"
         )
         db.session.add(audit)
         db.session.commit()
@@ -100,9 +98,7 @@ class QueryListResource(Resource):
             action='CREATE',
             resource_type='query',
             resource_id=new_query.id,
-            details=f"User submitted a new query/feedback with ID {new_query.id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User submitted a new query/feedback with ID {new_query.id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -129,9 +125,7 @@ class QueryResource(Resource):
             action='ACCESS',
             resource_type='query',
             resource_id=query_id,
-            details=f"User accessed query/feedback with ID {query_id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User accessed query/feedback with ID {query_id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -171,9 +165,7 @@ class QueryResource(Resource):
             action='UPDATE',
             resource_type='query',
             resource_id=query.id,
-            details=f"User updated query/feedback with ID {query.id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User updated query/feedback with ID {query.id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -209,9 +201,7 @@ class QueryResource(Resource):
             action='DELETE',
             resource_type='query',
             resource_id=query.id,
-            details=f"User soft-deleted query/feedback with ID {query.id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User soft-deleted query/feedback with ID {query.id}"
         )
         db.session.add(audit)
         db.session.commit()

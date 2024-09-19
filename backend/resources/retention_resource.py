@@ -35,9 +35,7 @@ class RetentionPolicyResource(Resource):
                 action='ACCESS',
                 resource_type='retention_policy',
                 resource_id=policy.id,
-                details="User accessed the retention policy",
-                ip_address=request.remote_addr,
-                user_agent=request.headers.get('User-Agent')
+                details="User accessed the retention policy"
             )
             db.session.add(audit)
             db.session.commit()
@@ -72,9 +70,7 @@ class RetentionPolicyResource(Resource):
                     action='UPDATE',
                     resource_type='retention_policy',
                     resource_id=policy.id,
-                    details=f"User updated retention policy to {retention_days} days",
-                    ip_address=request.remote_addr,
-                    user_agent=request.headers.get('User-Agent')
+                    details=f"User updated retention policy to {retention_days} days"
                 )
                 db.session.add(audit)
                 db.session.commit()

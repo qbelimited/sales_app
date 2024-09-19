@@ -7,7 +7,7 @@ from models.user_model import User
 from models.audit_model import AuditTrail
 from models.paypoint_model import Paypoint
 from app import db, logger
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 # Define a namespace for dropdown-related operations
 dropdown_ns = Namespace('dropdown', description='Dropdown operations')
@@ -70,6 +70,7 @@ class DropdownResource(Resource):
     @dropdown_ns.param('per_page', 'Number of items per page', type='integer', default=10)
     def get(self):
         """Retrieve dropdown values based on the type."""
+        current_user = get_jwt_identity()  # Fetch current user from JWT
         dropdown_type = request.args.get('type')  # Fetch dropdown type from query parameter
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 1000, type=int)
@@ -151,15 +152,12 @@ class DropdownResource(Resource):
 
     # Log the dropdown access to the audit trail
     def log_audit(self, current_user, dropdown_type):
-
         audit = AuditTrail(
             user_id=current_user['id'],
             action='ACCESS',
             resource_type='dropdown',
             resource_id=None,
-            details=f"Accessed {dropdown_type} dropdown",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"Accessed {dropdown_type} dropdown"
         )
         db.session.add(audit)
         db.session.commit()

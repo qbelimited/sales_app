@@ -48,38 +48,31 @@ class AuditTrailResource(Resource):
 
         # Filter by user ID if provided
         if user_id:
-            query = query.filter(AuditTrail.user_id == user_id)
+            query = query.filter_by(user_id=user_id)
 
         # Filter by date range if provided
-        if start_date:
+        if start_date and end_date:
             try:
                 start_dt = datetime.strptime(start_date, '%Y-%m-%d')
-                query = query.filter(AuditTrail.timestamp >= start_dt)
-            except ValueError:
-                logger.error(f"Invalid start date format for filtering: {start_date}.")
-                return {'message': 'Invalid date format. Use YYYY-MM-DD'}, 400
-
-        if end_date:
-            try:
                 end_dt = datetime.strptime(end_date, '%Y-%m-%d')
-                query = query.filter(AuditTrail.timestamp <= end_dt)
+                query = query.filter(AuditTrail.timestamp.between(start_dt, end_dt))
             except ValueError:
-                logger.error(f"Invalid end date format for filtering: {end_date}.")
+                logger.error(f"Invalid date format for filtering: {start_date} - {end_date}.")
                 return {'message': 'Invalid date format. Use YYYY-MM-DD'}, 400
 
-        # Filter by resource type (case-insensitive, partial match)
+        # Filter by resource type
         if resource_type:
-            query = query.filter(AuditTrail.resource_type.ilike(f"%{resource_type}%"))
+            query = query.filter_by(resource_type=resource_type)
 
-        # Filter by action (case-insensitive, partial match)
+        # Filter by action
         if action:
-            if action.upper() in AuditAction.__members__:
-                query = query.filter(AuditTrail.action.ilike(f"%{action.upper()}%"))
+            if action in AuditAction.__members__:
+                query = query.filter_by(action=AuditAction[action])
             else:
                 logger.error(f"Invalid action type provided: {action}.")
                 return {'message': f"Invalid action type. Valid types are: {', '.join(AuditAction.__members__.keys())}"}, 400
 
-        audit_trails = query.order_by(AuditTrail.timestamp.desc()).all()
+        audit_trails = query.all()
 
         logger.info(f"User ID {current_user['id']} retrieved audit trail logs.")
         return audit_trails, 200
@@ -133,32 +126,25 @@ class FilteredAuditTrailResource(Resource):
 
         # Apply filters if provided
         if resource_type:
-            query = query.filter(AuditTrail.resource_type.ilike(f"%{resource_type}%"))
+            query = query.filter_by(resource_type=resource_type)
 
         if action:
-            if action.upper() in AuditAction.__members__:
-                query = query.filter(AuditTrail.action.ilike(f"%{action.upper()}%"))
+            if action in AuditAction.__members__:
+                query = query.filter_by(action=AuditAction[action])
             else:
                 logger.error(f"Invalid action type provided: {action}.")
                 return {'message': f"Invalid action type. Valid types are: {', '.join(AuditAction.__members__.keys())}"}, 400
 
-        if start_date:
+        if start_date and end_date:
             try:
                 start_dt = datetime.strptime(start_date, '%Y-%m-%d')
-                query = query.filter(AuditTrail.timestamp >= start_dt)
-            except ValueError:
-                logger.error(f"Invalid start date format for filtering: {start_date}.")
-                return {'message': 'Invalid date format. Use YYYY-MM-DD'}, 400
-
-        if end_date:
-            try:
                 end_dt = datetime.strptime(end_date, '%Y-%m-%d')
-                query = query.filter(AuditTrail.timestamp <= end_dt)
+                query = query.filter(AuditTrail.timestamp.between(start_dt, end_dt))
             except ValueError:
-                logger.error(f"Invalid end date format for filtering: {end_date}.")
+                logger.error(f"Invalid date format for filtering: {start_date} - {end_date}.")
                 return {'message': 'Invalid date format. Use YYYY-MM-DD'}, 400
 
-        filtered_audits = query.order_by(AuditTrail.timestamp.desc()).all()
+        filtered_audits = query.all()
 
         # Capture IP and User Agent
         ip_address = request.remote_addr
@@ -167,7 +153,7 @@ class FilteredAuditTrailResource(Resource):
         # Log this action with IP and user agent
         new_audit_entry = AuditTrail(
             user_id=current_user['id'],
-            action='FILTER',
+            action='UPDATE',
             resource_type='audit_trail',
             timestamp=datetime.utcnow(),
             details=f"Filtered audit logs for resource type: {resource_type}, action: {action}, dates: {start_date} - {end_date}.",
@@ -179,3 +165,6 @@ class FilteredAuditTrailResource(Resource):
 
         logger.info(f"User ID {current_user['id']} filtered audit logs with IP {ip_address} and User Agent {user_agent}.")
         return filtered_audits, 200
+
+
+

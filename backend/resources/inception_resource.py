@@ -19,6 +19,7 @@ inception_model = inception_ns.model('Inception', {
     'description': fields.String(description='Description of the inception'),
 })
 
+
 # Helper function for input validation
 def validate_inception_data(data):
     if 'amount_received' in data and data['amount_received'] <= 0:
@@ -46,9 +47,7 @@ class InceptionListResource(Resource):
             user_id=current_user['id'],
             action='ACCESS',
             resource_type='inception_list',
-            details="User accessed list of inceptions",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details="User accessed list of inceptions"
         )
         db.session.add(audit)
         db.session.commit()
@@ -92,9 +91,7 @@ class InceptionListResource(Resource):
                 action='CREATE',
                 resource_type='inception',
                 resource_id=new_inception.id,
-                details=f"User created a new inception for Sale ID {data['sale_id']}",
-                ip_address=request.remote_addr,
-                user_agent=request.headers.get('User-Agent')
+                details=f"User created a new inception for Sale ID {data['sale_id']}"
             )
             db.session.add(audit)
             db.session.commit()
@@ -128,9 +125,7 @@ class InceptionResource(Resource):
             action='ACCESS',
             resource_type='inception',
             resource_id=inception.id,
-            details=f"User accessed inception with ID {inception_id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User accessed inception with ID {inception_id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -166,9 +161,7 @@ class InceptionResource(Resource):
                 action='UPDATE',
                 resource_type='inception',
                 resource_id=inception.id,
-                details=f"User updated inception with ID {inception_id}",
-                ip_address=request.remote_addr,
-                user_agent=request.headers.get('User-Agent')
+                details=f"User updated inception with ID {inception_id}"
             )
             db.session.add(audit)
             db.session.commit()
@@ -205,9 +198,7 @@ class InceptionResource(Resource):
                 action='DELETE',
                 resource_type='inception',
                 resource_id=inception.id,
-                details=f"User deleted inception with ID {inception_id}",
-                ip_address=request.remote_addr,
-                user_agent=request.headers.get('User-Agent')
+                details=f"User deleted inception with ID {inception_id}"
             )
             db.session.add(audit)
             db.session.commit()

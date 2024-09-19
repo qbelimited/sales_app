@@ -50,9 +50,7 @@ class SalesExecutiveListResource(Resource):
             action='ACCESS',
             resource_type='sales_executive_list',
             resource_id=None,
-            details="User accessed list of Sales Executives",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details="User accessed list of Sales Executives"
         )
         db.session.add(audit)
         db.session.commit()
@@ -107,9 +105,7 @@ class SalesExecutiveListResource(Resource):
             action='CREATE',
             resource_type='sales_executive',
             resource_id=new_sales_executive.id,
-            details=f"User created a new Sales Executive with ID {new_sales_executive.id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User created a new Sales Executive with ID {new_sales_executive.id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -137,9 +133,7 @@ class SalesExecutiveResource(Resource):
             action='ACCESS',
             resource_type='sales_executive',
             resource_id=sales_executive_id,
-            details=f"User accessed Sales Executive with ID {sales_executive_id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User accessed Sales Executive with ID {sales_executive_id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -187,9 +181,7 @@ class SalesExecutiveResource(Resource):
             action='UPDATE',
             resource_type='sales_executive',
             resource_id=sales_executive.id,
-            details=f"User updated Sales Executive with ID {sales_executive.id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User updated Sales Executive with ID {sales_executive.id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -221,9 +213,7 @@ class SalesExecutiveResource(Resource):
             action='DELETE',
             resource_type='sales_executive',
             resource_id=sales_executive.id,
-            details=f"User soft-deleted Sales Executive with ID {sales_executive.id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User soft-deleted Sales Executive with ID {sales_executive.id}"
         )
         db.session.add(audit)
         db.session.commit()

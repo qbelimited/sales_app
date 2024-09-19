@@ -24,6 +24,7 @@ role_id_model = access_ns.model('RoleID', {
     'role_id': fields.Integer(required=True, description='Role ID')
 })
 
+
 # Utility function to check admin privileges
 def is_admin():
     current_user = get_jwt_identity()
@@ -47,9 +48,7 @@ class AccessResource(Resource):
             action='ACCESS',
             resource_type='role_access',
             resource_id=None,
-            details=f"User with ID {get_jwt_identity()['id']} retrieved access information for all roles",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User with ID {get_jwt_identity()['id']} retrieved access information for all roles"
         )
         db.session.add(audit)
         db.session.commit()
@@ -99,9 +98,7 @@ class AccessResource(Resource):
             action='UPDATE',
             resource_type='role_access',
             resource_id=role.id,
-            details=f"Admin updated access for role {role.name}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"Admin updated access for role {role.name}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -141,9 +138,7 @@ class AccessResource(Resource):
             action='DELETE',
             resource_type='role_access',
             resource_id=role.id,
-            details=f"Admin deleted access for role {role.name}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"Admin deleted access for role {role.name}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -178,9 +173,7 @@ class SingleAccessResource(Resource):
             action='ACCESS',
             resource_type='role_access',
             resource_id=role.id,
-            details=f"User with ID {get_jwt_identity()['id']} retrieved access for role {role.name}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User with ID {get_jwt_identity()['id']} retrieved access for role {role.name}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -226,9 +219,7 @@ class SingleAccessResource(Resource):
             action='UPDATE',
             resource_type='role_access',
             resource_id=role.id,
-            details=f"Admin updated access for role {role.name}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"Admin updated access for role {role.name}"
         )
         db.session.add(audit)
         db.session.commit()

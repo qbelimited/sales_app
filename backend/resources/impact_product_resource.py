@@ -64,9 +64,7 @@ class ImpactProductListResource(Resource):
             user_id=current_user['id'],
             action='ACCESS',
             resource_type='impact_product_list',
-            details="User accessed list of Impact Products",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details="User accessed list of Impact Products"
         )
         db.session.add(audit)
         db.session.commit()
@@ -112,9 +110,7 @@ class ImpactProductListResource(Resource):
                 action='CREATE',
                 resource_type='impact_product',
                 resource_id=new_product.id,
-                details=f"User created a new Impact Product with ID {new_product.id}",
-                ip_address=request.remote_addr,
-                user_agent=request.headers.get('User-Agent')
+                details=f"User created a new Impact Product with ID {new_product.id}"
             )
             db.session.add(audit)
             db.session.commit()
@@ -144,9 +140,7 @@ class ImpactProductResource(Resource):
             action='ACCESS',
             resource_type='impact_product',
             resource_id=product_id,
-            details=f"User accessed Impact Product with ID {product_id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User accessed Impact Product with ID {product_id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -182,9 +176,7 @@ class ImpactProductResource(Resource):
             action='UPDATE',
             resource_type='impact_product',
             resource_id=product.id,
-            details=f"User updated Impact Product with ID {product.id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User updated Impact Product with ID {product.id}"
         )
         db.session.add(audit)
         db.session.commit()
@@ -214,9 +206,7 @@ class ImpactProductResource(Resource):
             action='DELETE',
             resource_type='impact_product',
             resource_id=product.id,
-            details=f"User deleted Impact Product with ID {product.id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+            details=f"User deleted Impact Product with ID {product.id}"
         )
         db.session.add(audit)
         db.session.commit()
