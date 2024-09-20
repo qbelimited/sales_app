@@ -93,10 +93,6 @@ coverage.xml
 # Jupyter Notebook
 .ipynb_checkpoints/
 
-# Local settings
-config/settings/local.py
-config.py
-
 # Secrets or sensitive keys (Example: keys or certificates)
 keys/
 certificates/
