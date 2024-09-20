@@ -19,7 +19,7 @@ app = Flask(__name__)
 app.config.from_object('config.Config')
 
 # Disable strict trailing slash matching
-app.config['STRICT_SLASHES'] = False
+# app.config['STRICT_SLASHES'] = False
 
 # Enable CORS globally for all routes under /api/*
 CORS(app, resources={
