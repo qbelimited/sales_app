@@ -24,7 +24,7 @@ app.config['STRICT_SLASHES'] = False
 # Enable CORS globally for all routes under /api/*
 CORS(app, resources={
     r"/api/*": {
-        "origins": "*",  # Replace '*' with specific domains if needed for security
+        "origins": "http://143.110.165.166:3000",  # Replace '*' with specific domains if needed for security
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
         "supports_credentials": False  # Set to False if credentials are not needed
