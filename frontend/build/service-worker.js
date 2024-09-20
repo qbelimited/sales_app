@@ -1,10 +1,10 @@
 /* eslint-disable no-restricted-globals */
 
 const CACHE_NAME = 'sales_app_v1';
-const CACHE_EXPIRATION_MS = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
+const CACHE_EXPIRATION_MS = 2 * 60 * 60 * 1000; // 8 hours in milliseconds
 const urlsToCache = [
-  '/',
-  '/index.html',
+  // '/',
+  // '/index.html',
   '/offline.html', // Ensure offline page is included
   '/favicon.ico',
   '/manifest.json',
@@ -129,8 +129,8 @@ self.addEventListener('fetch', (event) => {
 // };
 
 // Example of caching a sale when created or updated
-self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'CACHE_DYNAMIC_ROUTE') {
-    cacheDynamicRoute(event.data.saleId);
-  }
-});
+// self.addEventListener('message', (event) => {
+//   if (event.data && event.data.type === 'CACHE_DYNAMIC_ROUTE') {
+//     cacheDynamicRoute(event.data.saleId);
+//   }
+// });
