@@ -9,7 +9,6 @@ class Config:
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'your_jwt_secret_key')
     API_VERSION = os.getenv('API_VERSION', 'v1')  # Added API versioning
     LOG_FILE_PATH = os.getenv('LOG_FILE_PATH', 'logs/')
-    FRONTEND = os.getenv('FRONTEND', 'http://143.110.165.166/')
 
     if not os.path.exists(LOG_FILE_PATH):
         os.makedirs(LOG_FILE_PATH)
