@@ -47,7 +47,7 @@ class TokenBlacklist(db.Model):
 class RefreshToken(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    token = db.Column(db.String(255), unique=True, nullable=False)  # Store the refresh token itself
+    token = db.Column(db.Text, unique=True, nullable=False)  # Store the refresh token itself
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     revoked_at = db.Column(db.DateTime, nullable=True)
     revoked = db.Column(db.Boolean, default=False, index=True)  # Add revoked flag
