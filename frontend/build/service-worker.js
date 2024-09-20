@@ -1,7 +1,7 @@
 /* eslint-disable no-restricted-globals */
 
 const CACHE_NAME = 'sales_app_v1';
-const CACHE_EXPIRATION_MS = 2 * 60 * 60 * 1000; // 2 hours in milliseconds
+const CACHE_EXPIRATION_MS = 8 * 60 * 60 * 1000; // 8 hours in milliseconds
 const urlsToCache = [
   '/',
   '/index.html',
@@ -113,20 +113,20 @@ self.addEventListener('fetch', (event) => {
 });
 
 // Function to cache specific dynamic URLs (e.g., sale details)
-const cacheDynamicRoute = (saleId) => {
-  const dynamicUrl = `/sales/${saleId}`;
-  return caches.open(CACHE_NAME).then((cache) => {
-    return fetch(dynamicUrl).then((response) => {
-      if (response && response.status === 200) {
-        addToCacheWithExpiration(cache, dynamicUrl, response);
-      } else {
-        console.warn(`Failed to cache dynamic route ${dynamicUrl}: Status ${response.status}`);
-      }
-    }).catch((error) => {
-      console.error(`Failed to cache dynamic route ${dynamicUrl}:`, error);
-    });
-  });
-};
+// const cacheDynamicRoute = (saleId) => {
+//   const dynamicUrl = `/sales/${saleId}`;
+//   return caches.open(CACHE_NAME).then((cache) => {
+//     return fetch(dynamicUrl).then((response) => {
+//       if (response && response.status === 200) {
+//         addToCacheWithExpiration(cache, dynamicUrl, response);
+//       } else {
+//         console.warn(`Failed to cache dynamic route ${dynamicUrl}: Status ${response.status}`);
+//       }
+//     }).catch((error) => {
+//       console.error(`Failed to cache dynamic route ${dynamicUrl}:`, error);
+//     });
+//   });
+// };
 
 // Example of caching a sale when created or updated
 self.addEventListener('message', (event) => {
