@@ -10,7 +10,7 @@ class ProductCategory(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     @validates('name')
-    def validate_name(self, key, name):
+    def validate_name(self, _, name):
         """Ensure that category name is not empty and trim any spaces."""
         if not name or not name.strip():
             raise ValueError("Category name cannot be empty or whitespace")
@@ -50,14 +50,14 @@ class ImpactProduct(db.Model):
     __table_args__ = (db.UniqueConstraint('name', 'category_id', name='_product_category_uc'),)
 
     @validates('name')
-    def validate_name(self, key, name):
+    def validate_name(self, _, name):
         """Ensure the product name is valid."""
         if not name or not name.strip():
             raise ValueError("Product name cannot be empty or whitespace")
         return name.strip()
 
     @validates('group')
-    def validate_group(self, key, group):
+    def validate_group(self, _, group):
         """Ensure that the group is one of the allowed values."""
         allowed_groups = ['risk', 'investment', 'hybrid']
         if group not in allowed_groups:

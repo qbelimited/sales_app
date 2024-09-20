@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
+import { useUser } from '../contexts/UserContext';
+import { Modal, Button } from 'react-bootstrap';
 
-const SessionTable = ({ sessions, loading, onEndSession }) => {
+const SessionTable = ({ showToast, onEndSession }) => {
+  const { sessions, loading } = useUser(); // Access sessions from UserContext
   const [viewAllSessionsForUser, setViewAllSessionsForUser] = useState(null);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState(null);
+  const [visibleInactiveSessions, setVisibleInactiveSessions] = useState({}); // Track which user's inactive sessions are visible
 
   if (loading) {
     return <p>Loading sessions...</p>;
@@ -20,8 +26,8 @@ const SessionTable = ({ sessions, loading, onEndSession }) => {
     });
 
   // Filter sessions for a specific user
-  const filterSessionsForUser = (userId) => {
-    return sessions.filter(session => session.user_id === userId);
+  const filterSessionsForUser = (userId, isActive = true) => {
+    return sessions.filter(session => session.user_id === userId && session.is_active === isActive);
   };
 
   // Calculate session duration
@@ -31,6 +37,27 @@ const SessionTable = ({ sessions, loading, onEndSession }) => {
       return `${Math.floor(duration / 60000)} minutes`;
     }
     return 'Active';
+  };
+
+  const handleDeleteSession = (sessionId, userId) => {
+    setSessionToDelete({ sessionId, userId });
+    setShowConfirmModal(true);
+  };
+
+  const confirmDeleteSession = async () => {
+    if (sessionToDelete) {
+      await onEndSession(sessionToDelete.sessionId, sessionToDelete.userId);
+      showToast('success', 'Session ended successfully.', 'Success'); // Show success toast after deletion
+      setShowConfirmModal(false);
+      setSessionToDelete(null);
+    }
+  };
+
+  const toggleInactiveSessions = (userId) => {
+    setVisibleInactiveSessions(prevState => ({
+      ...prevState,
+      [userId]: !prevState[userId]
+    }));
   };
 
   return (
@@ -50,42 +77,57 @@ const SessionTable = ({ sessions, loading, onEndSession }) => {
                 <th>User Name</th>
                 <th>Login Time</th>
                 <th>Logout Time</th>
-                <th>Session Duration</th> {/* Added column for session duration */}
+                <th>Session Duration</th>
                 <th>IP Address</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filterSessionsForUser(viewAllSessionsForUser).length > 0 ? (
-                filterSessionsForUser(viewAllSessionsForUser).map((session) => (
-                  <tr key={session.id}>
+              {filterSessionsForUser(viewAllSessionsForUser).map((session) => (
+                <tr key={session.id}>
+                  <td>{session.id}</td>
+                  <td>{session.user_name}</td>
+                  <td>{new Date(session.login_time).toLocaleString()}</td>
+                  <td>{session.logout_time ? new Date(session.logout_time).toLocaleString() : 'Active'}</td>
+                  <td>{calculateSessionDuration(session.login_time, session.logout_time)}</td>
+                  <td>{session.ip_address}</td>
+                  <td>{session.is_active ? 'Active' : 'Inactive'}</td>
+                  <td>
+                    {session.is_active && (
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handleDeleteSession(session.id, session.user_id)} // Trigger delete confirmation
+                      >
+                        End Session
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {/* Render Inactive Sessions */}
+              {visibleInactiveSessions[viewAllSessionsForUser] && (
+                filterSessionsForUser(viewAllSessionsForUser, false).map((session) => (
+                  <tr key={session.id} className="table-secondary">
                     <td>{session.id}</td>
                     <td>{session.user_name}</td>
                     <td>{new Date(session.login_time).toLocaleString()}</td>
                     <td>{session.logout_time ? new Date(session.logout_time).toLocaleString() : 'Active'}</td>
-                    <td>{calculateSessionDuration(session.login_time, session.logout_time)}</td> {/* Display session duration */}
+                    <td>{calculateSessionDuration(session.login_time, session.logout_time)}</td>
                     <td>{session.ip_address}</td>
                     <td>{session.is_active ? 'Active' : 'Inactive'}</td>
-                    <td>
-                      {session.is_active && (
-                        <button
-                          className="btn btn-danger btn-sm"
-                          onClick={() => onEndSession(session.id, session.user_id)} // Pass session ID and user ID
-                        >
-                          End Session
-                        </button>
-                      )}
-                    </td>
+                    <td>N/A</td>
                   </tr>
                 ))
-              ) : (
-                <tr>
-                  <td colSpan="8">No active sessions found for this user.</td>
-                </tr>
               )}
             </tbody>
           </table>
+          <button
+            className="btn btn-info btn-sm"
+            onClick={() => toggleInactiveSessions(viewAllSessionsForUser)}
+          >
+            {visibleInactiveSessions[viewAllSessionsForUser] ? 'Hide Inactive Sessions' : 'Show Inactive Sessions'}
+          </button>
         </div>
       ) : (
         <table className="table table-striped">
@@ -101,7 +143,7 @@ const SessionTable = ({ sessions, loading, onEndSession }) => {
               uniqueUsers.map(user => (
                 <tr key={user.user_id}>
                   <td>{user.user_name}</td>
-                  <td>{sessions.filter(session => session.user_id === user.user_id && session.is_active).length}</td>
+                  <td>{filterSessionsForUser(user.user_id).length}</td>
                   <td>
                     <button
                       className="btn btn-info btn-sm"
@@ -120,6 +162,24 @@ const SessionTable = ({ sessions, loading, onEndSession }) => {
           </tbody>
         </table>
       )}
+
+      {/* Confirmation Modal */}
+      <Modal show={showConfirmModal} onHide={() => setShowConfirmModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Confirm Deletion</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p>Are you sure you want to end this session? This action cannot be undone.</p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowConfirmModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="danger" onClick={confirmDeleteSession}>
+            End Session
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 };

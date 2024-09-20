@@ -91,7 +91,9 @@ class LoginResource(Resource):
             action='LOGIN',
             resource_type='user',
             resource_id=user.id,
-            details=f"User {user.email} logged in"
+            details=f"User {user.email} logged in",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -139,7 +141,9 @@ class RefreshTokenResource(Resource):
                 action='LOGIN',
                 resource_type='user',
                 resource_id=current_user['id'],
-                details=f"User {current_user['email']} token refreshed successfully"
+                details=f"User {current_user['email']} token refreshed successfully",
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)
             db.session.commit()
@@ -220,7 +224,9 @@ class LogoutResource(Resource):
                 action='LOGOUT',
                 resource_type='user',
                 resource_id=current_user['id'],
-                details=f"User {current_user['email']} logged out and refresh token revoked."
+                details=f"User {current_user['email']} logged out and refresh token revoked.",
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)
             db.session.commit()
@@ -260,7 +266,9 @@ class RevokeRefreshTokenResource(Resource):
                 action='REVOKE_REFRESH_TOKEN',
                 resource_type='refresh_token',
                 resource_id=refresh_token.id,
-                details=f"User revoked refresh token with ID {refresh_token.id}"
+                details=f"User revoked refresh token with ID {refresh_token.id}",
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)
             db.session.commit()

@@ -107,7 +107,9 @@ class BranchListResource(Resource):
             action='CREATE',
             resource_type='branch',
             resource_id=new_branch.id,
-            details=f"Created branch with details: {data}"
+            details=f"Created branch with details: {data}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -169,7 +171,9 @@ class BranchResource(Resource):
             action='UPDATE',
             resource_type='branch',
             resource_id=branch.id,
-            details=f"Updated branch with details: {data}"
+            details=f"Updated branch with details: {data}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -202,7 +206,9 @@ class BranchResource(Resource):
             action='DELETE',
             resource_type='branch',
             resource_id=branch.id,
-            details=f"Deleted branch with id: {branch_id}"
+            details=f"Deleted branch with id: {branch_id}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()

@@ -1,19 +1,19 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
+import useToasts from '../hooks/useToasts'; // Import useToasts hook
 
 const ProtectedRoute = ({ children, allowedRoles, userRole }) => {
-  if (!userRole) {
-    // If the user is not logged in, redirect to login
-    return <Navigate to="/login" />;
+  const location = useLocation();
+  const { showToast } = useToasts(); // Initialize useToasts
+
+  // Check if userRole is defined and valid
+  if (!userRole || !allowedRoles.includes(userRole)) {
+    showToast('danger', 'Unauthorized access', 'Access Denied');
+    return <Navigate to="/login" state={{ from: location }} />;
   }
 
-  // Check if the user's role is in the allowedRoles array
-  if (!allowedRoles.includes(parseInt(userRole))) {
-    // If the user doesn't have the required role, redirect to a "Not Authorized" page
-    return <Navigate to="/unauthorized" />;
-  }
-
-  return children;  // If authorized, render the child components
+  // Return children if the user has access
+  return children || null; // Return null if no children are passed
 };
 
 export default ProtectedRoute;

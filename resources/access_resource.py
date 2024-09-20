@@ -27,7 +27,9 @@ role_id_model = access_ns.model('RoleID', {
 # Utility function to check admin privileges
 def is_admin():
     current_user = get_jwt_identity()
-    return current_user.get('role') == 'admin'
+    if current_user and 'role' in current_user:
+        return current_user.get('role').lower() == 'admin'
+    return False
 
 @access_ns.route('/')
 class AccessResource(Resource):
@@ -45,7 +47,9 @@ class AccessResource(Resource):
             action='ACCESS',
             resource_type='role_access',
             resource_id=None,
-            details=f"User with ID {get_jwt_identity()['id']} retrieved access information for all roles"
+            details=f"User with ID {get_jwt_identity()['id']} retrieved access information for all roles",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -95,7 +99,9 @@ class AccessResource(Resource):
             action='UPDATE',
             resource_type='role_access',
             resource_id=role.id,
-            details=f"Admin updated access for role {role.name}"
+            details=f"Admin updated access for role {role.name}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -135,7 +141,9 @@ class AccessResource(Resource):
             action='DELETE',
             resource_type='role_access',
             resource_id=role.id,
-            details=f"Admin deleted access for role {role.name}"
+            details=f"Admin deleted access for role {role.name}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -170,7 +178,9 @@ class SingleAccessResource(Resource):
             action='ACCESS',
             resource_type='role_access',
             resource_id=role.id,
-            details=f"User with ID {get_jwt_identity()['id']} retrieved access for role {role.name}"
+            details=f"User with ID {get_jwt_identity()['id']} retrieved access for role {role.name}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
@@ -216,7 +226,9 @@ class SingleAccessResource(Resource):
             action='UPDATE',
             resource_type='role_access',
             resource_id=role.id,
-            details=f"Admin updated access for role {role.name}"
+            details=f"Admin updated access for role {role.name}",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()

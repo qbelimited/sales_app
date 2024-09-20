@@ -4,8 +4,7 @@ import api from './api';
 
 const authService = {
   login: async (credentials) => {
-
-    // Ensure the credentials object contains both email and password
+    // Validate credentials
     if (!credentials.email || !credentials.password) {
       console.error('Invalid login credentials:', credentials);
       throw new Error('Invalid login credentials. Email and password are required.');
@@ -14,45 +13,19 @@ const authService = {
     try {
       const response = await api.post('/auth/login', credentials);
 
-      if (response?.data) {
-        const { access_token, refresh_token, user, expiry } = response.data;
-
-        if (access_token && refresh_token) {
-          authService.storeSession(access_token, refresh_token, user, expiry);
-
-          // Fetch IP and User Agent without blocking the login process
-          authService.fetchAndStoreUserDetails();
-
-          toast.success('Login successful');
-          return response.data;  // Return user data and tokens
-        } else {
-          console.error('Missing access or refresh token in response.');
-          throw new Error('Missing access or refresh token in response.');
-        }
+      // Check for access and refresh tokens
+      const { access_token, refresh_token, user, expiry } = response.data || {};
+      if (access_token && refresh_token) {
+        authService.storeSession(access_token, refresh_token, user, expiry);
+        authService.fetchAndStoreUserDetails();
+        toast.success('Login successful');
+        return response.data;  // Return user data and tokens
       } else {
-        console.error('Invalid response from server.');
-        throw new Error('Invalid response from server');
+        throw new Error('Missing access or refresh token in response.');
       }
     } catch (error) {
-      // Log the entire error object for more details
-      console.error('Login failed:', error);
-      if (error.response) {
-        // Server responded with a status code outside of the 2xx range
-        console.error('Server error response:', error.response);
-        if (error.response.data && error.response.data.message) {
-          toast.error(`Login failed: ${error.response.data.message}`);
-        } else {
-          toast.error('Login failed. Please check your credentials or try again later.');
-        }
-      } else if (error.request) {
-        // Request was made but no response received
-        console.error('No response received:', error.request);
-        toast.error('Login failed. No response from server.');
-      } else {
-        // Something else caused the error
-        toast.error(`Login failed: ${error.message}`);
-      }
-      throw error; // Ensure the error is propagated
+      authService.handleAuthError(error);
+      throw error; // Propagate error
     }
   },
 
@@ -73,18 +46,12 @@ const authService = {
       }
 
       await api.post('/auth/logout', { refresh_token: refreshToken }, {
-        headers: { 'Authorization': `Bearer ${accessToken}` },
+        headers: { Authorization: `Bearer ${accessToken}` },
       });
 
       authService.clearSession();
-
-      if (expiredSession) {
-        toast.error('Session expired. You have been logged out.');
-      } else {
-        toast.success('Logout successful');
-      }
+      toast[expiredSession ? 'error' : 'success'](expiredSession ? 'Session expired. You have been logged out.' : 'Logout successful');
     } catch (error) {
-      console.error('Logout failed:', error);
       authService.clearSession();
       toast.error('Logout failed');
     }
@@ -96,25 +63,16 @@ const authService = {
       if (!refreshToken) throw new Error('No refresh token available.');
 
       const response = await api.post('/auth/refresh', { refresh_token: refreshToken });
+      const { access_token, expiry } = response.data || {};
 
-      if (response?.data) {
-        const { access_token, expiry } = response.data;
-
-        if (access_token) {
-          localStorage.setItem('access_token', access_token);
-          localStorage.setItem('expiry', Date.now() + expiry * 1000);
-          toast.success('Session refreshed successfully');
-          return access_token;
-        } else {
-          console.error('Missing access token in response.');
-          throw new Error('Missing access token in response.');
-        }
+      if (access_token) {
+        authService.storeSession(access_token, refreshToken, JSON.parse(localStorage.getItem('user')), expiry);
+        toast.success('Session refreshed successfully');
+        return access_token;
       } else {
-        console.error('Invalid response from server.');
-        throw new Error('Invalid response from server');
+        throw new Error('Missing access token in response.');
       }
     } catch (error) {
-      console.error('Token refresh failed:', error);
       authService.handleSessionExpired();
       throw error;
     }
@@ -141,12 +99,13 @@ const authService = {
     return false;
   },
 
-  getAccessToken: () => {
-    return localStorage.getItem('access_token') || null;
-  },
+  getAccessToken: () => localStorage.getItem('access_token') || null,
 
   handleSessionExpired: () => {
-    authService.logout(null, true);
+    const refreshToken = localStorage.getItem('refresh_token');
+    if (refreshToken) {
+      authService.logout(null, true);
+    }
     toast.error('You are not logged in. Please log in.');
   },
 
@@ -154,8 +113,6 @@ const authService = {
     localStorage.setItem('access_token', access_token);
     localStorage.setItem('refresh_token', refresh_token);
     localStorage.setItem('user', JSON.stringify(user));
-    localStorage.setItem('userRole', JSON.stringify(user.role));
-    localStorage.setItem('userRoleID', JSON.stringify(user.role.id));
     localStorage.setItem('expiry', Date.now() + expiry * 1000);
   },
 
@@ -163,11 +120,7 @@ const authService = {
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
-    localStorage.removeItem('userRole');
-    localStorage.removeItem('userRoleID');
     localStorage.removeItem('expiry');
-    localStorage.removeItem('userAgent');
-    localStorage.removeItem('ipAddress');
   },
 
   fetchAndStoreUserDetails: async () => {
@@ -189,6 +142,20 @@ const authService = {
     } catch (error) {
       console.error('Failed to fetch IP address:', error);
       return 'Unknown IP';
+    }
+  },
+
+  handleAuthError: (error) => {
+    console.error('Auth error:', error);
+    // Handle specific error cases if needed
+    if (error.response) {
+      console.error('Server error response:', error.response);
+      toast.error(error.response.data?.message || 'Login failed. Please check your credentials.');
+    } else if (error.request) {
+      console.error('No response received:', error.request);
+      toast.error('Login failed. No response from server.');
+    } else {
+      toast.error(`Login failed: ${error.message}`);
     }
   },
 };
