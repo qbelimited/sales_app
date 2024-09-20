@@ -61,10 +61,6 @@ class LoginResource(Resource):
 
         ip_address = request.remote_addr
 
-        if not UserSession.validate_ip(ip_address):
-            logger.error(f"Invalid IP address {ip_address} provided.")
-            return {'message': 'Invalid IP address'}, 400
-
         # Revoke old refresh tokens to prevent reuse
         old_refresh_token = RefreshToken.query.filter_by(user_id=user.id, revoked=False).first()
         if old_refresh_token:
