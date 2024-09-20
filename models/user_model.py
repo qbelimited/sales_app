@@ -47,7 +47,7 @@ class User(db.Model):
 
     # Validation for email format and uniqueness
     @validates('email')
-    def validate_email(self, key, email):
+    def validate_email(self, _, email):
         if not email or email.strip() == "":
             raise ValueError("Invalid email address")
         email_regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
