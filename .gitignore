@@ -29,7 +29,6 @@ logs/
 
 # Static files and compiled assets
 staticfiles/
-static/
 public/
 *.woff
 *.woff2
