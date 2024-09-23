@@ -64,14 +64,6 @@ function App() {
   const [waitingServiceWorker, setWaitingServiceWorker] = useState(null);
   const navigate = useNavigate();
 
-  // New state for sidebar visibility
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-
-  // Function to toggle sidebar visibility
-  const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
-  };
-
   // Show help tour if it's the user's first time
   useEffect(() => {
     if (!localStorage.getItem('helpTourShown')) {
@@ -125,24 +117,12 @@ function App() {
   };
 
   return (
-    <div className={`app-container ${isSidebarOpen ? 'sidebar-open' : ''}`}>
-      {role?.id && (
-        <Sidebar
-          userRole={role.id}
-          isSidebarOpen={isSidebarOpen}
-          toggleSidebar={toggleSidebar}
-        />
-      )}
-      {role?.id && (
-        <Navbar
-          onLogout={logout}
-          showToast={showToast}
-          toggleSidebar={toggleSidebar}
-        />
-      )}
+    <div>
+      {role?.id && <Navbar onLogout={logout} showToast={showToast} />}
+      {role?.id && <Sidebar />}
       {showHelpTour && <HelpTour />}
 
-      <div className={`content ${isSidebarOpen ? 'shifted' : ''}`}>
+      <div className="content" style={{ marginLeft: role?.id ? '250px' : '0', transition: 'all 0.3s ease-in-out' }}>
         <Suspense fallback={<Loading />}>
           <Routes>
             <Route path="/login" element={<LoginPage showToast={showToast} />} />
@@ -151,11 +131,7 @@ function App() {
                 key={route.path}
                 path={route.path}
                 element={
-                  <ProtectedRoute
-                    allowedRoles={route.allowedRoles}
-                    userRole={role?.id}
-                    showToast={showToast}
-                  >
+                  <ProtectedRoute allowedRoles={route.allowedRoles} userRole={role?.id} showToast={showToast}>
                     <route.component showToast={showToast} />
                   </ProtectedRoute>
                 }

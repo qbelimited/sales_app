@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Table, Row, Col, Button, Form, Modal } from 'react-bootstrap';
+import { Table, Spinner, Row, Col, Button, Form, Modal } from 'react-bootstrap';
 import { FaSearch, FaInfoCircle, FaArrowLeft, FaArrowRight, FaAngleDoubleLeft, FaAngleDoubleRight } from 'react-icons/fa';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -45,7 +45,7 @@ const AuditTrailPage = ({ showToast }) => {
   // Extract unique resource types and actions from the audit logs
   const extractUniqueResourceTypesAndActions = (logs) => {
     const uniqueResourceTypes = [...new Set(logs.map((log) => log.resource_type))];
-    const uniqueActions = [...new Set(logs.map((log) => log.action.replace('AuditAction.', '')))]; // Remove 'AuditAction.' prefix
+    const uniqueActions = [...new Set(logs.map((log) => log.action.replace('AuditAction.', '')))];
     setResourceTypes(uniqueResourceTypes);
     setActions(uniqueActions);
   };
@@ -133,16 +133,10 @@ const AuditTrailPage = ({ showToast }) => {
   const startPage = Math.max(1, currentPage - Math.floor(maxPageNumbers / 2));
   const endPage = Math.min(totalPages, startPage + maxPageNumbers - 1);
 
-  if (loading) {
-    return (
-      <div className="loading-container">
-        <div className="spinner"></div>
-      </div>
-    );
-  }
+  if (loading) return <Spinner animation="border" />;
 
   return (
-    <div className="audit-trail-page" style={{ marginTop: '20px', padding: '20px' }}>
+    <div style={{ marginTop: '20px', padding: '20px' }}>
       <Row className="mb-4">
         <Col>
           <h2>Audit Trail</h2>
@@ -294,7 +288,7 @@ const AuditTrailPage = ({ showToast }) => {
       </Row>
 
       {/* View Details Modal */}
-      <Modal show={showDetailsModal} onHide={() => setShowDetailsModal(false)} centered>
+      <Modal show={showDetailsModal} onHide={() => setShowDetailsModal(false)}>
         <Modal.Header closeButton>
           <Modal.Title>Audit Log Details</Modal.Title>
         </Modal.Header>
