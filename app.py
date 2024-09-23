@@ -8,26 +8,35 @@ from dotenv import load_dotenv
 from flask_restx import Api
 from logger import setup_logger
 
-# Disable OneDNN for TensorFlow optimizations
+# Disable OneDNN for TensorFlow optimizations (if applicable)
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ['FLASK_ENV'] = 'production'
 
 # Load environment variables from .env file
 load_dotenv()
 
 # Initialize Flask application
 app = Flask(__name__)
-app.config.from_object('config.Config')
+
+# Determine the environment and load the appropriate config
+env = os.getenv('FLASK_ENV', 'production')
+if env == 'development':
+    app.config.from_object('config.DevelopmentConfig')
+elif env == 'testing':
+    app.config.from_object('config.TestConfig')
+else:
+    app.config.from_object('config.ProductionConfig')
 
 # Disable strict trailing slash matching
 app.config['STRICT_SLASHES'] = False
 
-# Enable CORS globally for all routes under /api/*
+# Enable CORS dynamically based on the configuration
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["https://salesapp.impactlife.com.gh"],  # Replace '*' with your frontend origin
+        "origins": app.config.get('CORS_ORIGINS', '*'),  # Get origins from config
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": False
+        "supports_credentials": app.config.get('SUPPORTS_CREDENTIALS', False)
     }
 })
 
@@ -36,7 +45,7 @@ db = SQLAlchemy(app)
 jwt = JWTManager(app)
 migrate = Migrate(app, db)
 
-# Setup logging
+# Setup logging based on environment
 logger = setup_logger(app)
 
 # Define JWT Bearer token authorization for Swagger
@@ -50,7 +59,7 @@ authorizations = {
 }
 
 # Initialize Flask-RESTX API with version prefix
-api_version = 'v1'
+api_version = app.config.get('API_VERSION', 'v1')
 api = Api(app,
           version='1.0',
           title='Sales Recording API',
@@ -146,4 +155,4 @@ def handle_exception(e):
 
 # Run the Flask application
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=app.config.get('DEBUG', False))
