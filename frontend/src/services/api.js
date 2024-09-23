@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 
 // Create an axios instance
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://143.110.165.166:80/api/v1',
+  baseURL: process.env.REACT_APP_API_URL || 'http://api.salesapp.impactlife.com.gh/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },
