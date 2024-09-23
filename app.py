@@ -24,7 +24,7 @@ app.config['STRICT_SLASHES'] = False
 # Enable CORS globally for all routes under /api/*
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["http://salesapp.impactlife.com.gh"],  # Replace '*' with your frontend origin
+        "origins": ["https://salesapp.impactlife.com.gh"],  # Replace '*' with your frontend origin
         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"],
         "supports_credentials": False
