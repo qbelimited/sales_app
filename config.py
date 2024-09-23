@@ -64,7 +64,7 @@ class Config:
 
 # Development Configuration
 class DevelopmentConfig(Config):
-    SQLALCHEMY_DATABASE_URI = os.getenv('DEV_DATABASE_URL', 'postgresql://root:dev_password@localhost/dev_sales_app_db')
+    SQLALCHEMY_DATABASE_URI = os.getenv('DEV_DATABASE_URL', 'sqlite:///dev.db')
     CORS_ORIGINS = ["http://localhost:3000"]
     DEBUG = True
     TESTING = True
@@ -120,7 +120,7 @@ class ProductionConfig(Config):
 
 # Test Configuration (Same as Development but with a separate test database)
 class TestConfig(DevelopmentConfig):
-    SQLALCHEMY_DATABASE_URI = os.getenv('TEST_DATABASE_URL', 'postgresql://root:test_password@localhost/test_sales_app_db')
+    SQLALCHEMY_DATABASE_URI = os.getenv('TEST_DATABASE_URL', 'sqlite:///test.db')
     TESTING = True
     DEBUG = True
 
