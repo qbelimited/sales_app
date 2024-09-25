@@ -7,6 +7,7 @@ from models.audit_model import AuditTrail
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
+from utils import get_client_ip
 
 # Define a namespace for User-related operations
 user_ns = Namespace('user', description='User operations')
@@ -73,7 +74,7 @@ class UserListResource(Resource):
             resource_type='user_list',
             resource_id=None,
             details=f"User {current_user['id']} accessed list of users",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -122,7 +123,7 @@ class UserListResource(Resource):
             resource_type='user',
             resource_id=new_user.id,
             details=f"User created a new User with ID {new_user.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -151,7 +152,7 @@ class UserResource(Resource):
             resource_type='user',
             resource_id=user_id,
             details=f"User accessed details of User with ID {user_id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -197,7 +198,7 @@ class UserResource(Resource):
             resource_type='user',
             resource_id=user.id,
             details=f"User updated User with ID {user.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -230,7 +231,7 @@ class UserResource(Resource):
             resource_type='user',
             resource_id=user.id,
             details=f"User deleted User with ID {user.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -277,7 +278,7 @@ class PasswordUpdateResource(Resource):
             resource_type='user',
             resource_id=user_id,
             details=f"User updated password",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -308,7 +309,7 @@ class UserSessionResource(Resource):
             resource_type='user_sessions',
             resource_id=user_id,
             details=f"Accessed active sessions for user {user_id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)

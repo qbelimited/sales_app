@@ -2,21 +2,22 @@ from app import db
 from datetime import datetime
 from sqlalchemy.orm import validates
 
-
 class SalesTarget(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    sales_executive_id = db.Column(db.Integer, db.ForeignKey('sales_executive.id'), nullable=False, index=True)  # Sales executive target
-    sales_manager_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)  # Sales manager target
+    sales_manager_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)  # Sales manager target
     target_sales_count = db.Column(db.Integer, nullable=False)  # Number of sales to achieve
     target_premium_amount = db.Column(db.Float, nullable=False)  # Total premium amount to sell
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Flexible target criteria
+    target_criteria_type = db.Column(db.String(100), nullable=True)  # E.g., 'source_type', 'product_group'
+    target_criteria_value = db.Column(db.String(100), nullable=True)  # E.g., 'paypoint', 'risk'
 
     # Optional fields to track target period
     period_start = db.Column(db.DateTime, nullable=True)
     period_end = db.Column(db.DateTime, nullable=True)
 
     # Relationships
-    sales_executive = db.relationship('SalesExecutive', backref='sales_targets')
     sales_manager = db.relationship('User', foreign_keys=[sales_manager_id], backref='sales_manager_targets')
 
     @validates('target_sales_count', 'target_premium_amount')
@@ -37,10 +38,11 @@ class SalesTarget(db.Model):
         """Return a serialized version of the SalesTarget object."""
         return {
             'id': self.id,
-            'sales_executive_id': self.sales_executive_id,
             'sales_manager_id': self.sales_manager_id,
             'target_sales_count': self.target_sales_count,
             'target_premium_amount': self.target_premium_amount,
+            'target_criteria_type': self.target_criteria_type,
+            'target_criteria_value': self.target_criteria_value,
             'created_at': self.created_at.isoformat(),
             'period_start': self.period_start.isoformat() if self.period_start else None,
             'period_end': self.period_end.isoformat() if self.period_end else None,
@@ -59,21 +61,24 @@ class SalesTarget(db.Model):
 
 class SalesPerformance(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    sales_executive_id = db.Column(db.Integer, db.ForeignKey('sales_executive.id'), nullable=False, index=True)  # Performance for sales executives
-    sales_manager_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True, index=True)  # Performance for sales managers
+    sales_manager_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)  # Performance for sales managers
     actual_sales_count = db.Column(db.Integer, nullable=False)  # Actual number of sales made
     actual_premium_amount = db.Column(db.Float, nullable=False)  # Actual premium amount sold
     target_id = db.Column(db.Integer, db.ForeignKey('sales_target.id'), nullable=True)  # Link to the SalesTarget
     performance_date = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Flexible criteria fields
+    criteria_type = db.Column(db.String(100), nullable=True)  # E.g., 'source_type', 'product_group'
+    criteria_value = db.Column(db.String(100), nullable=True)  # E.g., 'paypoint', 'risk'
+    criteria_met_count = db.Column(db.Integer, nullable=False, default=0)  # Number of sales that met the criteria
+
     # Relationships
-    sales_executive = db.relationship('SalesExecutive', backref='sales_performance')
     sales_manager = db.relationship('User', foreign_keys=[sales_manager_id], backref='sales_manager_performance')
     target = db.relationship('SalesTarget', backref='performance_entries')
 
-    @validates('actual_sales_count', 'actual_premium_amount')
+    @validates('actual_sales_count', 'actual_premium_amount', 'criteria_met_count')
     def validate_performance_values(self, key, value):
-        """Ensure actual sales count and premium amount are non-negative."""
+        """Ensure actual sales count, premium amount, and criteria met count are non-negative."""
         if value < 0:
             raise ValueError(f"{key} cannot be negative")
         return value
@@ -82,29 +87,31 @@ class SalesPerformance(db.Model):
         """Return a serialized version of the SalesPerformance object."""
         return {
             'id': self.id,
-            'sales_executive_id': self.sales_executive_id,
             'sales_manager_id': self.sales_manager_id,
             'actual_sales_count': self.actual_sales_count,
             'actual_premium_amount': self.actual_premium_amount,
             'target_id': self.target_id,
-            'performance_date': self.performance_date.isoformat()
+            'performance_date': self.performance_date.isoformat(),
+            'criteria_type': self.criteria_type,
+            'criteria_value': self.criteria_value,
+            'criteria_met_count': self.criteria_met_count
         }
 
     @staticmethod
-    def calculate_performance(sales_executive_id, start_date=None, end_date=None):
+    def calculate_performance(sales_manager_id, start_date=None, end_date=None):
         """
-        Calculate the overall performance for a sales executive within an optional date range.
+        Calculate the overall performance for a sales manager within an optional date range.
         """
-        query = SalesPerformance.query.filter_by(sales_executive_id=sales_executive_id)
+        query = SalesPerformance.query.filter_by(sales_manager_id=sales_manager_id)
 
         if start_date and end_date:
             query = query.filter(SalesPerformance.performance_date.between(start_date, end_date))
 
         total_sales_count = db.session.query(db.func.sum(SalesPerformance.actual_sales_count)).filter_by(
-            sales_executive_id=sales_executive_id).scalar() or 0
+            sales_manager_id=sales_manager_id).scalar() or 0
 
         total_premium_amount = db.session.query(db.func.sum(SalesPerformance.actual_premium_amount)).filter_by(
-            sales_executive_id=sales_executive_id).scalar() or 0
+            sales_manager_id=sales_manager_id).scalar() or 0
 
         return {
             'total_sales_count': total_sales_count,

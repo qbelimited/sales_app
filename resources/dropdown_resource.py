@@ -8,6 +8,7 @@ from models.audit_model import AuditTrail
 from models.paypoint_model import Paypoint
 from app import db, logger
 from flask_jwt_extended import jwt_required
+from utils import get_client_ip
 
 # Define a namespace for dropdown-related operations
 dropdown_ns = Namespace('dropdown', description='Dropdown operations')
@@ -158,7 +159,7 @@ class DropdownResource(Resource):
             resource_type='dropdown',
             resource_id=None,
             details=f"Accessed {dropdown_type} dropdown",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)

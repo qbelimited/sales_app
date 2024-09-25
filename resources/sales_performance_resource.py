@@ -1,10 +1,11 @@
 from flask_restx import Namespace, Resource, fields
-from flask import request, jsonify
+from flask import request
 from models.performance_model import SalesPerformance, SalesTarget
 from models.audit_model import AuditTrail
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
+from utils import get_client_ip
 
 # Define a namespace for sales performance-related operations
 sales_performance_ns = Namespace('sales_performance', description='Sales Performance operations')
@@ -12,11 +13,13 @@ sales_performance_ns = Namespace('sales_performance', description='Sales Perform
 # Define models for Swagger documentation
 sales_performance_model = sales_performance_ns.model('SalesPerformance', {
     'id': fields.Integer(description='Sales Performance ID'),
-    'sales_executive_id': fields.Integer(required=True, description='Sales Executive ID'),
-    'sales_manager_id': fields.Integer(description='Sales Manager ID'),
+    'sales_manager_id': fields.Integer(required=True, description='Sales Manager ID'),
     'actual_sales_count': fields.Integer(required=True, description='Actual number of sales made'),
     'actual_premium_amount': fields.Float(required=True, description='Actual premium amount sold'),
     'target_id': fields.Integer(description='Sales Target ID'),
+    'criteria_type': fields.String(description='Criteria Type (e.g., source_type, product_group)'),
+    'criteria_value': fields.String(description='Criteria Value (e.g., paypoint, risk)'),
+    'criteria_met_count': fields.Integer(description='Count of sales that met the criteria'),
     'performance_date': fields.DateTime(description='Performance date'),
 })
 
@@ -36,9 +39,10 @@ class SalesPerformanceResource(Resource):
     @jwt_required()
     @sales_performance_ns.param('page', 'Page number for pagination', type='integer', default=1)
     @sales_performance_ns.param('per_page', 'Number of items per page', type='integer', default=10)
-    @sales_performance_ns.param('sales_executive_id', 'Filter by Sales Executive ID', type='integer')
     @sales_performance_ns.param('sales_manager_id', 'Filter by Sales Manager ID', type='integer')
     @sales_performance_ns.param('target_id', 'Filter by Sales Target ID', type='integer')
+    @sales_performance_ns.param('criteria_type', 'Filter by Criteria Type (e.g., source_type)', type='string')
+    @sales_performance_ns.param('criteria_value', 'Filter by Criteria Value (e.g., paypoint)', type='string')
     def get(self):
         """Retrieve sales performance records with pagination and optional filters."""
         current_user = get_jwt_identity()
@@ -48,18 +52,19 @@ class SalesPerformanceResource(Resource):
 
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
-        sales_executive_id = request.args.get('sales_executive_id')
         sales_manager_id = request.args.get('sales_manager_id')
         target_id = request.args.get('target_id')
+        criteria_type = request.args.get('criteria_type')
+        criteria_value = request.args.get('criteria_value')
 
         # Build query based on filters
         query = SalesPerformance.query.filter_by(is_deleted=False)
-        if sales_executive_id:
-            query = query.filter_by(sales_executive_id=sales_executive_id)
         if sales_manager_id:
             query = query.filter_by(sales_manager_id=sales_manager_id)
         if target_id:
             query = query.filter_by(target_id=target_id)
+        if criteria_type and criteria_value:
+            query = query.filter_by(criteria_type=criteria_type, criteria_value=criteria_value)
 
         sales_performances = query.paginate(page=page, per_page=per_page, error_out=False)
 
@@ -69,7 +74,7 @@ class SalesPerformanceResource(Resource):
             action='ACCESS',
             resource_type='sales_performance_list',
             details="User accessed sales performance records",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -90,7 +95,7 @@ class SalesPerformanceResource(Resource):
     def post(self):
         """Create a new sales performance record (for managers or sales managers only)."""
         current_user = get_jwt_identity()
-        if not check_role_permission(current_user, 'sales_manager'):
+        if not check_role_permission(current_user, 'manager'):
             logger.warning(f"Unauthorized sales performance creation attempt by User ID {current_user['id']}.")
             return {'message': 'Unauthorized'}, 403
 
@@ -102,13 +107,15 @@ class SalesPerformanceResource(Resource):
             logger.error(f"Sales Target ID {data['target_id']} not found.")
             return {'message': 'Sales Target not found'}, 404
 
-        # Create new sales performance
+        # Create new sales performance with dynamic criteria
         new_sales_performance = SalesPerformance(
-            sales_executive_id=data['sales_executive_id'],
             sales_manager_id=data.get('sales_manager_id', current_user['id']),
             actual_sales_count=data['actual_sales_count'],
             actual_premium_amount=data['actual_premium_amount'],
             target_id=data['target_id'],
+            criteria_type=data.get('criteria_type'),
+            criteria_value=data.get('criteria_value'),
+            criteria_met_count=data.get('criteria_met_count', 0),
             performance_date=data.get('performance_date', datetime.utcnow())
         )
         db.session.add(new_sales_performance)
@@ -121,7 +128,7 @@ class SalesPerformanceResource(Resource):
             resource_type='sales_performance',
             resource_id=new_sales_performance.id,
             details=f"User created sales performance with ID {new_sales_performance.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -150,7 +157,7 @@ class SingleSalesPerformanceResource(Resource):
             resource_type='sales_performance',
             resource_id=performance_id,
             details=f"User accessed Sales Performance with ID {performance_id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -164,7 +171,7 @@ class SingleSalesPerformanceResource(Resource):
     def put(self, performance_id):
         """Update an existing sales performance record."""
         current_user = get_jwt_identity()
-        if not check_role_permission(current_user, 'sales_manager'):
+        if not check_role_permission(current_user, 'manager'):
             logger.warning(f"Unauthorized update attempt by User ID {current_user['id']} on Sales Performance ID {performance_id}.")
             return {'message': 'Unauthorized'}, 403
 
@@ -176,6 +183,9 @@ class SingleSalesPerformanceResource(Resource):
         data = request.json
         sales_performance.actual_sales_count = data.get('actual_sales_count', sales_performance.actual_sales_count)
         sales_performance.actual_premium_amount = data.get('actual_premium_amount', sales_performance.actual_premium_amount)
+        sales_performance.criteria_type = data.get('criteria_type', sales_performance.criteria_type)
+        sales_performance.criteria_value = data.get('criteria_value', sales_performance.criteria_value)
+        sales_performance.criteria_met_count = data.get('criteria_met_count', sales_performance.criteria_met_count)
         sales_performance.performance_date = data.get('performance_date', sales_performance.performance_date)
         sales_performance.updated_at = datetime.utcnow()
 
@@ -188,7 +198,7 @@ class SingleSalesPerformanceResource(Resource):
             resource_type='sales_performance',
             resource_id=sales_performance.id,
             details=f"User updated Sales Performance with ID {sales_performance.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -221,7 +231,7 @@ class SingleSalesPerformanceResource(Resource):
             resource_type='sales_performance',
             resource_id=sales_performance.id,
             details=f"User soft-deleted Sales Performance with ID {sales_performance.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)

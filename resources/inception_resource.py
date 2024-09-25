@@ -6,6 +6,7 @@ from models.audit_model import AuditTrail
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
+from utils import get_client_ip
 
 # Define a namespace for Inception operations
 inception_ns = Namespace('inceptions', description='Operations related to sales inceptions')
@@ -47,7 +48,7 @@ class InceptionListResource(Resource):
             action='ACCESS',
             resource_type='inception_list',
             details="User accessed list of inceptions",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -93,7 +94,7 @@ class InceptionListResource(Resource):
                 resource_type='inception',
                 resource_id=new_inception.id,
                 details=f"User created a new inception for Sale ID {data['sale_id']}",
-                ip_address=request.remote_addr,
+                ip_address=get_client_ip(),
                 user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)
@@ -129,7 +130,7 @@ class InceptionResource(Resource):
             resource_type='inception',
             resource_id=inception.id,
             details=f"User accessed inception with ID {inception_id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -167,7 +168,7 @@ class InceptionResource(Resource):
                 resource_type='inception',
                 resource_id=inception.id,
                 details=f"User updated inception with ID {inception_id}",
-                ip_address=request.remote_addr,
+                ip_address=get_client_ip(),
                 user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)
@@ -206,7 +207,7 @@ class InceptionResource(Resource):
                 resource_type='inception',
                 resource_id=inception.id,
                 details=f"User deleted inception with ID {inception_id}",
-                ip_address=request.remote_addr,
+                ip_address=get_client_ip(),
                 user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)

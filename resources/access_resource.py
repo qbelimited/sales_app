@@ -5,6 +5,7 @@ from models.access_model import Access
 from models.audit_model import AuditTrail
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from utils import get_client_ip
 
 # Create a namespace for access-related operations
 access_ns = Namespace('access', description='Access control and management operations')
@@ -48,7 +49,7 @@ class AccessResource(Resource):
             resource_type='role_access',
             resource_id=None,
             details=f"User with ID {get_jwt_identity()['id']} retrieved access information for all roles",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -100,7 +101,7 @@ class AccessResource(Resource):
             resource_type='role_access',
             resource_id=role.id,
             details=f"Admin updated access for role {role.name}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -142,7 +143,7 @@ class AccessResource(Resource):
             resource_type='role_access',
             resource_id=role.id,
             details=f"Admin deleted access for role {role.name}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -179,7 +180,7 @@ class SingleAccessResource(Resource):
             resource_type='role_access',
             resource_id=role.id,
             details=f"User with ID {get_jwt_identity()['id']} retrieved access for role {role.name}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -227,7 +228,7 @@ class SingleAccessResource(Resource):
             resource_type='role_access',
             resource_id=role.id,
             details=f"Admin updated access for role {role.name}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)

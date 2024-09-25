@@ -4,6 +4,7 @@ from models.user_model import Role
 from models.audit_model import AuditTrail
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from utils import get_client_ip
 
 # Define namespace for roles
 role_ns = Namespace('roles', description='Role management operations')
@@ -59,7 +60,7 @@ class RolesResource(Resource):
             resource_type='role',
             resource_id=new_role.id,
             details=f"Admin created role with ID {new_role.id} and name {new_role.name}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -98,7 +99,7 @@ class RoleByIdResource(Resource):
             resource_type='role',
             resource_id=role.id,
             details=f"Admin updated role with ID {role.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -133,7 +134,7 @@ class RoleByIdResource(Resource):
                 resource_type='role',
                 resource_id=role.id,
                 details=f"Admin soft-deleted role with ID {role.id}",
-                ip_address=request.remote_addr,
+                ip_address=get_client_ip(),
                 user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)

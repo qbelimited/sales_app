@@ -3,17 +3,39 @@ from app import app, db
 from models.bank_model import Bank, BankBranch
 from models.branch_model import Branch
 from models.impact_product_model import ImpactProduct, ProductCategory
+from models.performance_model import SalesTarget
 from models.paypoint_model import Paypoint
 from models.user_model import Role, User
 from models.retention_model import RetentionPolicy
 from models.access_model import Access
 from models.sales_executive_model import SalesExecutive
+from datetime import datetime
+from sqlalchemy.exc import IntegrityError
+import calendar
 from werkzeug.security import generate_password_hash
 
 # CSV file paths
 sales_exec_csv_file = './sales_exec.csv'
 csv_file_path = './banks.csv'
 users_csv_file = './users.csv'
+targets_csv_file = './targets.csv'
+
+# Helper function to calculate the number of days in the current month
+def get_days_in_current_month():
+    year = datetime.utcnow().year
+    month = datetime.utcnow().month
+    return calendar.monthrange(year, month)[1]
+
+# Monthly targets based on the provided breakdown (use integers as keys)
+monthly_targets = {
+    180: 180,
+    165: 165,
+    150: 150
+}
+
+# Define daily target and premium amount calculations
+daily_target_sales_count = 10
+daily_target_premium_amount = 1000
 
 with app.app_context():
     # Seed Banks and BankBranches
@@ -25,6 +47,7 @@ with app.app_context():
             branch_name = row.get('BRANCH NAME', '').strip()
             branch_code = row.get('SORT CODE', '').strip()
 
+            # Check if the bank already exists
             existing_bank = db.session.query(Bank).filter_by(name=bank_name).first()
             if not existing_bank:
                 bank = Bank(name=bank_name)
@@ -34,16 +57,13 @@ with app.app_context():
             else:
                 unique_banks[bank_name] = existing_bank.id
 
-            existing_branch = db.session.query(BankBranch).filter_by(name=branch_name, bank_id=unique_banks.get(bank_name)).first()
+            # Check if the branch already exists under the bank
+            existing_branch = db.session.query(BankBranch).filter_by(name=branch_name, bank_id=unique_banks[bank_name]).first()
             if not existing_branch:
-                branch = BankBranch(
-                    name=branch_name,
-                    bank_id=unique_banks.get(bank_name),
-                    sort_code=branch_code
-                )
+                branch = BankBranch(name=branch_name, bank_id=unique_banks[bank_name], sort_code=branch_code)
                 db.session.add(branch)
 
-    db.session.commit()
+    db.session.commit()  # Commit after adding all branches
     print("Banks and branches seeded successfully!")
 
     # Seed Impact Product Categories
@@ -75,7 +95,7 @@ with app.app_context():
             )
             db.session.add(product)
 
-    db.session.commit()
+    db.session.commit()  # Commit after adding all products
     print("Products seeded successfully!")
 
     # Seed Pay Points
@@ -202,12 +222,10 @@ with app.app_context():
             phone_number = row.get('Phone number', '').strip()
             role_name = row.get('Role', '').strip()
 
-            # Skip the record if the email is empty
-            if not email:
+            if not email:  # Skip the record if the email is empty
                 print(f"Skipping user {row.get('Name', 'Unknown')} due to missing email.")
                 continue
 
-            # Find or create the user
             user = db.session.query(User).filter_by(email=email).first()
             if not user:
                 user = User(
@@ -217,7 +235,6 @@ with app.app_context():
                     is_active=True,
                     is_deleted=False
                 )
-                # Assign the role to the user
                 if role_name in roles_dict:
                     user.role_id = roles_dict[role_name]
                 else:
@@ -226,7 +243,7 @@ with app.app_context():
 
                 db.session.add(user)
 
-    db.session.commit()
+    db.session.commit()  # Commit after adding all users
     print("Users and roles seeded successfully!")
 
     # Seed Access Rules for each role
@@ -279,18 +296,14 @@ with app.app_context():
     ]
 
     for rule in access_rules:
-        # Get the role by name
         role = db.session.query(Role).filter_by(name=rule['role_name']).first()
 
         if not role:
             print(f"Role '{rule['role_name']}' not found, skipping access rule seeding.")
             continue
 
-        # Check if the access rule for the role already exists
         existing_access = db.session.query(Access).filter_by(role_id=role.id).first()
-
         if not existing_access:
-            # Create new access rule if not found
             access_rule = Access(
                 role_id=role.id,
                 can_create=rule['can_create'],
@@ -305,7 +318,7 @@ with app.app_context():
     db.session.commit()
     print("Access rules seeded successfully!")
 
-    # Seed Retention Policy with 1 year retention period
+    # Seed Retention Policy with 1-year retention period
     retention_policy = db.session.query(RetentionPolicy).first()
     if not retention_policy:
         retention_policy = RetentionPolicy(retention_days=365)
@@ -340,28 +353,20 @@ with app.app_context():
 
             # Ensure the manager exists as a user with flexible name checking
             if manager_name not in unique_sales_managers:
-                # Split the manager name for a flexible pattern search (assumes first and last name)
                 manager_name_parts = manager_name.split(' ')
                 search_pattern = f"%{'%'.join(manager_name_parts)}%"
-
-                # Perform a case-insensitive search using the SQL LIKE operator
-                sales_manager = db.session.query(User).filter(
-                    User.name.ilike(search_pattern)
-                ).first()
+                sales_manager = db.session.query(User).filter(User.name.ilike(search_pattern)).first()
 
                 if not sales_manager:
-                    print(f"Sales manager '{manager_name}' not found in the User table, skipping {executive_name}.")
-                    continue  # Skip the sales executive if no matching manager is found
+                    print(f"Sales manager '{manager_name}' not found, skipping {executive_name}.")
+                    continue
 
-                # Cache the sales manager ID for later reuse
                 unique_sales_managers[manager_name] = sales_manager.id
 
-            # Handle missing or duplicate phone numbers
             if not phone_number:
                 print(f"Skipping {executive_name} due to missing phone number.")
                 continue
 
-            # Check if a sales executive with the same phone number already exists
             existing_executive = db.session.query(SalesExecutive).filter_by(phone_number=phone_number).first()
             if existing_executive:
                 print(f"Skipping {executive_name} due to duplicate phone number: {phone_number}")
@@ -384,4 +389,89 @@ with app.app_context():
 
     db.session.commit()
     print("Sales executives seeding completed successfully!")
+
+    # Seed Targets
+    # Open the CSV file containing Sales Manager names and their corresponding targets
+    with open(targets_csv_file, newline='', encoding='utf-8-sig') as csvfile:
+        csv_reader = csv.DictReader(csvfile)
+        for row in csv_reader:
+            # Get the monthly target and sales manager name
+            monthly_target_type = int(row.get('Target', '').strip())
+            sales_manager_name = row.get('Name', '').strip()
+
+            # Convert the integer target into the corresponding string key
+            monthly_target_key = f"{monthly_target_type}_cases"
+
+            # Validate the target type
+            if monthly_target_type not in monthly_targets:
+                print(f"Invalid target type for Sales Manager {sales_manager_name}, skipping...")
+                continue
+
+            # Fetch the Sales Manager from the database based on the name
+            sales_manager = db.session.query(User).filter(User.name.ilike(f'%{sales_manager_name}%')).first()
+            if not sales_manager:
+                print(f"Sales Manager {sales_manager_name} not found, skipping...")
+                continue
+
+            # Set the monthly target sales count and premium amount
+            monthly_target_sales_count = monthly_targets[monthly_target_type]
+            monthly_target_premium_amount = monthly_target_sales_count * 100  # Premium target per case is 100 GHC
+
+            # Calculate the number of days in the current month
+            days_in_month = get_days_in_current_month()
+
+            # Calculate daily targets
+            daily_target_sales_count = monthly_target_sales_count / days_in_month
+            daily_target_premium_amount = monthly_target_premium_amount / days_in_month
+
+            # Calculate the fraction of targets for paypoints and risk group
+            paypoint_target_sales_count = monthly_target_sales_count * 0.80  # 80% of the monthly target
+            risk_group_target_sales_count = monthly_target_sales_count * 0.70  # 70% of the monthly target
+
+            # Set the Paypoint Target as a SalesTarget entry (for the month)
+            paypoint_target = SalesTarget(
+                sales_manager_id=sales_manager.id,
+                target_sales_count=paypoint_target_sales_count,  # 80% of the total sales count
+                target_premium_amount=paypoint_target_sales_count * 100,  # Corresponding premium amount
+                target_criteria_type='source_type',  # Dynamic criteria type
+                target_criteria_value='paypoint',  # Dynamic criteria value
+                period_start=datetime(datetime.utcnow().year, datetime.utcnow().month, 1),  # Start of the current month
+                period_end=datetime(datetime.utcnow().year, datetime.utcnow().month, days_in_month)  # End of the current month
+            )
+            db.session.add(paypoint_target)
+
+            # Set the Risk Product Group Target as a SalesTarget entry (for the month)
+            risk_group_target = SalesTarget(
+                sales_manager_id=sales_manager.id,
+                target_sales_count=risk_group_target_sales_count,  # 70% of the total sales count
+                target_premium_amount=risk_group_target_sales_count * 100,  # Corresponding premium amount
+                target_criteria_type='product_group',  # Dynamic criteria type
+                target_criteria_value='risk',  # Dynamic criteria value (for risk products)
+                period_start=datetime(datetime.utcnow().year, datetime.utcnow().month, 1),
+                period_end=datetime(datetime.utcnow().year, datetime.utcnow().month, days_in_month)
+            )
+            db.session.add(risk_group_target)
+
+            # Set the overall monthly target (including both risk and paypoint)
+            monthly_target = SalesTarget(
+                sales_manager_id=sales_manager.id,
+                target_sales_count=monthly_target_sales_count,  # Total monthly sales count
+                target_premium_amount=monthly_target_premium_amount,  # Total premium amount
+                target_criteria_type='overall',  # General monthly target
+                target_criteria_value='monthly_total',  # Just a placeholder for the overall target
+                period_start=datetime(datetime.utcnow().year, datetime.utcnow().month, 1),
+                period_end=datetime(datetime.utcnow().year, datetime.utcnow().month, days_in_month)
+            )
+            db.session.add(monthly_target)
+
+            # Commit to the database
+            try:
+                db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
+                print(f"Failed to create sales targets for {sales_manager_name}, possible duplicate entry.")
+
+        print("Sales Target seeding completed successfully!")
+
+    # All done!
     print("All Seeding completed successfully!")

@@ -9,6 +9,7 @@ from models.impact_product_model import ImpactProduct
 from models.audit_model import AuditTrail
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from utils import get_client_ip
 from sqlalchemy.exc import SQLAlchemyError
 
 # Define a namespace for admin-related operations
@@ -94,7 +95,7 @@ class AdminResource(Resource):
             resource_type='all_resources',
             resource_id=None,
             details=f"Retrieved data for users, sales executives, banks, branches, paypoints, and products.",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -147,7 +148,7 @@ class AdminResource(Resource):
             resource_type=data['type'],
             resource_id=resource.id,
             details=f"Created {data['type']} with details: {data}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -190,7 +191,7 @@ class AdminResource(Resource):
             resource_type=data['type'],
             resource_id=data['id'],
             details=f"Updated {data['type']} with details: {data}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -233,7 +234,7 @@ class AdminResource(Resource):
             resource_type=data['type'],
             resource_id=data['id'],
             details=f"Deleted {data['type']} with details: {data}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)

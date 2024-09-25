@@ -1,10 +1,11 @@
 from flask_restx import Namespace, Resource, fields
-from flask import request, jsonify
+from flask import request
 from models.sales_executive_model import SalesExecutive
 from models.audit_model import AuditTrail
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
+from utils import get_client_ip
 
 # Define a namespace for Sales Executive operations
 sales_executive_ns = Namespace('sales_executive', description='Sales Executive operations')
@@ -51,7 +52,7 @@ class SalesExecutiveListResource(Resource):
             resource_type='sales_executive_list',
             resource_id=None,
             details="User accessed list of Sales Executives",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -108,7 +109,7 @@ class SalesExecutiveListResource(Resource):
             resource_type='sales_executive',
             resource_id=new_sales_executive.id,
             details=f"User created a new Sales Executive with ID {new_sales_executive.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -138,7 +139,7 @@ class SalesExecutiveResource(Resource):
             resource_type='sales_executive',
             resource_id=sales_executive_id,
             details=f"User accessed Sales Executive with ID {sales_executive_id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -188,7 +189,7 @@ class SalesExecutiveResource(Resource):
             resource_type='sales_executive',
             resource_id=sales_executive.id,
             details=f"User updated Sales Executive with ID {sales_executive.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -222,7 +223,7 @@ class SalesExecutiveResource(Resource):
             resource_type='sales_executive',
             resource_id=sales_executive.id,
             details=f"User soft-deleted Sales Executive with ID {sales_executive.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)

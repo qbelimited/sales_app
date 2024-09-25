@@ -1,10 +1,11 @@
 from flask_restx import Namespace, Resource, fields
-from flask import request, jsonify
+from flask import request
 from models.query_model import QueryResponse, Query
 from models.audit_model import AuditTrail
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
+from utils import get_client_ip
 
 # Define namespace
 query_response_ns = Namespace('query_responses', description='Query responses management')
@@ -47,7 +48,7 @@ class QueryResponseResource(Resource):
             resource_type='query_response_list',
             resource_id=query_id,
             details=f"User accessed responses to query/feedback with ID {query_id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -92,7 +93,7 @@ class QueryResponseResource(Resource):
             resource_type='query_response',
             resource_id=new_response.id,
             details=f"User submitted a response to query/feedback with ID {query_id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -135,7 +136,7 @@ class QueryResponseByIdResource(Resource):
             resource_type='query_response',
             resource_id=response.id,
             details=f"User updated response to query/feedback with ID {query_id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -173,7 +174,7 @@ class QueryResponseByIdResource(Resource):
             resource_type='query_response',
             resource_id=response.id,
             details=f"User soft-deleted response with ID {response.id} for query/feedback ID {query_id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)

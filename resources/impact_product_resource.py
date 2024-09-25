@@ -5,6 +5,7 @@ from models.audit_model import AuditTrail
 from app import db, logger  # Import logger from app.py
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
+from utils import get_client_ip
 
 # Define a namespace for Impact Product operations
 impact_product_ns = Namespace('impact_product', description='Impact Product operations')
@@ -65,7 +66,7 @@ class ImpactProductListResource(Resource):
             action='ACCESS',
             resource_type='impact_product_list',
             details="User accessed list of Impact Products",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -113,7 +114,7 @@ class ImpactProductListResource(Resource):
                 resource_type='impact_product',
                 resource_id=new_product.id,
                 details=f"User created a new Impact Product with ID {new_product.id}",
-                ip_address=request.remote_addr,
+                ip_address=get_client_ip(),
                 user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)
@@ -145,7 +146,7 @@ class ImpactProductResource(Resource):
             resource_type='impact_product',
             resource_id=product_id,
             details=f"User accessed Impact Product with ID {product_id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -183,7 +184,7 @@ class ImpactProductResource(Resource):
             resource_type='impact_product',
             resource_id=product.id,
             details=f"User updated Impact Product with ID {product.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -215,7 +216,7 @@ class ImpactProductResource(Resource):
             resource_type='impact_product',
             resource_id=product.id,
             details=f"User deleted Impact Product with ID {product.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)

@@ -3,6 +3,7 @@ from flask import request
 from models.audit_model import AuditTrail, AuditAction
 from app import logger, db
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from utils import get_client_ip
 from datetime import datetime
 
 # Define namespace for audit trails
@@ -160,10 +161,6 @@ class FilteredAuditTrailResource(Resource):
 
         filtered_audits = query.order_by(AuditTrail.timestamp.desc()).all()
 
-        # Capture IP and User Agent
-        ip_address = request.remote_addr
-        user_agent = request.headers.get('User-Agent')
-
         # Log this action with IP and user agent
         new_audit_entry = AuditTrail(
             user_id=current_user['id'],
@@ -171,8 +168,8 @@ class FilteredAuditTrailResource(Resource):
             resource_type='audit_trail',
             timestamp=datetime.utcnow(),
             details=f"Filtered audit logs for resource type: {resource_type}, action: {action}, dates: {start_date} - {end_date}.",
-            ip_address=ip_address,
-            user_agent=user_agent
+            ip_address=get_client_ip(),
+            user_agent=request.headers.get('User-Agent')
         )
         db.session.add(new_audit_entry)
         db.session.commit()

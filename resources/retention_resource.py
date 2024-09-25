@@ -4,6 +4,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from models.retention_model import RetentionPolicy
 from models.audit_model import AuditTrail
 from app import db, logger
+from utils import get_client_ip
 
 # Define a namespace for retention policy operations
 retention_ns = Namespace('retention', description='Retention Policy operations')
@@ -36,7 +37,7 @@ class RetentionPolicyResource(Resource):
                 resource_type='retention_policy',
                 resource_id=policy.id,
                 details="User accessed the retention policy",
-                ip_address=request.remote_addr,
+                ip_address=get_client_ip(),
                 user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)
@@ -73,7 +74,7 @@ class RetentionPolicyResource(Resource):
                     resource_type='retention_policy',
                     resource_id=policy.id,
                     details=f"User updated retention policy to {retention_days} days",
-                    ip_address=request.remote_addr,
+                    ip_address=get_client_ip(),
                     user_agent=request.headers.get('User-Agent')
                 )
                 db.session.add(audit)

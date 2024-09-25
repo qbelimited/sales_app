@@ -6,6 +6,7 @@ from models.branch_model import Branch
 from models.audit_model import AuditTrail
 from app import logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from utils import get_client_ip
 
 # Define a namespace for branch-related operations
 branch_ns = Namespace('branch', description='Branch operations')
@@ -108,7 +109,7 @@ class BranchListResource(Resource):
             resource_type='branch',
             resource_id=new_branch.id,
             details=f"Created branch with details: {data}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -172,7 +173,7 @@ class BranchResource(Resource):
             resource_type='branch',
             resource_id=branch.id,
             details=f"Updated branch with details: {data}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -207,7 +208,7 @@ class BranchResource(Resource):
             resource_type='branch',
             resource_id=branch.id,
             details=f"Deleted branch with id: {branch_id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)

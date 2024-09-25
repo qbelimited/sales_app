@@ -6,6 +6,7 @@ from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import or_, and_
 from datetime import datetime
+from utils import get_client_ip
 
 # Define a namespace for sales operations
 sales_ns = Namespace('sales', description='Sales operations')
@@ -111,7 +112,7 @@ class SaleListResource(Resource):
             resource_type='sales_list',
             resource_id=None,
             details="User accessed the list of sales.",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -193,7 +194,7 @@ class SaleListResource(Resource):
                 resource_type='sale',
                 resource_id=new_sale.id,
                 details=f"User created a new sale with ID {new_sale.id}",
-                ip_address=request.remote_addr,
+                ip_address=get_client_ip(),
                 user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)
@@ -287,7 +288,7 @@ class SaleDetailResource(Resource):
                 resource_type='sale',
                 resource_id=sale.id,
                 details=f"User updated sale with ID {sale.id}",
-                ip_address=request.remote_addr,
+                ip_address=get_client_ip(),
                 user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)
@@ -318,7 +319,7 @@ class SaleDetailResource(Resource):
             resource_type='sale',
             resource_id=sale.id,
             details=f"User soft-deleted sale with ID {sale.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)

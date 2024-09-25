@@ -1,6 +1,6 @@
 {
-  "name": "frontend",
-  "version": "0.1.0",
+  "name": "Sales tracking app",
+  "version": "1.0.0",
   "private": true,
   "dependencies": {
     "@emotion/react": "^11.13.3",
@@ -60,7 +60,6 @@
       "last 1 safari version"
     ]
   },
-  "proxy": "https://api.salesapp.impactlife.com.gh/",
   "devDependencies": {
     "@babel/plugin-proposal-private-property-in-object": "^7.21.11"
   }

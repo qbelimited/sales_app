@@ -1,10 +1,11 @@
 from flask_restx import Namespace, Resource, fields
-from flask import request, jsonify
+from flask import request
 from models.query_model import Query
 from models.audit_model import AuditTrail
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
+from utils import get_client_ip
 
 # Define a namespace for the queries
 query_ns = Namespace('queries', description='Operations related to queries and feedback')
@@ -55,7 +56,7 @@ class QueryListResource(Resource):
             resource_type='query_list',
             resource_id=None,
             details=f"User accessed list of queries/feedback",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -101,7 +102,7 @@ class QueryListResource(Resource):
             resource_type='query',
             resource_id=new_query.id,
             details=f"User submitted a new query/feedback with ID {new_query.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -130,7 +131,7 @@ class QueryResource(Resource):
             resource_type='query',
             resource_id=query_id,
             details=f"User accessed query/feedback with ID {query_id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -172,7 +173,7 @@ class QueryResource(Resource):
             resource_type='query',
             resource_id=query.id,
             details=f"User updated query/feedback with ID {query.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -210,7 +211,7 @@ class QueryResource(Resource):
             resource_type='query',
             resource_id=query.id,
             details=f"User soft-deleted query/feedback with ID {query.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)

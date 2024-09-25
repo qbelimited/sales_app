@@ -5,6 +5,7 @@ from models.audit_model import AuditTrail
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
+from utils import get_client_ip
 
 # Define a namespace for manager-related operations
 manager_ns = Namespace('manager', description='Manager operations')
@@ -47,7 +48,7 @@ class ManagerSalesExecutiveResource(Resource):
             resource_type='sales_executive_list',
             resource_id=None,
             details="Manager accessed list of sales executives",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -97,7 +98,7 @@ class ManagerSalesExecutiveResource(Resource):
             resource_type='sales_executive',
             resource_id=new_sales_executive.id,
             details=f"Manager created a new sales executive with ID {new_sales_executive.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -147,7 +148,7 @@ class ManagerSalesExecutiveUpdateResource(Resource):
             resource_type='sales_executive',
             resource_id=sales_executive.id,
             details=f"Manager updated sales executive with ID {sales_executive.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)

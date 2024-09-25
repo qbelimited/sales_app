@@ -1,11 +1,12 @@
 from flask_restx import Namespace, Resource, fields
-from flask import request, jsonify
+from flask import request
 from models.under_investigation_model import UnderInvestigation
 from models.audit_model import AuditTrail
 from models.sales_model import Sale
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
+from utils import get_client_ip
 
 # Define namespace
 under_inv_ns = Namespace('under_investigations', description='Sales investigations management')
@@ -50,7 +51,7 @@ class UnderInvestigationListResource(Resource):
             resource_type='under_investigation_list',
             resource_id=None,
             details=f"User accessed list of under investigation records",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -97,7 +98,7 @@ class UnderInvestigationListResource(Resource):
                 resource_type='under_investigation',
                 resource_id=new_investigation.id,
                 details=f"User flagged sale with ID {data['sale_id']} as under investigation",
-                ip_address=request.remote_addr,
+                ip_address=get_client_ip(),
                 user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)
@@ -132,7 +133,7 @@ class UnderInvestigationResource(Resource):
             resource_type='under_investigation',
             resource_id=investigation_id,
             details=f"User accessed investigation with ID {investigation_id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -171,7 +172,7 @@ class UnderInvestigationResource(Resource):
                 resource_type='under_investigation',
                 resource_id=investigation.id,
                 details=f"User updated investigation with ID {investigation.id}",
-                ip_address=request.remote_addr,
+                ip_address=get_client_ip(),
                 user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)
@@ -207,7 +208,7 @@ class UnderInvestigationResource(Resource):
                 resource_type='under_investigation',
                 resource_id=investigation.id,
                 details=f"User resolved investigation with ID {investigation.id}",
-                ip_address=request.remote_addr,
+                ip_address=get_client_ip(),
                 user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)

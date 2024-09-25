@@ -65,7 +65,7 @@ class Config:
 # Development Configuration
 class DevelopmentConfig(Config):
     SQLALCHEMY_DATABASE_URI = os.getenv('DEV_DATABASE_URL', 'sqlite:///dev.db')
-    CORS_ORIGINS = ["http://localhost:3000"]
+    CORS_ORIGINS = ["http://localhost:3000", "http://localhost:5000", "http://127.0.0.1:3000", "http://127.0.0.1:5000"]
     DEBUG = True
     TESTING = True
 

@@ -11,6 +11,7 @@ from models.audit_model import AuditTrail
 from models.token_model import TokenBlacklist, RefreshToken
 from app import db, logger
 from werkzeug.security import check_password_hash
+from utils import get_client_ip
 from datetime import datetime, timedelta
 
 # Define a namespace for auth-related operations
@@ -92,7 +93,7 @@ class LoginResource(Resource):
             resource_type='user',
             resource_id=user.id,
             details=f"User {user.email} logged in",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -142,7 +143,7 @@ class RefreshTokenResource(Resource):
                 resource_type='user',
                 resource_id=current_user['id'],
                 details=f"User {current_user['email']} token refreshed successfully",
-                ip_address=request.remote_addr,
+                ip_address=get_client_ip(),
                 user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)
@@ -225,7 +226,7 @@ class LogoutResource(Resource):
                 resource_type='user',
                 resource_id=current_user['id'],
                 details=f"User {current_user['email']} logged out and refresh token revoked.",
-                ip_address=request.remote_addr,
+                ip_address=get_client_ip(),
                 user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)
@@ -267,7 +268,7 @@ class RevokeRefreshTokenResource(Resource):
                 resource_type='refresh_token',
                 resource_id=refresh_token.id,
                 details=f"User revoked refresh token with ID {refresh_token.id}",
-                ip_address=request.remote_addr,
+                ip_address=get_client_ip(),
                 user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)

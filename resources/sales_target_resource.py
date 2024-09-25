@@ -1,12 +1,12 @@
 from flask_restx import Namespace, Resource, fields
-from flask import request, jsonify
-from models.sales_executive_model import SalesExecutive
+from flask import request
 from models.user_model import User
 from models.performance_model import SalesTarget
 from models.audit_model import AuditTrail
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
+from utils import get_client_ip
 
 # Define a namespace for Sales Target operations
 sales_target_ns = Namespace('sales_target', description='Sales Target operations')
@@ -14,10 +14,11 @@ sales_target_ns = Namespace('sales_target', description='Sales Target operations
 # Define model for Swagger documentation
 sales_target_model = sales_target_ns.model('SalesTarget', {
     'id': fields.Integer(description='Sales Target ID'),
-    'sales_executive_id': fields.Integer(required=True, description='Sales Executive ID'),
     'sales_manager_id': fields.Integer(required=True, description='Sales Manager ID'),
     'target_sales_count': fields.Integer(required=True, description='Target number of sales'),
-    'target_premium_amount': fields.Float(required=True, description='Target premium amount')
+    'target_premium_amount': fields.Float(required=True, description='Target premium amount'),
+    'target_criteria_type': fields.String(required=False, description='Target criteria type (e.g., source_type, product_group)'),
+    'target_criteria_value': fields.String(required=False, description='Target criteria value (e.g., paypoint, risk)')
 })
 
 # Helper function to check role permissions
@@ -30,7 +31,7 @@ class SalesTargetListResource(Resource):
     @jwt_required()
     @sales_target_ns.param('page', 'Page number for pagination', type='integer', default=1)
     @sales_target_ns.param('per_page', 'Number of items per page', type='integer', default=10)
-    @sales_target_ns.param('filter_by', 'Filter by sales executive name', type='string')
+    @sales_target_ns.param('filter_by', 'Filter by sales manager name', type='string')
     @sales_target_ns.param('sort_by', 'Sort by field (e.g., created_at)', type='string', default='created_at')
     def get(self):
         """Retrieve a paginated list of Sales Targets."""
@@ -45,7 +46,7 @@ class SalesTargetListResource(Resource):
         query = SalesTarget.query.filter_by(is_deleted=False)
 
         if filter_by:
-            query = query.join(SalesExecutive).filter(SalesExecutive.name.ilike(f'%{filter_by}%'))
+            query = query.join(User).filter(User.name.ilike(f'%{filter_by}%'))
 
         sales_targets = query.order_by(getattr(SalesTarget, sort_by).desc()).paginate(page=page, per_page=per_page, error_out=False)
 
@@ -55,7 +56,7 @@ class SalesTargetListResource(Resource):
             action='ACCESS',
             resource_type='sales_target_list',
             details="User accessed list of Sales Targets",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -84,19 +85,19 @@ class SalesTargetListResource(Resource):
 
         data = request.json
 
-        # Validate Sales Executive and Sales Manager
-        sales_executive = SalesExecutive.query.filter_by(id=data['sales_executive_id']).first()
+        # Validate Sales Manager
         sales_manager = User.query.filter_by(id=data['sales_manager_id']).first()
 
-        if not sales_executive or not sales_manager:
-            logger.error(f"Sales Executive or Manager not found by user {current_user['id']}")
-            return {'message': 'Sales Executive or Manager not found'}, 404
+        if not sales_manager:
+            logger.error(f"Sales Manager not found by user {current_user['id']}")
+            return {'message': 'Sales Manager not found'}, 404
 
         new_target = SalesTarget(
-            sales_executive_id=data['sales_executive_id'],
             sales_manager_id=data['sales_manager_id'],
             target_sales_count=data['target_sales_count'],
-            target_premium_amount=data['target_premium_amount']
+            target_premium_amount=data['target_premium_amount'],
+            target_criteria_type=data.get('target_criteria_type'),
+            target_criteria_value=data.get('target_criteria_value')
         )
         db.session.add(new_target)
         db.session.commit()
@@ -107,14 +108,14 @@ class SalesTargetListResource(Resource):
             action='CREATE',
             resource_type='sales_target',
             resource_id=new_target.id,
-            details=f"Created new Sales Target for Sales Executive ID {new_target.sales_executive_id}",
-            ip_address=request.remote_addr,
+            details=f"Created new Sales Target for Sales Manager ID {new_target.sales_manager_id}",
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
         db.session.commit()
 
-        logger.info(f"Sales target created for Sales Executive ID {new_target.sales_executive_id} by user {current_user['id']}")
+        logger.info(f"Sales target created for Sales Manager ID {new_target.sales_manager_id} by user {current_user['id']}")
 
         return new_target.serialize(), 201
 
@@ -138,7 +139,7 @@ class SalesTargetResource(Resource):
             resource_type='sales_target',
             resource_id=target_id,
             details=f"User accessed Sales Target with ID {target_id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -167,10 +168,11 @@ class SalesTargetResource(Resource):
 
         data = request.json
 
-        target.sales_executive_id = data.get('sales_executive_id', target.sales_executive_id)
         target.sales_manager_id = data.get('sales_manager_id', target.sales_manager_id)
         target.target_sales_count = data.get('target_sales_count', target.target_sales_count)
         target.target_premium_amount = data.get('target_premium_amount', target.target_premium_amount)
+        target.target_criteria_type = data.get('target_criteria_type', target.target_criteria_type)
+        target.target_criteria_value = data.get('target_criteria_value', target.target_criteria_value)
         target.updated_at = datetime.utcnow()
 
         db.session.commit()
@@ -182,7 +184,7 @@ class SalesTargetResource(Resource):
             resource_type='sales_target',
             resource_id=target.id,
             details=f"Updated Sales Target with ID {target.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -218,7 +220,7 @@ class SalesTargetResource(Resource):
             resource_type='sales_target',
             resource_id=target.id,
             details=f"Deleted Sales Target with ID {target.id}",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)

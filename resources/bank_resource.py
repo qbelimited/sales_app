@@ -4,6 +4,7 @@ from models.bank_model import Bank, BankBranch
 from models.audit_model import AuditTrail
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from utils import get_client_ip
 
 # Create a namespace for bank-related operations
 bank_ns = Namespace('banks', description='Operations related to banks and their branches')
@@ -58,7 +59,7 @@ class BankResource(Resource):
             resource_type='bank',
             resource_id=new_bank.id,
             details=f"Bank '{new_bank.name}' created",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -111,7 +112,7 @@ class SingleBankResource(Resource):
             resource_type='bank',
             resource_id=bank.id,
             details=f"Bank '{bank.name}' updated",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -145,7 +146,7 @@ class SingleBankResource(Resource):
             resource_type='bank',
             resource_id=bank.id,
             details=f"Bank '{bank.name}' soft deleted",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -191,7 +192,7 @@ class BankBranchResource(Resource):
             resource_type='branch',
             resource_id=new_branch.id,
             details=f"Branch '{new_branch.name}' created",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -245,7 +246,7 @@ class SingleBranchResource(Resource):
             resource_type='branch',
             resource_id=branch.id,
             details=f"Branch '{branch.name}' updated",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)
@@ -279,7 +280,7 @@ class SingleBranchResource(Resource):
             resource_type='branch',
             resource_id=branch.id,
             details=f"Branch '{branch.name}' soft deleted",
-            ip_address=request.remote_addr,
+            ip_address=get_client_ip(),
             user_agent=request.headers.get('User-Agent')
         )
         db.session.add(audit)

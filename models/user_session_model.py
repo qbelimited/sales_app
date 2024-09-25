@@ -2,6 +2,7 @@ from app import db
 from datetime import datetime, timedelta
 import ipaddress
 from sqlalchemy.orm import validates
+from utils import get_client_ip
 
 
 class UserSession(db.Model):
@@ -10,7 +11,7 @@ class UserSession(db.Model):
     login_time = db.Column(db.DateTime, default=datetime.utcnow)
     logout_time = db.Column(db.DateTime, nullable=True)
     expires_at = db.Column(db.DateTime, nullable=False, default=lambda: datetime.utcnow() + timedelta(minutes=45))
-    ip_address = db.Column(db.String(45))  # IPv4 or IPv6
+    ip_address = db.Column(db.String(45), default=lambda: get_client_ip())  # IPv4 or IPv6
     is_active = db.Column(db.Boolean, default=True, index=True)
 
     user = db.relationship('User', backref='sessions')
@@ -61,12 +62,18 @@ class UserSession(db.Model):
     @staticmethod
     def validate_ip(ip):
         """Validate IP address format (IPv4 or IPv6)."""
-        return True
+        try:
+            ipaddress.ip_address(ip)  # Validate if it's a valid IP address
+            return True
+        except ValueError:
+            return False
 
     @validates('ip_address')
     def validate_ip_address(self, _, ip):
         """Validate IP address upon session creation or update."""
-        return True
+        if not self.validate_ip(ip):
+            raise ValueError(f"Invalid IP address: {ip}")
+        return ip
 
     def get_session_duration(self):
         """Returns the session duration in seconds, or None if session is still active."""

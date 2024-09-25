@@ -7,6 +7,7 @@ from models.audit_model import AuditTrail
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
+from utils import get_client_ip
 
 # Define a namespace for log-related operations
 log_ns = Namespace('log', description='Log access operations')
@@ -76,7 +77,7 @@ class LogResource(Resource):
                 resource_type='log',
                 resource_id=None,
                 details=f"Accessed {log_type} logs with level {level}",
-                ip_address=request.remote_addr,
+                ip_address=get_client_ip(),
                 user_agent=request.headers.get('User-Agent')
             )
             db.session.add(audit)

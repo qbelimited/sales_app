@@ -27,6 +27,7 @@ from app import db
 from joblib import Parallel, delayed
 from sqlalchemy import or_
 from fpdf import FPDF
+from utils import get_client_ip
 
 # Define namespace for report-related operations
 report_ns = Namespace('reports', description='Comprehensive Sales and Performance Report Generation')
