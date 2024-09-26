@@ -361,18 +361,21 @@ const ManageBanksPage = ({ showToast }) => {
               ))}
             </tbody>
           </Table>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => {
-              setBranchData({ name: '', sort_code: '' }); // Reset branch data for adding new branch
-              setModalMode('add');
-              setShowEditBranchModal(true);
-            }}
-            className="mt-3"
-          >
-            <FontAwesomeIcon icon={faPlus} /> Add New Branch
-          </Button>
+          {/* Add New Branch Button (visible for specific roles) */}
+          {role_id === 2 || role_id === 3 ? (
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => {
+                setBranchData({ name: '', sort_code: '' }); // Reset branch data for adding new branch
+                setModalMode('add');
+                setShowEditBranchModal(true);
+              }}
+              className="mt-3"
+            >
+              <FontAwesomeIcon icon={faPlus} /> Add New Branch
+            </Button>
+          ) : null}
         </Card>
       </Modal>
 
