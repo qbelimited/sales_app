@@ -180,7 +180,7 @@ const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
         showToast('success', 'Sale added successfully.', 'Success');
       } catch (error) {
         console.error('Error adding new sale record:', error);
-        showToast('danger', 'Failed to add new sale.', 'Error');
+        // showToast('danger', 'Failed to add new sale.', 'Error');
       }
     }
 

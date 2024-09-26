@@ -176,12 +176,7 @@ class SaleListResource(Resource):
             )
 
             # Check for duplicates and flag them if found
-            duplicate_sale = new_sale.check_duplicate()
-            if duplicate_sale:
-                new_sale.status = 'duplicate'
-                logger.warning(f"Duplicate sale detected for client {data.get('client_name')} with phone {data.get('client_phone')}.")
-            else:
-                new_sale.status = 'new'
+            new_sale = new_sale.check_duplicate()
 
             db.session.add(new_sale)
             db.session.commit()

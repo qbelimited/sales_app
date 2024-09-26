@@ -1,4 +1,4 @@
-from app import db
+from app import db, logger
 from datetime import datetime
 from sqlalchemy.orm import validates
 from models.under_investigation_model import UnderInvestigation
@@ -11,20 +11,20 @@ class Sale(db.Model):
     sale_manager_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, index=True)
     sales_executive_id = db.Column(db.Integer, db.ForeignKey('sales_executive.id'), nullable=False, index=True)
     client_name = db.Column(db.String(150), nullable=False, index=True)
-    client_id_no = db.Column(db.String(150), nullable=True, index=True)
+    client_id_no = db.Column(db.String(150), nullable=True)
     client_phone = db.Column(db.String(10), nullable=False, index=True)
     serial_number = db.Column(db.String(100), nullable=False, index=True)
-    source_type = db.Column(db.String(50), nullable=False, index=True)
-    momo_reference_number = db.Column(db.String(100), nullable=True, index=True)
-    collection_platform = db.Column(db.String(100), nullable=True, index=True)  # Transflow, Hubtel, Momo
-    momo_transaction_id = db.Column(db.String(100), nullable=True, index=True)
-    first_pay_with_momo = db.Column(db.Boolean, nullable=True, index=True)
-    subsequent_pay_source_type = db.Column(db.String(50), nullable=True, index=True)
+    source_type = db.Column(db.String(50), nullable=False)
+    momo_reference_number = db.Column(db.String(100), nullable=True)
+    collection_platform = db.Column(db.String(100), nullable=True)  # Transflow, Hubtel, Momo
+    momo_transaction_id = db.Column(db.String(100), nullable=True)
+    first_pay_with_momo = db.Column(db.Boolean, nullable=True)
+    subsequent_pay_source_type = db.Column(db.String(50), nullable=True)
     bank_id = db.Column(db.Integer, db.ForeignKey('bank.id'), nullable=True, index=True)
-    bank_branch_id = db.Column(db.Integer, db.ForeignKey('bank_branch.id'), nullable=True, index=True)
-    bank_acc_number = db.Column(db.String(100), nullable=True, index=True)
+    bank_branch_id = db.Column(db.Integer, db.ForeignKey('bank_branch.id'), nullable=True)
+    bank_acc_number = db.Column(db.String(100), nullable=True)
     paypoint_id = db.Column(db.Integer, db.ForeignKey('paypoint.id'), nullable=True, index=True)
-    paypoint_branch = db.Column(db.String(100), nullable=True, index=True)
+    paypoint_branch = db.Column(db.String(100), nullable=True)
     staff_id = db.Column(db.String(100), nullable=True, index=True)
     policy_type_id = db.Column(db.Integer, db.ForeignKey('impact_product.id'), nullable=False, index=True)
     amount = db.Column(db.Float, nullable=False)
@@ -87,32 +87,53 @@ class Sale(db.Model):
         return value
 
     def check_duplicate(self):
-        """Check for duplicate sale based on combinations of three key fields."""
+        """Check for duplicate sale based on combinations of key fields, including phone number."""
         try:
-            # Define refined potential duplicate conditions (combinations of three fields)
+            # Ensure the sale ID is not part of the search for duplicates (new sales won't have an ID yet)
+            query = Sale.query.filter(Sale.is_deleted == False)
+
+            if self.id:
+                query = query.filter(Sale.id != self.id)  # Exclude self from the query for updates
+
+            # Normalize client name and phone for consistent matching (strip spaces, make lowercase)
+            client_name_normalized = self.client_name.strip().lower()
+            client_phone_normalized = self.client_phone.strip()
+
+            # Define refined potential duplicate conditions (combinations of three key fields including phone number)
             critical_conditions = or_(
-                and_(Sale.client_name.lower() == self.client_name.lower(), Sale.client_phone == self.client_phone, Sale.client_id_no == self.client_id_no),
-                and_(Sale.client_phone == self.client_phone, Sale.serial_number == self.serial_number, Sale.momo_reference_number == self.momo_reference_number),
-                and_(Sale.client_id_no == self.client_id_no, Sale.bank_acc_number == self.bank_acc_number, Sale.serial_number == self.serial_number)
+                and_(
+                    Sale.client_name.ilike(f'%{client_name_normalized}%'),
+                    Sale.client_phone == client_phone_normalized,
+                    Sale.client_id_no == self.client_id_no
+                ),
+                and_(
+                    Sale.client_phone == client_phone_normalized,
+                    Sale.serial_number == self.serial_number,
+                    Sale.momo_reference_number == self.momo_reference_number
+                ),
+                and_(
+                    Sale.client_id_no == self.client_id_no,
+                    Sale.bank_acc_number == self.bank_acc_number,
+                    Sale.serial_number == self.serial_number
+                )
             )
 
-            # Define less critical conditions (combinations of two fields)
+            # Define less critical conditions (combinations of two fields including phone number)
             less_critical_conditions = or_(
-                and_(Sale.client_name.lower() == self.client_name.lower(), Sale.client_phone == self.client_phone),
-                and_(Sale.client_phone == self.client_phone, Sale.serial_number == self.serial_number)
+                and_(
+                    Sale.client_name.ilike(f'%{client_name_normalized}%'),
+                    Sale.client_phone == client_phone_normalized
+                ),
+                and_(
+                    Sale.client_phone == self.client_phone,
+                    Sale.serial_number == self.serial_number
+                )
             )
 
             # Check for critical duplicates
-            critical_duplicate = Sale.query.filter(and_(
-                Sale.is_deleted == False,  # Only check non-deleted sales
-                critical_conditions
-            )).first()
-
+            critical_duplicate = query.filter(critical_conditions).first()
             # Check for less critical duplicates
-            potential_duplicate = Sale.query.filter(and_(
-                Sale.is_deleted == False,
-                less_critical_conditions
-            )).first()
+            potential_duplicate = query.filter(less_critical_conditions).first()
 
             if critical_duplicate:
                 # Mark this sale as 'under investigation'
@@ -125,7 +146,6 @@ class Sale(db.Model):
                     )
                     db.session.add(investigation)
                     db.session.commit()
-
             elif potential_duplicate:
                 # Optionally mark this sale as a "potential duplicate" for manual review
                 self.status = 'potential duplicate'
@@ -137,12 +157,16 @@ class Sale(db.Model):
                     )
                     db.session.add(investigation)
                     db.session.commit()
+            else:
+                # Mark this sale as 'new' if no duplicates are found
+                self.status = 'submitted'
 
             return self
 
         except Exception as e:
             db.session.rollback()
-            raise ValueError(f"Error checking for duplicates: {e}")
+            logger.error(f"Error checking for duplicates: {e}")
+            raise ValueError("An error occurred while checking for duplicates. Please try again.")
 
     def serialize(self):
         """Serialize the sale object for API responses."""
