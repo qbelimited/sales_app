@@ -20,6 +20,10 @@ const ManageGenBranchesPage = ({ showToast }) => {
   const [totalPages, setTotalPages] = useState(1);
   const branchesPerPage = 10;
 
+  // Fetch current logged-in user and role
+  const local_user = JSON.parse(localStorage.getItem('user'));
+  const role_id = parseInt(local_user?.role_id) || local_user?.role?.id;
+
   // Fetch all branches on component mount and on pagination change
   useEffect(() => {
     const fetchBranches = async () => {
@@ -125,13 +129,16 @@ const ManageGenBranchesPage = ({ showToast }) => {
       </Row>
       <Row>
         <Col md={12}>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => handleOpenBranchModal('add')}
-          >
-            <FontAwesomeIcon icon={faPlus} /> Add New Branch
-          </Button>
+          {/* Add New Branch Button (visible for specific roles) */}
+          {(role_id === 2 || role_id === 3) && (
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => handleOpenBranchModal('add')}
+            >
+              <FontAwesomeIcon icon={faPlus} /> Add New Branch
+            </Button>
+          )}
         </Col>
       </Row>
 
@@ -157,21 +164,26 @@ const ManageGenBranchesPage = ({ showToast }) => {
                   <td>{branch.city}</td>
                   <td>{branch.region}</td>
                   <td>
-                    <Button
-                      variant="contained"
-                      color="secondary"
-                      onClick={() => handleOpenBranchModal('edit', branch)}
-                      className="me-2"
-                    >
-                      <FontAwesomeIcon icon={faEdit} /> Edit
-                    </Button>
-                    <Button
-                      variant="contained"
-                      color="error"
-                      onClick={() => handleShowDeleteConfirmation(branch)}
-                    >
-                      <FontAwesomeIcon icon={faTrashAlt} /> Delete
-                    </Button>
+                    {/* Edit and Delete buttons (visible for specific roles) */}
+                    {(role_id === 2 || role_id === 3) && (
+                      <>
+                        <Button
+                          variant="contained"
+                          color="secondary"
+                          onClick={() => handleOpenBranchModal('edit', branch)}
+                          className="me-2"
+                        >
+                          <FontAwesomeIcon icon={faEdit} /> Edit
+                        </Button>
+                        <Button
+                          variant="contained"
+                          color="error"
+                          onClick={() => handleShowDeleteConfirmation(branch)}
+                        >
+                          <FontAwesomeIcon icon={faTrashAlt} /> Delete
+                        </Button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))}

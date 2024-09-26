@@ -24,6 +24,10 @@ const ManageBanksPage = ({ showToast }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const banksPerPage = 10;
 
+  // Fetch current logged-in user and role
+  const local_user = JSON.parse(localStorage.getItem('user'));
+  const role_id = parseInt(local_user?.role_id) || local_user?.role?.id;
+
   // Fetch all banks on component mount
   useEffect(() => {
     const fetchBanks = async () => {
@@ -202,17 +206,21 @@ const ManageBanksPage = ({ showToast }) => {
           </Typography>
         </Col>
       </Row>
-      <Row>
-        <Col md={12}>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => handleOpenBankModal('add')}
-          >
-            <FontAwesomeIcon icon={faPlus} /> Add New Bank
-          </Button>
-        </Col>
-      </Row>
+
+      {/* Add New Bank Button (visible for specific roles) */}
+      {role_id === 2 || role_id === 3 ? (
+        <Row>
+          <Col md={12}>
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => handleOpenBankModal('add')}
+            >
+              <FontAwesomeIcon icon={faPlus} /> Add New Bank
+            </Button>
+          </Col>
+        </Row>
+      ) : null}
 
       <Row className="mt-4">
         <Col md={12}>
@@ -228,21 +236,26 @@ const ManageBanksPage = ({ showToast }) => {
                 <tr key={bank.id}>
                   <td>{bank.name}</td>
                   <td>
-                    <Button
-                      variant="contained"
-                      color="secondary"
-                      onClick={() => handleOpenBankModal('edit', bank)}
-                      className="me-2"
-                    >
-                      <FontAwesomeIcon icon={faEdit} /> Edit
-                    </Button>
-                    <Button
-                      variant="contained"
-                      color="error"
-                      onClick={() => handleShowDeleteConfirmation(bank)}
-                    >
-                      <FontAwesomeIcon icon={faTrashAlt} /> Delete
-                    </Button>
+                    {/* Edit and Delete buttons (visible for specific roles) */}
+                    {role_id === 2 || role_id === 3 ? (
+                      <>
+                        <Button
+                          variant="contained"
+                          color="secondary"
+                          onClick={() => handleOpenBankModal('edit', bank)}
+                          className="me-2"
+                        >
+                          <FontAwesomeIcon icon={faEdit} /> Edit
+                        </Button>
+                        <Button
+                          variant="contained"
+                          color="error"
+                          onClick={() => handleShowDeleteConfirmation(bank)}
+                        >
+                          <FontAwesomeIcon icon={faTrashAlt} /> Delete
+                        </Button>
+                      </>
+                    ) : null}
                     <Button
                       variant="contained"
                       color="info"
@@ -323,21 +336,26 @@ const ManageBanksPage = ({ showToast }) => {
                   <td>{branch.name}</td>
                   <td>{branch.sort_code}</td>
                   <td>
-                    <Button
-                      variant="contained"
-                      color="secondary"
-                      onClick={() => handleEditBranch(branch)}
-                      className="me-2"
-                    >
-                      <FontAwesomeIcon icon={faEdit} /> Edit
-                    </Button>
-                    <Button
-                      variant="contained"
-                      color="error"
-                      onClick={() => handleShowDeleteBranchConfirmation(branch)}
-                    >
-                      <FontAwesomeIcon icon={faTrashAlt} /> Delete
-                    </Button>
+                    {/* Edit and Delete buttons (visible for specific roles) */}
+                    {role_id === 2 || role_id === 3 ? (
+                      <>
+                        <Button
+                          variant="contained"
+                          color="secondary"
+                          onClick={() => handleEditBranch(branch)}
+                          className="me-2"
+                        >
+                          <FontAwesomeIcon icon={faEdit} /> Edit
+                        </Button>
+                        <Button
+                          variant="contained"
+                          color="error"
+                          onClick={() => handleShowDeleteBranchConfirmation(branch)}
+                        >
+                          <FontAwesomeIcon icon={faTrashAlt} /> Delete
+                        </Button>
+                      </>
+                    ) : null}
                   </td>
                 </tr>
               ))}

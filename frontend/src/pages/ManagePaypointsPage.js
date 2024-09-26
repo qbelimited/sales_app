@@ -12,12 +12,16 @@ const ManagePaypointsPage = ({ showToast }) => {
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [selectedPaypoint, setSelectedPaypoint] = useState(null);
   const [modalMode, setModalMode] = useState('add'); // 'add' or 'edit'
-  const [paypointData, setPaypointData] = useState({ name: '', location: '', contact: '', region: '' });
+  const [paypointData, setPaypointData] = useState({ name: '', location: '' });
 
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const paypointsPerPage = 10;
+
+  // Fetch current logged-in user and role
+  const local_user = JSON.parse(localStorage.getItem('user'));
+  const role_id = parseInt(local_user?.role_id) || local_user?.role?.id;
 
   // Fetch all paypoints on component mount and on pagination change
   useEffect(() => {
@@ -45,9 +49,9 @@ const ManagePaypointsPage = ({ showToast }) => {
     setModalMode(mode);
     if (mode === 'edit' && paypoint) {
       setSelectedPaypoint(paypoint);
-      setPaypointData({ name: paypoint.name, location: paypoint.location, contact: paypoint.contact, region: paypoint.region });
+      setPaypointData({ name: paypoint.name, location: paypoint.location });
     } else {
-      setPaypointData({ name: '', location: '', contact: '', region: '' });
+      setPaypointData({ name: '', location: '' });
     }
     setShowPaypointModal(true);
   };
@@ -117,13 +121,16 @@ const ManagePaypointsPage = ({ showToast }) => {
       </Row>
       <Row>
         <Col md={12}>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => handleOpenPaypointModal('add')}
-          >
-            <FontAwesomeIcon icon={faPlus} /> Add New Paypoint
-          </Button>
+          {/* Add New Paypoint Button (visible for specific roles) */}
+          {(role_id === 2 || role_id === 3) && (
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => handleOpenPaypointModal('add')}
+            >
+              <FontAwesomeIcon icon={faPlus} /> Add New Paypoint
+            </Button>
+          )}
         </Col>
       </Row>
 
@@ -134,6 +141,7 @@ const ManagePaypointsPage = ({ showToast }) => {
               <tr>
                 <th>Name</th>
                 <th>Location</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -142,21 +150,26 @@ const ManagePaypointsPage = ({ showToast }) => {
                   <td>{paypoint.name}</td>
                   <td>{paypoint.location}</td>
                   <td>
-                    <Button
-                      variant="contained"
-                      color="secondary"
-                      onClick={() => handleOpenPaypointModal('edit', paypoint)}
-                      className="me-2"
-                    >
-                      <FontAwesomeIcon icon={faEdit} /> Edit
-                    </Button>
-                    <Button
-                      variant="contained"
-                      color="error"
-                      onClick={() => handleShowDeleteConfirmation(paypoint)}
-                    >
-                      <FontAwesomeIcon icon={faTrashAlt} /> Delete
-                    </Button>
+                    {/* Edit and Delete buttons (visible for specific roles) */}
+                    {(role_id === 2 || role_id === 3) && (
+                      <>
+                        <Button
+                          variant="contained"
+                          color="secondary"
+                          onClick={() => handleOpenPaypointModal('edit', paypoint)}
+                          className="me-2"
+                        >
+                          <FontAwesomeIcon icon={faEdit} /> Edit
+                        </Button>
+                        <Button
+                          variant="contained"
+                          color="error"
+                          onClick={() => handleShowDeleteConfirmation(paypoint)}
+                        >
+                          <FontAwesomeIcon icon={faTrashAlt} /> Delete
+                        </Button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -217,28 +230,27 @@ const ManagePaypointsPage = ({ showToast }) => {
         open={showDeleteConfirmation}
         onClose={() => setShowDeleteConfirmation(false)}
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-        >
-          <Card style={{ padding: '20px' }}>
-            <Typography variant="h6" gutterBottom>
-              Are you sure you want to delete this paypoint?
-            </Typography>
-            <Row className="mt-3">
-              <Col md={6}>
-                <Button variant="contained" color="error" onClick={handleDeletePaypoint}>
-                  Delete
-                </Button>
-              </Col>
-              <Col md={6}>
-                <Button variant="outlined" color="secondary" onClick={() => setShowDeleteConfirmation(false)}>
-                  Cancel
-                </Button>
-              </Col>
-            </Row>
-          </Card>
-        </Modal>
-      </Container>
-    );
+      >
+        <Card style={{ padding: '20px' }}>
+          <Typography variant="h6" gutterBottom>
+            Are you sure you want to delete this paypoint?
+          </Typography>
+          <Row className="mt-3">
+            <Col md={6}>
+              <Button variant="contained" color="error" onClick={handleDeletePaypoint}>
+                Delete
+              </Button>
+            </Col>
+            <Col md={6}>
+              <Button variant="outlined" color="secondary" onClick={() => setShowDeleteConfirmation(false)}>
+                Cancel
+              </Button>
+            </Col>
+          </Row>
+        </Card>
+      </Modal>
+    </Container>
+  );
 };
 
 export default ManagePaypointsPage;
-
