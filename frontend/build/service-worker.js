@@ -4,7 +4,7 @@ const CACHE_NAME = `sales_app_v${self.__APP_VERSION__ || '1.0.0'}`; // Versioned
 const CACHE_EXPIRATION_MS = 3 * 60 * 1000; // 3 minutes for static content
 const DYNAMIC_CACHE_EXPIRATION_MS = 1 * 60 * 1000; // 1 minute for dynamic content
 const CACHE_ITEM_LIMIT = 30; // Limit of 30 cached items
-const FETCH_TIMEOUT = 5000; // 5 seconds timeout for network requests
+const FETCH_TIMEOUT = 60000; // 1 minute timeout for network requests
 
 const urlsToCache = [
   '/',
