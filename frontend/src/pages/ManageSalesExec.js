@@ -11,8 +11,8 @@ const ManageSalesExecutivesPage = ({ showToast }) => {
   const [showExecutiveModal, setShowExecutiveModal] = useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [selectedExecutive, setSelectedExecutive] = useState(null);
-  const [modalMode, setModalMode] = useState('add'); // 'add', 'edit' or 'view'
-  const [executiveData, setExecutiveData] = useState({ name: '', code: '', phone_number: '', manager_id: '', branch_ids: [] });
+  const [modalMode, setModalMode] = useState('add'); // 'add', 'edit', or 'view'
+  const [executiveData, setExecutiveData] = useState({ name: '', code: '', phone_number: '', manager_id: '', branches: [] });
   const [branches, setBranches] = useState([]);
   const [selectedBranches, setSelectedBranches] = useState([]);
   const [salesManagers, setSalesManagers] = useState([]);
@@ -32,7 +32,6 @@ const ManageSalesExecutivesPage = ({ showToast }) => {
         const filteredExecutives = local_user.manager_id
           ? allExecutives.filter(executive => executive.manager_id === local_user.manager_id)
           : allExecutives;
-
         setSalesExecutives(filteredExecutives);
         setTotalPages(Math.ceil(response.data.total / executivesPerPage));
       } catch (error) {
@@ -77,28 +76,18 @@ const ManageSalesExecutivesPage = ({ showToast }) => {
   // Handle opening and closing modals
   const handleOpenExecutiveModal = (mode, executive = null) => {
     setModalMode(mode);
-    if (mode === 'edit' && executive) {
+    if (executive) {
       setSelectedExecutive(executive);
       setExecutiveData({
         name: executive.name,
         code: executive.code,
         phone_number: executive.phone_number,
         manager_id: executive.manager_id,
-        branch_ids: executive.branch_ids || [],
+        branches: executive.branches || [],
       });
-      setSelectedBranches(executive.branch_ids || []); // Preselect branches
-    } else if (mode === 'view' && executive) {
-      setSelectedExecutive(executive);
-      setExecutiveData({
-        name: executive.name,
-        code: executive.code,
-        phone_number: executive.phone_number,
-        manager_id: executive.manager_id,
-        branch_ids: executive.branch_ids || [],
-      });
-      setSelectedBranches(executive.branch_ids || []); // Preselect branches for viewing
+      setSelectedBranches(executive.branches.map(branch => branch.id)); // Preselect branches based on the executive's branches
     } else {
-      setExecutiveData({ name: '', code: '', phone_number: '', manager_id: '', branch_ids: [] });
+      setExecutiveData({ name: '', code: '', phone_number: '', manager_id: '', branches: [] });
       setSelectedBranches([]);
     }
     setShowExecutiveModal(true);
@@ -112,12 +101,13 @@ const ManageSalesExecutivesPage = ({ showToast }) => {
   // Handle form submission for adding or editing an executive
   const handleSubmitExecutive = async () => {
     try {
+      const payload = { ...executiveData, branch_ids: selectedBranches }; // Prepare payload for API request
       if (modalMode === 'add') {
-        const response = await api.post('/sales_executives/', { ...executiveData, branch_ids: selectedBranches }); // Add new executive
+        const response = await api.post('/sales_executives/', payload); // Add new executive
         setSalesExecutives((prevExecutives) => [...prevExecutives, response.data]);
         showToast('success', 'Sales executive added successfully.', 'Success');
       } else if (modalMode === 'edit' && selectedExecutive) {
-        const response = await api.put(`/sales_executives/${selectedExecutive.id}`, { ...executiveData, branch_ids: selectedBranches }); // Edit executive
+        const response = await api.put(`/sales_executives/${selectedExecutive.id}`, payload); // Edit executive
         setSalesExecutives((prevExecutives) =>
           prevExecutives.map((executive) => (executive.id === selectedExecutive.id ? response.data : executive))
         );
@@ -149,7 +139,7 @@ const ManageSalesExecutivesPage = ({ showToast }) => {
     }
   };
 
-  // Handle branch selection/deselection
+  // Handle branch selection/deselection for editing
   const handleBranchChange = (branchId) => {
     setSelectedBranches((prevSelected) =>
       prevSelected.includes(branchId)
@@ -214,7 +204,7 @@ const ManageSalesExecutivesPage = ({ showToast }) => {
               onClick={() => handleOpenExecutiveModal('add')}
             >
               <FontAwesomeIcon icon={faPlus} /> Add New Sales Executive
-              </Button>
+            </Button>
           </Col>
         </Row>
       ) : null}
@@ -269,96 +259,124 @@ const ManageSalesExecutivesPage = ({ showToast }) => {
             {modalMode === 'add' ? 'Add New Sales Executive' : modalMode === 'edit' ? 'Edit Sales Executive' : 'View Sales Executive'}
           </Typography>
 
-          <TextField
-            fullWidth
-            label="Executive Name"
-            value={executiveData.name}
-            onChange={(e) => setExecutiveData({ ...executiveData, name: e.target.value })}
-            margin="normal"
-            disabled={modalMode === 'view'} // Disable fields if in view mode
-          />
-          <TextField
-            fullWidth
-            label="Code"
-            value={executiveData.code}
-            onChange={(e) => setExecutiveData({ ...executiveData, code: e.target.value })}
-            margin="normal"
-            disabled={modalMode === 'view'} // Disable fields if in view mode
-          />
-          <TextField
-            fullWidth
-            label="Phone Number"
-            value={executiveData.phone_number}
-            onChange={(e) => setExecutiveData({ ...executiveData, phone_number: e.target.value })}
-            margin="normal"
-            disabled={modalMode === 'view'} // Disable fields if in view mode
-          />
+          {/* View Mode: Show details in a card */}
+          {modalMode === 'view' ? (
+            <>
+              <Typography variant="body1" gutterBottom><strong>Name:</strong> {executiveData.name}</Typography>
+              <Typography variant="body1" gutterBottom><strong>Code:</strong> {executiveData.code}</Typography>
+              <Typography variant="body1" gutterBottom><strong>Phone Number:</strong> {executiveData.phone_number}</Typography>
+              <Typography variant="body1" gutterBottom>
+                <strong>Manager:</strong> {salesManagers.find((m) => m.id === executiveData.manager_id)?.name || 'Unassigned'}
+              </Typography>
 
-          <Form.Group className="mb-3">
-            <Form.Label>Sale Manager</Form.Label>
-            <Form.Control
-              as="select"
-              value={executiveData.manager_id}
-              onChange={(e) => setExecutiveData({ ...executiveData, manager_id: parseInt(e.target.value, 10) })}
-              disabled={modalMode === 'view'}
-            >
-              <option value="" disabled>Select Sales Manager</option>
-              {salesManagers.map((manager) => (
-                <option key={manager.id} value={manager.id}>
-                  {manager.name}
-                </option>
-              ))}
-            </Form.Control>
-          </Form.Group>
+              <Card style={{ marginTop: '20px', padding: '15px' }}>
+                <Typography variant="body1" gutterBottom><strong>Assigned Branches:</strong></Typography>
+                {executiveData.branches.length > 0 ? (
+                  executiveData.branches.map(branch => (
+                    <Typography key={branch.id} variant="body2">
+                      {branch.name}
+                    </Typography>
+                  ))
+                ) : (
+                  <Typography variant="body2">No branches assigned</Typography>
+                )}
+              </Card>
+            </>
+          ) : (
+            <>
+              {/* Add/Edit Mode: Show editable fields */}
+              <TextField
+                fullWidth
+                label="Executive Name"
+                value={executiveData.name}
+                onChange={(e) => setExecutiveData({ ...executiveData, name: e.target.value })}
+                margin="normal"
+                disabled={modalMode === 'view'} // Disable fields if in view mode
+              />
+              <TextField
+                fullWidth
+                label="Code"
+                value={executiveData.code}
+                onChange={(e) => setExecutiveData({ ...executiveData, code: e.target.value })}
+                margin="normal"
+                disabled={modalMode === 'view'} // Disable fields if in view mode
+              />
+              <TextField
+                fullWidth
+                label="Phone Number"
+                value={executiveData.phone_number}
+                onChange={(e) => setExecutiveData({ ...executiveData, phone_number: e.target.value })}
+                margin="normal"
+                disabled={modalMode === 'view'} // Disable fields if in view mode
+              />
 
-          <Form.Group className="mb-3">
-            <Form.Label>Branches</Form.Label>
-            <Form.Control
-              as="select"
-              onChange={(e) => handleBranchChange(parseInt(e.target.value, 10))}
-              value=""
-              disabled={modalMode === 'view'}
-            >
-              <option value="" disabled>Select Branch to Add</option>
-              {branches
-                .filter(branch => !selectedBranches.includes(branch.id))
-                .map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-            </Form.Control>
+              <Form.Group className="mb-3">
+                <Form.Label>Sale Manager</Form.Label>
+                <Form.Control
+                  as="select"
+                  value={executiveData.manager_id}
+                  onChange={(e) => setExecutiveData({ ...executiveData, manager_id: parseInt(e.target.value, 10) })}
+                  disabled={modalMode === 'view'}
+                >
+                  <option value="" disabled>Select Sales Manager</option>
+                  {salesManagers.map((manager) => (
+                    <option key={manager.id} value={manager.id}>
+                      {manager.name}
+                    </option>
+                  ))}
+                </Form.Control>
+              </Form.Group>
 
-            <div className="mt-2">
-              {selectedBranches.map(branchId => {
-                const branch = branches.find(b => b.id === branchId);
-                return (
-                  <Chip
-                    key={branchId}
-                    label={branch ? branch.name : branchId}
-                    onDelete={modalMode !== 'view' ? () => handleBranchChange(branchId) : undefined}
-                    color="primary"
-                    className="mr-2"
-                  />
-                );
-              })}
-            </div>
-          </Form.Group>
+              <Form.Group className="mb-3">
+                <Form.Label>Branches</Form.Label>
+                <Form.Control
+                  as="select"
+                  onChange={(e) => handleBranchChange(parseInt(e.target.value, 10))}
+                  value=""
+                  disabled={modalMode === 'view'}
+                >
+                  <option value="" disabled>Select Branch to Add</option>
+                  {branches
+                    .filter(branch => !selectedBranches.includes(branch.id))
+                    .map((branch) => (
+                      <option key={branch.id} value={branch.id}>
+                        {branch.name}
+                      </option>
+                    ))}
+                </Form.Control>
 
-          {/* Buttons */}
-          {modalMode !== 'view' && (
-            <Row className="mt-3">
-              <Col md={6}>
-                <Button variant="contained" color="primary" onClick={handleSubmitExecutive}>
-                  Save
-                </Button>
-              </Col>
-              <Col md={6}>
-                <Button variant="outlined" color="secondary" onClick={handleCloseExecutiveModal}>
-                  Cancel
-                </Button>
-              </Col>
-            </Row>
+                <div className="mt-2">
+                  {selectedBranches.map(branchId => {
+                    const branch = branches.find(b => b.id === branchId);
+                    return (
+                      <Chip
+                        key={branchId}
+                        label={branch ? branch.name : branchId}
+                        onDelete={modalMode !== 'view' ? () => handleBranchChange(branchId) : undefined}
+                        color="primary"
+                        className="mr-2"
+                      />
+                    );
+                  })}
+                </div>
+              </Form.Group>
+
+              {/* Buttons */}
+              {modalMode !== 'view' && (
+                <Row className="mt-3">
+                  <Col md={6}>
+                    <Button variant="contained" color="primary" onClick={handleSubmitExecutive}>
+                      Save
+                    </Button>
+                  </Col>
+                  <Col md={6}>
+                    <Button variant="outlined" color="secondary" onClick={handleCloseExecutiveModal}>
+                      Cancel
+                    </Button>
+                  </Col>
+                </Row>
+              )}
+            </>
           )}
         </Card>
       </Modal>
@@ -392,4 +410,3 @@ const ManageSalesExecutivesPage = ({ showToast }) => {
 };
 
 export default ManageSalesExecutivesPage;
-
