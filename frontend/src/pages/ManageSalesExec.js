@@ -18,22 +18,34 @@ const ManageSalesExecutivesPage = ({ showToast }) => {
   const [salesManagers, setSalesManagers] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [showPagination, setShowPagination] = useState(true); // Default state for showing pagination
   const executivesPerPage = 10;
   const local_user = JSON.parse(localStorage.getItem('user')); // Fetch current logged-in user
   const role_id = parseInt(local_user?.role_id) || local_user?.role?.id;
+  const maxPaginationButtons = 5; // Maximum pagination buttons to display
 
   // Fetch sales executives, filtering based on manager_id
   useEffect(() => {
     const fetchSalesExecutives = async () => {
       setLoading(true);
       try {
-        const response = await api.get(`/sales_executives/?sort_by=created_at&per_page=${executivesPerPage}&page=${currentPage}`);
+        const response = await api.get(`/sales_executives/?sort_by=created_at&per_page=10000&page=1`);
         const allExecutives = response.data.sales_executives;
-        const filteredExecutives = local_user.manager_id
-          ? allExecutives.filter(executive => executive.manager_id === local_user.manager_id)
-          : allExecutives;
-        setSalesExecutives(filteredExecutives);
-        setTotalPages(Math.ceil(response.data.total / executivesPerPage));
+
+        // Filter sales executives based on logged-in user id (manager)
+        const filteredExecutives = allExecutives.filter(executive => executive.manager_id === local_user.id);
+
+        if (filteredExecutives.length > 0) {
+          // If a match is found for local_user.id, show all filtered results and remove pagination
+          setSalesExecutives(filteredExecutives);
+          setTotalPages(1); // Set total pages to 1 to display all filtered executives on one page
+          setShowPagination(false); // Hide pagination when a match is found
+        } else {
+          // If no match is found, show all executives with pagination
+          setSalesExecutives(allExecutives.slice((currentPage - 1) * executivesPerPage, currentPage * executivesPerPage));
+          setTotalPages(Math.ceil(allExecutives.length / executivesPerPage));
+          setShowPagination(true); // Show pagination when no match is found
+        }
       } catch (error) {
         console.error('Error fetching sales executives:', error);
         showToast('error', 'Failed to fetch sales executives. Please try again later.', 'Error');
@@ -42,7 +54,7 @@ const ManageSalesExecutivesPage = ({ showToast }) => {
       }
     };
     fetchSalesExecutives();
-  }, [showToast, currentPage, local_user.manager_id]);
+  }, [showToast, currentPage, local_user.id]);
 
   // Fetch branches and sales managers
   const fetchBranches = useCallback(async () => {
@@ -184,6 +196,38 @@ const ManageSalesExecutivesPage = ({ showToast }) => {
     </>
   );
 
+  // Generate pagination items
+  const generatePaginationItems = () => {
+    const items = [];
+    let start = Math.max(1, currentPage - Math.floor(maxPaginationButtons / 2));
+    let end = Math.min(start + maxPaginationButtons - 1, totalPages);
+
+    if (end - start + 1 < maxPaginationButtons) {
+      start = Math.max(1, end - maxPaginationButtons + 1);
+    }
+
+    for (let number = start; number <= end; number++) {
+      items.push(
+        <Pagination.Item key={number} active={number === currentPage} onClick={() => paginate(number)}>
+          {number}
+        </Pagination.Item>
+      );
+    }
+
+    return items;
+  };
+
+  // Display page X of Y for unfiltered results
+  const renderPageInfo = () => {
+    return totalPages > 1 ? (
+      <div className="mt-3 text-center">
+        <Typography variant="body2">
+          Page {currentPage} of {totalPages}
+        </Typography>
+      </div>
+    ) : null;
+  };
+
   if (loading) return <Spinner animation="border" />;
 
   return (
@@ -237,14 +281,25 @@ const ManageSalesExecutivesPage = ({ showToast }) => {
             </tbody>
           </Table>
 
-          {/* Pagination */}
-          <Pagination className="justify-content-center">
-            {Array.from({ length: totalPages }, (_, index) => (
-              <Pagination.Item key={index + 1} active={index + 1 === currentPage} onClick={() => paginate(index + 1)}>
-                {index + 1}
-              </Pagination.Item>
-            ))}
-          </Pagination>
+          {/* Pagination and Page Info */}
+          {showPagination && totalPages > 1 && (
+            <>
+              <Pagination className="justify-content-center">
+                <Pagination.First onClick={() => paginate(1)} disabled={currentPage === 1} />
+                <Pagination.Prev
+                  onClick={() => paginate(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                />
+                {generatePaginationItems()}
+                <Pagination.Next
+                  onClick={() => paginate(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                />
+                <Pagination.Last onClick={() => paginate(totalPages)} disabled={currentPage === totalPages} />
+              </Pagination>
+              {renderPageInfo()}
+            </>
+          )}
         </Col>
       </Row>
 

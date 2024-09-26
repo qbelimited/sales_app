@@ -27,7 +27,7 @@ def check_role_permission(current_user, required_role):
         'admin': ['admin'],
         'manager': ['admin', 'manager'],
         'back_office': ['admin', 'manager', 'back_office'],
-        'sales_manager': ['admin', 'manager', 'sales_manager']
+        'sales_manager': ['admin', 'manager', 'back_office', 'sales_manager']
     }
     return current_user['role'].lower() in roles.get(required_role, [])
 
@@ -44,7 +44,7 @@ class BranchListResource(Resource):
         current_user = get_jwt_identity()
 
         # Check role permissions
-        if not check_role_permission(current_user, 'back_office'):
+        if not check_role_permission(current_user, 'sales_manager'):
             logger.warning(f"Unauthorized attempt to view branches by user {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
@@ -127,7 +127,7 @@ class BranchResource(Resource):
         current_user = get_jwt_identity()
 
         # Check role permissions
-        if not check_role_permission(current_user, 'back_office'):
+        if not check_role_permission(current_user, 'sales_manager'):
             logger.warning(f"Unauthorized attempt to view branch {branch_id} by user {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
