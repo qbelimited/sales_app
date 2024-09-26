@@ -1,4 +1,4 @@
-import React, { useEffect, Suspense, useState } from 'react';
+import React, { useEffect, Suspense, useState, useRef, useMemo } from 'react';
 import { Route, Routes, Navigate, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -65,7 +65,7 @@ function App() {
   const { role } = state;
   const { toasts, showToast, removeToast } = useToasts();
   const [showHelpTour, setShowHelpTour] = useState(false);
-  const [waitingServiceWorker, setWaitingServiceWorker] = useState(null);
+  const waitingServiceWorker = useRef(null);
   const navigate = useNavigate();
 
   // Show help tour if it's the user's first time
@@ -78,26 +78,23 @@ function App() {
 
   // Handle navigation based on user role
   useEffect(() => {
-    const redirectUser = () => {
-      if (role) {
-        const redirectPath = role.id === userRoles.ADMIN ? '/manage-users' : '/sales';
-        // Only navigate if the user is on the login page
-        if (window.location.pathname === '/login') {
-          navigate(redirectPath);
-        }
+    if (role) {
+      const redirectPath = role.id === userRoles.ADMIN ? '/manage-users' : '/sales';
+      // Only navigate if the user is on the login page
+      if (window.location.pathname === '/login') {
+        navigate(redirectPath);
       }
-    };
-    redirectUser();
+    }
   }, [role, navigate]);
 
   // Register service worker and listen for updates
   useEffect(() => {
-    const registerServiceWorker = async () => {
+    const registerServiceWorker = () => {
       try {
-        await serviceWorkerRegistration.register({
+        serviceWorkerRegistration.register({
           onUpdate: (registration) => {
             showToast('update', 'A new version is available. Click here to update.', 'Update Available');
-            setWaitingServiceWorker(registration.waiting);
+            waitingServiceWorker.current = registration.waiting;
           },
         });
       } catch (error) {
@@ -110,15 +107,30 @@ function App() {
 
   // Handle service worker update
   const updateServiceWorker = () => {
-    if (waitingServiceWorker) {
-      waitingServiceWorker.postMessage({ type: 'SKIP_WAITING' });
-      waitingServiceWorker.addEventListener('statechange', (event) => {
+    if (waitingServiceWorker.current) {
+      waitingServiceWorker.current.postMessage({ type: 'SKIP_WAITING' });
+      waitingServiceWorker.current.addEventListener('statechange', (event) => {
         if (event.target.state === 'activated') {
           window.location.reload();
         }
       });
     }
   };
+
+  // Memoize appRoutes to prevent unnecessary re-renders
+  const memoizedRoutes = useMemo(() => {
+    return appRoutes.map((route) => (
+      <Route
+        key={route.path}
+        path={route.path}
+        element={
+          <ProtectedRoute allowedRoles={route.allowedRoles} userRole={role?.id} showToast={showToast}>
+            <route.component showToast={showToast} />
+          </ProtectedRoute>
+        }
+      />
+    ));
+  }, [role?.id, showToast]);
 
   return (
     <div>
@@ -130,27 +142,13 @@ function App() {
         <Suspense fallback={<Loading />}>
           <Routes>
             <Route path="/login" element={<LoginPage showToast={showToast} />} />
-            {appRoutes.map((route) => (
-              <Route
-                key={route.path}
-                path={route.path}
-                element={
-                  <ProtectedRoute allowedRoles={route.allowedRoles} userRole={role?.id} showToast={showToast}>
-                    <route.component showToast={showToast} />
-                  </ProtectedRoute>
-                }
-              />
-            ))}
-            <Route path="*" element={<Navigate to={role?.id ? "/sales" : "/login"} />} />
+            {memoizedRoutes}
+            <Route path="*" element={<Navigate to={role?.id ? '/sales' : '/login'} />} />
           </Routes>
         </Suspense>
       </div>
 
-      <Toaster
-        toasts={toasts}
-        removeToast={removeToast}
-        updateServiceWorker={updateServiceWorker}
-      />
+      <Toaster toasts={toasts} removeToast={removeToast} updateServiceWorker={updateServiceWorker} />
     </div>
   );
 }
