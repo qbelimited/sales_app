@@ -9,7 +9,7 @@ import SalesForm from '../components/SalesForm';
 import SalesEditForm from '../components/SalesEditForm';
 import { useNavigate } from 'react-router-dom';
 
-const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
+const SalesPage = ({ showToast }) => {
   const [salesRecords, setSalesRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortConfig, setSortConfig] = useState({ key: 'client_name', direction: 'asc' });
@@ -22,6 +22,11 @@ const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
   const [banks, setBanks] = useState([]);
   const [branches, setBranches] = useState([]);
   const [salesExecutives, setSalesExecutives] = useState([]);
+  const [saleToDelete, setSaleToDelete] = useState(null); // Track sale to delete
+
+  const local_user = JSON.parse(localStorage.getItem('user')); // Fetch current logged-in user
+  const loggedInUserName = local_user?.name; // Get logged-in user's name
+  const role = local_user?.role?.name; // Get logged-in user's role
   const navigate = useNavigate();
 
   const limit = 20;
@@ -77,6 +82,7 @@ const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
     }
   }, [showToast]);
 
+  // Fetch sales records and filter based on sales manager (logged-in user)
   const fetchSalesRecords = useCallback(async (currentPage, sortKey, sortDirection, filterParams) => {
     setLoading(true);
     try {
@@ -88,13 +94,25 @@ const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
         ...filterParams,
       };
 
-      // If the user is a sales manager, include their ID for filtering
-      if (userRole === 'sales_manager') {
-        params.sales_manager_id = loggedInUserId;
+      const response = await api.get('/sales/', { params });
+      let salesData = response.data.sales || [];
+
+      // Filter sales where the sales manager's name matches the logged-in user's name
+      const filteredSales = salesData.filter(
+        (sale) => sale.sale_manager?.name === loggedInUserName
+      );
+
+      // Handle cases where the logged-in user is a Sales Manager
+      if (role === 'Sales_Manager') {
+        if (filteredSales.length > 0) {
+          setSalesRecords(filteredSales); // Show only filtered sales for the Sales Manager
+        } else {
+          setSalesRecords([]); // Show no sales if no match found
+        }
+      } else {
+        setSalesRecords(salesData); // If not a Sales Manager, show all sales
       }
 
-      const response = await api.get('/sales/', { params });
-      setSalesRecords(response.data.sales || []);
       setTotalPages(response.data.pages || 1);
     } catch (error) {
       console.error('Error fetching sales records:', error);
@@ -102,7 +120,7 @@ const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
     } finally {
       setLoading(false);
     }
-  }, [limit, userRole, loggedInUserId, showToast]);
+  }, [limit, showToast, loggedInUserName, role]);
 
   const handleSort = (key) => {
     let direction = 'asc';
@@ -137,14 +155,24 @@ const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
     setShowModal(true);
   };
 
-  const handleDelete = async (saleId) => {
-    try {
-      await api.delete(`/sales/${saleId}`);
-      setSalesRecords(salesRecords.filter((sale) => sale.id !== saleId));
-      showToast('success', 'Sale deleted successfully.', 'Success');
-    } catch (error) {
-      console.error('Error deleting sale:', error);
-      showToast('danger', 'Failed to delete sale.', 'Error');
+  const confirmDelete = (sale) => {
+    setSaleToDelete(sale);
+    setShowDeleteModal(true);
+  };
+
+  const handleDelete = async () => {
+    if (saleToDelete) {
+      try {
+        await api.delete(`/sales/${saleToDelete.id}`);
+        setSalesRecords(salesRecords.filter((sale) => sale.id !== saleToDelete.id));
+        showToast('success', 'Sale deleted successfully.', 'Success');
+      } catch (error) {
+        console.error('Error deleting sale:', error);
+        showToast('danger', 'Failed to delete sale.', 'Error');
+      } finally {
+        setShowDeleteModal(false);
+        setSaleToDelete(null);
+      }
     }
   };
 
@@ -180,7 +208,6 @@ const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
         showToast('success', 'Sale added successfully.', 'Success');
       } catch (error) {
         console.error('Error adding new sale record:', error);
-        // showToast('danger', 'Failed to add new sale.', 'Error');
       }
     }
 
@@ -188,7 +215,7 @@ const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
     setCurrentSale(null);
   };
 
-  // Function to render the status with color coding
+  // Render the status with color coding
   const renderStatusBadge = (status) => {
     let variant = 'secondary'; // Default color
     if (status === 'submitted') {
@@ -237,7 +264,7 @@ const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
             <Button
               variant="danger"
               size="sm"
-              onClick={() => handleDelete(sale.id)}
+              onClick={() => confirmDelete(sale)}
             >
               <FontAwesomeIcon icon={faTrash} />
             </Button>
@@ -266,6 +293,25 @@ const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
     return (
       <div className="text-center mt-5">
         <Spinner animation="border" />
+      </div>
+    );
+  }
+
+  // Render "No sales keyed by manager yet" if the user is Sales_Manager and no sales found
+  if (role === 'Sales_Manager' && salesRecords.length === 0) {
+    return (
+      <div className="container mt-5">
+        <Row className="mb-3">
+          <Col>
+            <h2 className="text-left">Sales Records</h2>
+          </Col>
+          <Col className="text-right">
+            <Button onClick={() => setShowModal(true)} variant="primary" className="mb-3">
+              Make Sale
+            </Button>
+          </Col>
+        </Row>
+        <h3 className="text-center text-muted">No sales keyed by manager yet</h3>
       </div>
     );
   }
@@ -436,10 +482,7 @@ const SalesPage = ({ userRole, loggedInUserId, showToast }) => {
         </Modal.Body>
         <Modal.Footer>
           <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>Cancel</Button>
-          <Button variant="danger" onClick={() => {
-            handleDelete(currentSale.id);
-            setShowDeleteModal(false);
-          }}>
+          <Button variant="danger" onClick={handleDelete}>
             Delete
           </Button>
         </Modal.Footer>

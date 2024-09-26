@@ -264,15 +264,10 @@ class SaleDetailResource(Resource):
             sale.geolocation_latitude = data.get('geolocation_latitude', sale.geolocation_latitude)
             sale.geolocation_longitude = data.get('geolocation_longitude', sale.geolocation_longitude)
             sale.updated_at = datetime.utcnow()
+            sale.status = 'updated'
 
             # Check for duplicates during update
-            duplicate_sale = sale.check_duplicate()
-            if duplicate_sale:
-                sale.status = 'duplicate'
-                logger.warning(f"Duplicate sale detected during update for sale ID {sale.id}.")
-            else:
-                sale.status = 'updated'
-
+            sale = sale.check_duplicate()
             db.session.commit()
 
             # Log the update to audit trail
