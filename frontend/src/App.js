@@ -26,6 +26,8 @@ const ManageUsersPage = React.lazy(() => import('./pages/ManageUsersPage'));
 const ManageSessionsPage = React.lazy(() => import('./pages/ManageSessionsPage'));
 const ManageProductsPage = React.lazy(() => import('./pages/ManageProductsPage'));
 const ManagePaypointsPage = React.lazy(() => import('./pages/ManagePaypointsPage'));
+const ManageSalesExecutivesPage = React.lazy(() => import('./pages/ManageSalesExec'));
+const ManageGenBranchesPage = React.lazy(() => import('./pages/ManageGenBranchesPage'));
 const ManageSalesTargetsPage = React.lazy(() => import('./pages/ManageSalesTargetsPage'));
 const ManageBanksPage = React.lazy(() => import('./pages/ManageBanksPage'));
 
@@ -43,11 +45,13 @@ const appRoutes = [
   { path: '/sales/:saleId', component: SaleDetailsPage, allowedRoles: [1, 2, 3, 4] },
   { path: '/sales-performance', component: SalesPerformancePage, allowedRoles: [1, 2, 3, 4] },
   { path: '/queries', component: QueriesPage, allowedRoles: [1, 2, 3, 4] },
+  { path: '/manage-sales-executives', component: ManageSalesExecutivesPage, allowedRoles: [1, 2, 3, 4] },
+  { path: '/manage-paypoints', component: ManagePaypointsPage, allowedRoles: [1, 2, 3, 4] },
+  { path: '/manage-targets', component: ManageSalesTargetsPage, allowedRoles: [1, 2, 3, 4] },
+  { path: '/manage-banks', component: ManageBanksPage, allowedRoles: [1, 2, 3, 4] },
   { path: '/investigations', component: FlaggedInvestigationsPage, allowedRoles: [1, 2, 3] },
   { path: '/manage-products', component: ManageProductsPage, allowedRoles: [1, 2, 3] },
-  { path: '/manage-paypoints', component: ManagePaypointsPage, allowedRoles: [1, 2, 3] },
-  { path: '/manage-targets', component: ManageSalesTargetsPage, allowedRoles: [1, 2, 3] },
-  { path: '/manage-banks', component: ManageBanksPage, allowedRoles: [1, 2, 3] },
+  { path: '/manage-branches', component: ManageGenBranchesPage, allowedRoles: [1, 2, 3] },
   { path: '/audit-trail', component: AuditTrailPage, allowedRoles: [2, 3] },
   { path: '/manage-users', component: ManageUsersPage, allowedRoles: [2, 3] },
   { path: '/manage-roles', component: ManageRolesPage, allowedRoles: [3] },

@@ -18,6 +18,7 @@ import {
   FaUser,
   FaCog,
   FaFolder,
+  FaUsers,
 } from 'react-icons/fa';
 import './Sidebar.css';
 
@@ -108,6 +109,12 @@ function Sidebar() {
             {manageItemsOpen && (
               <ul className="submenu">
                 <li>
+                  <NavLink to="/manage-sales-executives" className={({ isActive }) => (isActive ? 'active' : '')}>
+                    <FaUsers />
+                    <span>Manage SEs</span>
+                  </NavLink>
+                </li>
+                <li>
                   <NavLink to="/manage-banks" className={({ isActive }) => (isActive ? 'active' : '')}>
                     <FaBuilding />
                     <span>Manage Banks</span>
@@ -146,7 +153,7 @@ function Sidebar() {
               <ul className="submenu">
                 <li>
                   <NavLink to="/manage-users" className={({ isActive }) => (isActive ? 'active' : '')}>
-                    <FaUser />
+                    <FaUsers />
                     <span>Manage Users</span>
                   </NavLink>
                 </li>
