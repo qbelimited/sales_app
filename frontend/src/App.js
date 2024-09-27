@@ -1,4 +1,4 @@
-import React, { useEffect, Suspense, useState, useRef, useMemo } from 'react';
+import React, { useEffect, Suspense, useMemo } from 'react';
 import { Route, Routes, Navigate, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -8,7 +8,8 @@ import HelpTour from './components/HelpTour';
 import Loading from './components/Loading';
 import { useAuth } from './contexts/AuthContext';
 import useToasts from './hooks/useToasts';
-import * as serviceWorkerRegistration from './services/serviceWorkerRegistration';
+import { useServiceWorker } from './hooks/useServiceWorker'; // Custom hook for service worker registration
+import { useLocalStorage } from './hooks/useLocalStorage'; // Custom hook for localStorage interaction
 import './App.css';
 
 // Lazy-loaded pages
@@ -64,58 +65,26 @@ function App() {
   const { state, logout } = useAuth();
   const { role } = state;
   const { toasts, showToast, removeToast } = useToasts();
-  const [showHelpTour, setShowHelpTour] = useState(false);
-  const waitingServiceWorker = useRef(null);
+  const { updateServiceWorker } = useServiceWorker(showToast); // Custom hook for service worker
+  const [showHelpTour, setShowHelpTour] = useLocalStorage('helpTourShown', false); // Custom hook for help tour state
   const navigate = useNavigate();
-
-  // Show help tour if it's the user's first time
-  useEffect(() => {
-    if (!localStorage.getItem('helpTourShown')) {
-      setShowHelpTour(true);
-      localStorage.setItem('helpTourShown', 'true');
-    }
-  }, []);
 
   // Handle navigation based on user role
   useEffect(() => {
-    if (role) {
+    if (role && showHelpTour) {
+      // Automatically hide the tour after a delay or when the user interacts with it
+      const timer = setTimeout(() => setShowHelpTour(false), 120000); //auto-hide after 2 minutes
+
       const redirectPath = role.id === userRoles.ADMIN ? '/manage-users' : '/sales';
       // Only navigate if the user is on the login page
       if (window.location.pathname === '/login') {
         navigate(redirectPath);
       }
+
+      // Clean up the timer when the component unmounts or when dependencies change
+      return () => clearTimeout(timer);
     }
-  }, [role, navigate]);
-
-  // Register service worker and listen for updates
-  useEffect(() => {
-    const registerServiceWorker = () => {
-      try {
-        serviceWorkerRegistration.register({
-          onUpdate: (registration) => {
-            showToast('update', 'A new version is available. Click here to update.', 'Update Available');
-            waitingServiceWorker.current = registration.waiting;
-          },
-        });
-      } catch (error) {
-        console.error('Service worker registration failed:', error);
-      }
-    };
-
-    registerServiceWorker();
-  }, [showToast]);
-
-  // Handle service worker update
-  const updateServiceWorker = () => {
-    if (waitingServiceWorker.current) {
-      waitingServiceWorker.current.postMessage({ type: 'SKIP_WAITING' });
-      waitingServiceWorker.current.addEventListener('statechange', (event) => {
-        if (event.target.state === 'activated') {
-          window.location.reload();
-        }
-      });
-    }
-  };
+  }, [role, navigate, showHelpTour, setShowHelpTour]);
 
   // Memoize appRoutes to prevent unnecessary re-renders
   const memoizedRoutes = useMemo(() => {
@@ -138,7 +107,7 @@ function App() {
       {role?.id && <Sidebar />}
       {showHelpTour && <HelpTour />}
 
-      <div className="content" style={{ marginLeft: role?.id ? '250px' : '0', transition: 'all 0.3s ease-in-out' }}>
+      <div className={`content ${role?.id ? 'withSidebar' : 'noSidebar'}`}>
         <Suspense fallback={<Loading />}>
           <Routes>
             <Route path="/login" element={<LoginPage showToast={showToast} />} />

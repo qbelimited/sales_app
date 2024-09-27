@@ -1,4 +1,17 @@
 /* App.css */
+.content {
+  transition: all 0.3s ease-in-out;
+}
+
+.content.withSidebar {
+  margin-left: 250px;
+}
+
+.content.noSidebar {
+  margin-left: 0;
+}
+
+/* Loading.css */
 .loading-container {
   display: flex;
   align-items: center;

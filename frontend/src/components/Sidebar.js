@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import {
   FaChartBar,
   FaHome,
@@ -23,34 +23,29 @@ import {
 import './Sidebar.css';
 
 function Sidebar() {
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [systemAuditsOpen, setSystemAuditsOpen] = useState(false);
-  const [manageItemsOpen, setManageItemsOpen] = useState(false);
-  const [salesOpen, setSalesOpen] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState(null); // Track which dropdown is open
+  const location = useLocation(); // Hook to access the current route
 
-  // Fetch current logged-in user and role
-  const local_user = JSON.parse(localStorage.getItem('user'));
-  const role_id = parseInt(local_user?.role_id) || local_user?.role?.id;
+  // Fetch current logged-in user and role, with fallback
+  const local_user = JSON.parse(localStorage.getItem('user')) || {};
+  const role_id = parseInt(local_user?.role_id) || local_user?.role?.id || 0;
 
-  // Handle clicking on the settings
-  const handleSettingsClick = () => {
-    setSettingsOpen(!settingsOpen);
+  // Handle dropdown clicks and ensure only one dropdown is open at a time
+  const handleDropdownClick = (dropdown) => {
+    setOpenDropdown((prev) => (prev === dropdown ? null : dropdown)); // Close if it's already open, otherwise open it
   };
 
-  // Handle clicking on the system audits
-  const handleSystemAuditsClick = () => {
-    setSystemAuditsOpen(!systemAuditsOpen);
+  // Handle keyboard interactions, including Esc key to close
+  const handleKeyDown = (event, dropdown) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      handleDropdownClick(dropdown);
+    } else if (event.key === 'Escape' && openDropdown === dropdown) {
+      setOpenDropdown(null);
+    }
   };
 
-  // Handle clicking on manage items
-  const handleManageItemsClick = () => {
-    setManageItemsOpen(!manageItemsOpen);
-  };
-
-  // Handle clicking on sales
-  const handleSalesClick = () => {
-    setSalesOpen(!salesOpen);
-  };
+  // Check if the current route is active
+  const isActive = (path) => location.pathname === path || location.pathname.startsWith(path);
 
   return (
     <div className="sidebar">
@@ -59,6 +54,7 @@ function Sidebar() {
       </div>
       <div className="sidebar-menu">
         <ul>
+          {/* Dashboard Link */}
           <li>
             <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'active' : '')}>
               <FaHome />
@@ -67,94 +63,109 @@ function Sidebar() {
           </li>
 
           {/* Sales Dropdown */}
-            <li>
-              <div onClick={handleSalesClick} className="sidebar-dropdown">
-                <FaChartBar />
-                <span>Manage Sales</span>
-                <FaCaretDown />
-              </div>
-              {salesOpen && (
-                <ul className="submenu">
-                  <li>
-                    <NavLink to="/sales" className={({ isActive }) => (isActive ? 'active' : '')}>
-                      <FaChartBar />
-                      <span>Make/View Sales</span>
-                    </NavLink>
-                  </li>
-                  <li>
-                    <NavLink to="/incepted-sales" className={({ isActive }) => (isActive ? 'active' : '')}>
-                      <FaClipboardList />
-                      <span>Incepted Sales</span>
-                    </NavLink>
-                  </li>
-                  <li>
-                    <NavLink to="/sales-performance" className={({ isActive }) => (isActive ? 'active' : '')}>
-                      <FaRegChartBar />
-                      <span>Sales Performance</span>
-                    </NavLink>
-                  </li>
-                  <li>
-                    <NavLink to="/flagged-investigations" className={({ isActive }) => (isActive ? 'active' : '')}>
-                      <FaFlag />
-                      <span>Flagged Investigations</span>
-                    </NavLink>
-                  </li>
-                </ul>
-              )}
-            </li>
+          <li>
+            <button
+              aria-expanded={openDropdown === 'sales'}
+              onClick={() => handleDropdownClick('sales')}
+              onKeyDown={(event) => handleKeyDown(event, 'sales')}
+              className={`sidebar-dropdown ${openDropdown === 'sales' || isActive('/sales') ? 'active' : ''}`} // Ensure it highlights for /sales routes
+            >
+              <FaChartBar />
+              <span>Manage Sales</span>
+              <FaCaretDown className={`caret ${openDropdown === 'sales' ? 'rotate' : ''}`} />
+            </button>
+            {openDropdown === 'sales' && (
+              <ul className="submenu">
+                <li>
+                  <NavLink to="/sales" className={({ isActive }) => (isActive ? 'active' : '')}>
+                    <FaChartBar />
+                    <span>Make/View Sales</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink to="/incepted-sales" className={({ isActive }) => (isActive ? 'active' : '')}>
+                    <FaClipboardList />
+                    <span>Incepted Sales</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink to="/sales-performance" className={({ isActive }) => (isActive ? 'active' : '')}>
+                    <FaRegChartBar />
+                    <span>Sales Performance</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink to="/flagged-investigations" className={({ isActive }) => (isActive ? 'active' : '')}>
+                    <FaFlag />
+                    <span>Flagged Investigations</span>
+                  </NavLink>
+                </li>
+              </ul>
+            )}
+          </li>
 
           {/* Manage Items Dropdown */}
-            <li>
-              <div onClick={handleManageItemsClick} className="sidebar-dropdown">
-                <FaTasks />
-                <span>Manage Items</span>
-                <FaCaretDown />
-              </div>
-              {manageItemsOpen && (
-                <ul className="submenu">
-                  <li>
-                    <NavLink to="/manage-sales-executives" className={({ isActive }) => (isActive ? 'active' : '')}>
-                      <FaUsers />
-                      <span>Manage SEs</span>
-                    </NavLink>
-                  </li>
-                  <li>
-                    <NavLink to="/manage-banks" className={({ isActive }) => (isActive ? 'active' : '')}>
-                      <FaBuilding />
-                      <span>Manage Banks</span>
-                    </NavLink>
-                  </li>
-                  <li>
-                    <NavLink to="/manage-paypoints" className={({ isActive }) => (isActive ? 'active' : '')}>
-                      <FaSearch />
-                      <span>Manage Paypoints</span>
-                    </NavLink>
-                  </li>
-                  <li>
-                    <NavLink to="/manage-products" className={({ isActive }) => (isActive ? 'active' : '')}>
-                      <FaStore />
-                      <span>Manage Products</span>
-                    </NavLink>
-                  </li>
-                  <li>
-                    <NavLink to="/manage-branches" className={({ isActive }) => (isActive ? 'active' : '')}>
-                      <FaWarehouse />
-                      <span>Manage Branches</span>
-                    </NavLink>
-                  </li>
-                </ul>
-              )}
-            </li>
+          <li>
+            <button
+              aria-expanded={openDropdown === 'manageItems'}
+              onClick={() => handleDropdownClick('manageItems')}
+              onKeyDown={(event) => handleKeyDown(event, 'manageItems')}
+              className={`sidebar-dropdown ${openDropdown === 'manageItems' || isActive('/manage-sales-executives') || isActive('/manage-banks') || isActive('/manage-paypoints') || isActive('/manage-products') || isActive('/manage-branches') ? 'active' : ''}`}
+            >
+              <FaTasks />
+              <span>Manage Items</span>
+              <FaCaretDown className={`caret ${openDropdown === 'manageItems' ? 'rotate' : ''}`} />
+            </button>
+            {openDropdown === 'manageItems' && (
+              <ul className="submenu">
+                <li>
+                  <NavLink to="/manage-sales-executives" className={({ isActive }) => (isActive ? 'active' : '')}>
+                    <FaUsers />
+                    <span>Manage SEs</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink to="/manage-banks" className={({ isActive }) => (isActive ? 'active' : '')}>
+                    <FaBuilding />
+                    <span>Manage Banks</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink to="/manage-paypoints" className={({ isActive }) => (isActive ? 'active' : '')}>
+                    <FaSearch />
+                    <span>Manage Paypoints</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink to="/manage-products" className={({ isActive }) => (isActive ? 'active' : '')}>
+                    <FaStore />
+                    <span>Manage Products</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink to="/manage-branches" className={({ isActive }) => (isActive ? 'active' : '')}>
+                    <FaWarehouse />
+                    <span>Manage Branches</span>
+                  </NavLink>
+                </li>
+              </ul>
+            )}
+          </li>
 
           {/* Settings Dropdown */}
-          {(role_id === 1 || role_id === 2 || role_id === 3) && ( // Check user role
+          {(role_id === 1 || role_id === 2 || role_id === 3) && (
             <li>
-              <div onClick={handleSettingsClick} className="sidebar-dropdown">
+              <button
+                aria-expanded={openDropdown === 'settings'}
+                onClick={() => handleDropdownClick('settings')}
+                onKeyDown={(event) => handleKeyDown(event, 'settings')}
+                className={`sidebar-dropdown ${openDropdown === 'settings' || isActive('/manage-users') || isActive('/manage-users-sessions') || isActive('/manage-roles') ? 'active' : ''}`}
+              >
                 <FaCog />
                 <span>Settings</span>
-                <FaCaretDown />
-              </div>
-              {settingsOpen && (
+                <FaCaretDown className={`caret ${openDropdown === 'settings' ? 'rotate' : ''}`} />
+              </button>
+              {openDropdown === 'settings' && (
                 <ul className="submenu">
                   <li>
                     <NavLink to="/manage-users" className={({ isActive }) => (isActive ? 'active' : '')}>
@@ -180,14 +191,19 @@ function Sidebar() {
           )}
 
           {/* System Audits Dropdown */}
-          {role_id === 3 && ( // Check if user is an admin (role 3)
+          {role_id === 3 && (
             <li>
-              <div onClick={handleSystemAuditsClick} className="sidebar-dropdown">
+              <button
+                aria-expanded={openDropdown === 'systemAudits'}
+                onClick={() => handleDropdownClick('systemAudits')}
+                onKeyDown={(event) => handleKeyDown(event, 'systemAudits')}
+                className={`sidebar-dropdown ${openDropdown === 'systemAudits' || isActive('/audit-trail') || isActive('/logs') || isActive('/retention-policy') ? 'active' : ''}`}
+              >
                 <FaHistory />
                 <span>System Audits</span>
-                <FaCaretDown />
-              </div>
-              {systemAuditsOpen && (
+                <FaCaretDown className={`caret ${openDropdown === 'systemAudits' ? 'rotate' : ''}`} />
+              </button>
+              {openDropdown === 'systemAudits' && (
                 <ul className="submenu">
                   <li>
                     <NavLink to="/audit-trail" className={({ isActive }) => (isActive ? 'active' : '')}>

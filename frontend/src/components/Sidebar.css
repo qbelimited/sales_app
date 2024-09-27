@@ -41,25 +41,31 @@
   margin-bottom: 10px;
 }
 
-.sidebar ul li a {
+/* Default button look matching background */
+.sidebar ul li a,
+.sidebar-dropdown {
   display: flex;
   align-items: left;
   padding: 8px 12px;
   font-size: 1rem;
-  color: #ecf0f1;
+  color: #ecf0f1; /* Visible text color */
+  background-color: #2c3e50; /* Match the background of the sidebar */
   text-decoration: none;
   border-radius: 4px;
+  border: none; /* Remove border */
   transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
 }
 
-.sidebar ul li a svg {
+/* Sidebar Icon Styling */
+.sidebar ul li a svg,
+.sidebar-dropdown svg {
   margin-right: 10px;
   font-size: 1rem;
 }
 
 /* Submenu for Dropdowns */
 .submenu {
-  margin-left: 10px; /* Indent submenu items */
+  margin-left: 10px;
   margin-top: 5px;
   list-style-type: none;
   padding-left: 0;
@@ -70,30 +76,30 @@
 }
 
 .submenu li a {
-  color: #fff; /* White submenu text */
+  color: #ecf0f1; /* White submenu text */
   padding: 3px 6px; /* Adjust padding for submenu */
   font-size: 1rem; /* Smaller font for submenu */
+  background-color: #2c3e50; /* Match background for submenu */
 }
 
 .submenu li a:hover {
   background-color: #2980b9; /* Hover effect for submenu */
-  color: #fff;
 }
 
 .submenu li a.active {
-  background-color: #1abc9c; /* Highlight active submenu link with different color */
-  color: #fff;
+  background-color: #1abc9c; /* Highlight active submenu link */
 }
 
-/* Hover & Active State for Main Menu */
-.sidebar ul li a:hover {
-  background-color: #34495e;
-  color: #fff;
+/* Minimal hover & Active State for Main Menu */
+.sidebar ul li a:hover,
+.sidebar-dropdown:hover {
+  background-color: #2c3e50; /* Keep hover state minimal */
 }
 
-.sidebar ul li a.active {
-  background-color: #2980b9;
-  color: #fff;
+.sidebar ul li a.active,
+.sidebar-dropdown.active {
+  background-color: #2980b9; /* Active background */
+  cursor: default; /* Still keep it as default */
 }
 
 /* Sidebar Footer */
@@ -108,7 +114,7 @@
   border: none;
   color: #ecf0f1;
   display: flex;
-  align-items: left;
+  align-items: center;
   justify-content: center;
   font-size: 1rem;
   cursor: pointer;
@@ -127,27 +133,27 @@
 /* Dropdown Icon Alignment */
 .sidebar-dropdown {
   display: flex;
-  align-items: center; /* Keep items vertically aligned */
-  margin-right: 10px;
-  cursor: pointer;
-  padding: 8px 12px; /* Adjust padding for more space */
+  align-items: center;
+  cursor: default; /* Remove pointer cursor */
+  padding: 8px 12px;
   font-size: 1rem;
   color: #ecf0f1;
+  background-color: #2c3e50; /* Match default background */
   border-radius: 4px;
   transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
-  align-items: left;
 }
 
 .sidebar-dropdown span {
-  padding-left: 10px; /* Add padding only to the left of the text */
+  padding-left: 10px;
 }
 
-.sidebar-dropdown:hover {
-  background-color: #34495e;
+/* Caret Icon without cursor change */
+.sidebar-dropdown .caret {
+  transition: transform 0.3s ease;
 }
 
-.sidebar-dropdown.active {
-  background-color: #2980b9; /* Active state for dropdown */
+.sidebar-dropdown .rotate {
+  transform: rotate(180deg);
 }
 
 /* Mobile Responsiveness */
@@ -157,7 +163,7 @@
   }
 
   .sidebar ul li a {
-    font-size: 1rem;
+    font-size: 0.9rem;
     padding: 6px 10px;
   }
 

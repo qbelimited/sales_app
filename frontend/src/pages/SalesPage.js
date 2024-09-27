@@ -312,6 +312,26 @@ const SalesPage = ({ showToast }) => {
           </Col>
         </Row>
         <h3 className="text-center text-muted">No sales keyed by manager yet</h3>
+
+        <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
+        <Modal.Header closeButton>
+          <Modal.Title>{currentSale ? 'Edit Sale' : 'Add New Sale'}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {currentSale ? (
+            <SalesEditForm
+              saleData={currentSale}
+              onCancel={() => setShowModal(false)}
+              onSubmit={handleFormSubmit}
+            />
+          ) : (
+            <SalesForm
+              onSubmit={handleFormSubmit}
+              onCancel={() => setShowModal(false)}
+            />
+          )}
+        </Modal.Body>
+      </Modal>
       </div>
     );
   }

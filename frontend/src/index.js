@@ -19,12 +19,12 @@ const container = document.getElementById('root');
 const root = createRoot(container);
 
 // Lazy-load service worker registration without redundant await
-const registerServiceWorker = () => {
+const registerServiceWorker = (showToast) => {
   try {
     serviceWorkerRegistration.register({
       onUpdate: (registration) => {
-        // You can call a toast notification here to alert the user about the update
-        console.log('New service worker update is available');
+        // Notify the user about the update using the Toast context
+        showToast('A new update is available. The page will reload to apply it.', 'info');
         if (registration.waiting) {
           registration.waiting.postMessage({ type: 'SKIP_WAITING' });
           registration.waiting.addEventListener('statechange', (event) => {
@@ -40,6 +40,18 @@ const registerServiceWorker = () => {
   }
 };
 
+// A functional component to wrap the service worker registration with Toast
+const AppWithServiceWorker = (showToast) => {
+  React.useEffect(() => {
+    // Register service worker after the app has loaded
+    window.addEventListener('load', () => {
+      registerServiceWorker(showToast);
+    });
+  }, [showToast]);
+
+  return <AppWrapper />; // Render the app normally
+};
+
 // Register service worker after the app has loaded
 window.addEventListener('load', () => {
   registerServiceWorker();
@@ -53,7 +65,7 @@ root.render(
         <ToastProvider> {/* New ToastProvider for global toast context */}
           <BrowserRouter>
             <Suspense fallback={<Loading />}>
-              <AppWrapper /> {/* Moved AppWrapper to its own file */}
+              <AppWithServiceWorker /> {/* Moved AppWrapper to its own file */}
             </Suspense>
           </BrowserRouter>
         </ToastProvider>
