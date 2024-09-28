@@ -86,7 +86,7 @@ class PaypointListResource(Resource):
         current_user = get_jwt_identity()
 
         # Check if the user has admin privileges
-        if not check_role_permission(current_user, ['admin']):
+        if not check_role_permission(current_user, ['admin', 'manager']):
             logger.warning(f"Unauthorized attempt by User ID {current_user['id']} to create Paypoint.")
             return {'message': 'Unauthorized'}, 403
 
@@ -156,11 +156,11 @@ class PaypointResource(Resource):
     @jwt_required()
     @paypoint_ns.expect(paypoint_model, validate=True)
     def put(self, paypoint_id):
-        """Update an existing Paypoint (admin only)."""
+        """Update an existing Paypoint (admin and manager only)."""
         current_user = get_jwt_identity()
 
         # Check if the user has admin privileges
-        if not check_role_permission(current_user, ['admin']):
+        if not check_role_permission(current_user, ['admin', 'manager']):
             logger.warning(f"Unauthorized update attempt on Paypoint ID {paypoint_id} by User ID {current_user['id']}.")
             return {'message': 'Unauthorized'}, 403
 

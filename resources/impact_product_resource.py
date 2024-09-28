@@ -23,7 +23,8 @@ def check_role_permission(current_user, required_role):
     roles = {
         'admin': ['admin'],
         'manager': ['admin', 'manager'],
-        'viewer': ['admin', 'manager', 'viewer']
+        'back_office': ['admin', 'manager', 'back_office'],
+        'sales_manager': ['admin', 'manager', 'back_office', 'sales_manager']
     }
     return current_user['role'].lower() in roles.get(required_role, [])
 
@@ -87,7 +88,7 @@ class ImpactProductListResource(Resource):
         current_user = get_jwt_identity()
 
         # Role-based access control
-        if not check_role_permission(current_user, 'admin'):
+        if not check_role_permission(current_user, 'manager'):
             return {'message': 'Unauthorized'}, 403
 
         data = request.json

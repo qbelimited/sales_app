@@ -94,7 +94,7 @@ class UserListResource(Resource):
         """Create a new User (admin only)."""
         current_user = get_jwt_identity()
 
-        if current_user['role'].lower() != 'admin':
+        if current_user['role'].lower() not in ['admin', 'manager']:
             logger.warning(f"Unauthorized attempt by User {current_user['id']} to create a new user.")
             return {'message': 'Unauthorized'}, 403
 
@@ -168,7 +168,7 @@ class UserResource(Resource):
         current_user = get_jwt_identity()
 
         # Only allow the user themselves or an admin to update
-        if current_user['id'] != user_id and current_user['role'].lower() != 'admin':
+        if current_user['id'] != user_id and current_user['role'].lower() not in ['admin', 'manager']:
             logger.warning(f"Unauthorized update attempt by User {current_user['id']} on User {user_id}.")
             return {'message': 'Unauthorized'}, 403
 

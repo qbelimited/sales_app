@@ -43,7 +43,7 @@ class BankResource(Resource):
     def post(self):
         """Create a new bank."""
         current_user = get_jwt_identity()
-        if current_user['role'].lower() != 'admin':
+        if current_user['role'].lower() not in ['admin', 'manager']:
             logger.warning(f"Unauthorized attempt to create bank by user ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
@@ -91,7 +91,7 @@ class SingleBankResource(Resource):
     def put(self, bank_id):
         """Update an existing bank."""
         current_user = get_jwt_identity()
-        if current_user['role'].lower() != 'admin':
+        if current_user['role'].lower() not in ['admin', 'manager']:
             logger.warning(f"Unauthorized attempt to update bank by user ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
@@ -172,7 +172,7 @@ class BankBranchResource(Resource):
     def post(self):
         """Create a new branch."""
         current_user = get_jwt_identity()
-        if current_user['role'].lower() != 'admin':
+        if current_user['role'].lower() not in ['admin', 'manager']:
             logger.warning(f"Unauthorized attempt to create branch by user ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
@@ -224,7 +224,7 @@ class SingleBranchResource(Resource):
     def put(self, branch_id):
         """Update an existing branch."""
         current_user = get_jwt_identity()
-        if current_user['role'].lower() != 'admin':
+        if current_user['role'].lower() not in ['admin', 'manager']:
             logger.warning(f"Unauthorized attempt to update branch by user ID {current_user['id']}")
             return {'message': 'Unauthorized'}, 403
 
