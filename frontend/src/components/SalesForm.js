@@ -683,7 +683,7 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
       )}
 
       {/* Staff ID */}
-      {(formData.source_type === 'paypoint' || formData.source_type === 'bank' || formData.subsequent_pay_source_type === 'paypoint' || formData.subsequent_pay_source_type === 'bank') && (
+      {(formData.source_type === 'paypoint' || formData.subsequent_pay_source_type === 'paypoint') && (
         <div className="form-group">
           <label>Staff Number</label>
           <input
