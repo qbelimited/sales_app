@@ -188,6 +188,7 @@ class Sale(db.Model):
             'subsequent_pay_source_type': self.subsequent_pay_source_type,
             'bank': self.bank.serialize() if self.bank else None,
             'bank_branch': self.bank_branch.serialize() if self.bank_branch else None,
+            'bank_acc_number': self.bank_acc_number,
             'staff_id': self.staff_id,
             'paypoint': self.paypoint.serialize() if self.paypoint else None,
             'paypoint_branch': self.paypoint_branch,

@@ -140,15 +140,16 @@ class SalesReportResource(Resource):
 
         # Define the headers and columns to drop
         columns_to_drop = [
-            'user_id', 'sale_manager', 'sales_executive_id', 'bank',
+            'user_id', 'sale_manager', 'sales_executive_id',
             'bank_branch', 'policy_type', 'is_deleted',
             'geolocation_latitude', 'geolocation_longitude',
+            'paypoint', 'bank',
             ]  # Specify the columns to drop
         dynamic_headers = [key for key in first_row_dict.keys() if key not in columns_to_drop] + [
             'sale_manager_name', 'inception_amount_received',
-            'sales_executive_name', 'sales_executive_branch',
+            'sales_executive_code', 'sales_executive_name', 'sales_executive_branch',
             'product_name', 'product_category', 'product_group',
-            'bank_name', 'bank_branch_name'
+            'bank_name', 'bank_branch_name', 'paypoint_name',
         ]
 
         # Create a StringIO buffer to write CSV data in memory
@@ -167,6 +168,7 @@ class SalesReportResource(Resource):
             sale_dict = {k: v for k, v in sale.serialize().items() if k not in columns_to_drop}
             sale_manager_data = sale.sale_manager.serialize() if sale.sale_manager else {}
             inception_data = sale.inceptions[0].amount_received if sale.inceptions else None
+            sales_executive_code = sale.sales_executive.code if sale.sales_executive else None
             sales_executive_name = sale.sales_executive.name if sale.sales_executive else None
             sales_executive_branch = sale.sales_executive.branches[0].name if sale.sales_executive.branches else None
             product_name = sale.policy_type.name if sale.policy_type else None
@@ -174,12 +176,14 @@ class SalesReportResource(Resource):
             product_group = sale.policy_type.group if sale.policy_type.group else None
             bank_name = sale.bank.name if sale.bank else None
             bank_branch_name = sale.bank_branch.name if sale.bank_branch else None
+            paypoint_name = sale.paypoint.name if sale.paypoint else None
 
             # Write a row to the CSV
             writer.writerow([
                 *sale_dict.values(),  # Include all fields from the filtered sale
                 sale_manager_data.get('name', 'N/A'),
                 inception_data if inception_data else 'N/A',  # Include inception amount if available
+                sales_executive_code if sales_executive_code else 'N/A',
                 sales_executive_name if sales_executive_name else 'N/A',
                 sales_executive_branch if sales_executive_branch else 'N/A',
                 product_name if product_name else 'N/A',
@@ -187,6 +191,7 @@ class SalesReportResource(Resource):
                 product_group if product_group else 'N/A',
                 bank_name if bank_name else 'N/A',
                 bank_branch_name if bank_branch_name else 'N/A',
+                paypoint_name if paypoint_name else 'N/A',
             ])
 
             # Yield the CSV content row by row
