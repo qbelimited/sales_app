@@ -11,6 +11,7 @@ class AuditAction(Enum):
     LOGIN = 'LOGIN'
     LOGOUT = 'LOGOUT'
     FILTER = 'FILTER'
+    GENERATE_REPORT = 'GENERATE_REPORT'
     REVOKE_REFRESH_TOKEN = 'REVOKE_REFRESH_TOKEN'
     ACCESS = 'ACCESS'  # Add other actions as needed
 
