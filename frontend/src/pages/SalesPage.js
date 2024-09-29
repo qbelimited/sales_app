@@ -12,7 +12,7 @@ import { useNavigate } from 'react-router-dom';
 const SalesPage = ({ showToast }) => {
   const [salesRecords, setSalesRecords] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [sortConfig, setSortConfig] = useState({ key: 'client_name', direction: 'asc' });
+  const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [filters, setFilters] = useState({ startDate: null, endDate: null, clientName: '', bankId: '', branchId: '' });
@@ -86,41 +86,45 @@ const SalesPage = ({ showToast }) => {
   const fetchSalesRecords = useCallback(async (currentPage, sortKey, sortDirection, filterParams) => {
     setLoading(true);
     try {
-      const params = {
-        page: currentPage,
-        limit,
-        sort_by: sortKey,
-        sort_direction: sortDirection,
-        ...filterParams,
-      };
+        const params = {
+            page: currentPage,
+            limit,
+            ...filterParams,
+        };
 
-      const response = await api.get('/sales/', { params });
-      let salesData = response.data.sales || [];
-
-      // Filter sales where the sales manager's name matches the logged-in user's name
-      const filteredSales = salesData.filter(
-        (sale) => sale.sale_manager?.name === loggedInUserName
-      );
-
-      // Handle cases where the logged-in user is a Sales Manager
-      if (role === 'Sales_Manager') {
-        if (filteredSales.length > 0) {
-          setSalesRecords(filteredSales); // Show only filtered sales for the Sales Manager
-        } else {
-          setSalesRecords([]); // Show no sales if no match found
+        // Format dates for the API if they are selected
+        if (filterParams.startDate) {
+            params.startDate = filterParams.startDate.toISOString().split('T')[0]; // Format to YYYY-MM-DD
         }
-      } else {
-        setSalesRecords(salesData); // If not a Sales Manager, show all sales
-      }
+        if (filterParams.endDate) {
+            params.endDate = filterParams.endDate.toISOString().split('T')[0]; // Format to YYYY-MM-DD
+        }
 
-      setTotalPages(response.data.pages || 1);
+        const response = await api.get('/sales/', { params });
+        let salesData = response.data.sales || [];
+
+        // Sort data on the client side
+        const sortedSales = sortSalesData(salesData, sortKey, sortDirection);
+
+        const filteredSales = sortedSales.filter(
+            (sale) => sale.sale_manager?.name === loggedInUserName
+        );
+
+        if (role === 'Sales_Manager') {
+            setSalesRecords(filteredSales.length > 0 ? filteredSales : []);
+        } else {
+            setSalesRecords(sortedSales);
+        }
+
+        setTotalPages(response.data.pages || 1);
     } catch (error) {
-      console.error('Error fetching sales records:', error);
-      showToast('danger', 'Failed to fetch sales records.', 'Error');
+        console.error('Error fetching sales records:', error);
+        showToast('danger', 'Failed to fetch sales records.', 'Error');
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
   }, [limit, showToast, loggedInUserName, role]);
+
 
   const handleSort = (key) => {
     let direction = 'asc';
@@ -128,6 +132,7 @@ const SalesPage = ({ showToast }) => {
       direction = 'desc';
     }
     setSortConfig({ key, direction });
+    fetchSalesRecords(1, key, direction, filters); // Fetch new records with the updated sorting
   };
 
   const handlePageChange = (pageNumber) => {
@@ -158,6 +163,29 @@ const SalesPage = ({ showToast }) => {
   const confirmDelete = (sale) => {
     setSaleToDelete(sale);
     setShowDeleteModal(true);
+  };
+
+  const sortSalesData = (salesData, sortKey, sortDirection) => {
+    return salesData.sort((a, b) => {
+      let aValue, bValue;
+
+      // Determine the value to sort by
+      if (sortKey === 'policy_type') {
+        aValue = a.policy_type?.name || ''; // Fallback to empty string if undefined
+        bValue = b.policy_type?.name || ''; // Fallback to empty string if undefined
+      } else if (sortKey === 'sales_manager') {
+        aValue = a.sale_manager?.name || ''; // Fallback to empty string if undefined
+        bValue = b.sale_manager?.name || ''; // Fallback to empty string if undefined
+      } else {
+        aValue = a[sortKey];
+        bValue = b[sortKey];
+      }
+
+      // Compare values based on sort direction
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
   };
 
   const handleDelete = async () => {

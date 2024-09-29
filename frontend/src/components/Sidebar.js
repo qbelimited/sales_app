@@ -20,6 +20,7 @@ import {
   FaFolder,
   FaUsers,
   FaBullseye,
+  FaFileContract
 } from 'react-icons/fa';
 import './Sidebar.css';
 
@@ -157,6 +158,14 @@ function Sidebar() {
                 </li>
               </ul>
             )}
+          </li>
+
+          {/* Reports Link */}
+          <li>
+            <NavLink to="/reports" className={({ isActive }) => (isActive ? 'active' : '')}>
+              <FaFileContract />
+              <span>Reports</span>
+            </NavLink>
           </li>
 
           {/* Settings Dropdown */}

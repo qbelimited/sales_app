@@ -44,6 +44,7 @@ class Sale(db.Model):
     sale_manager = db.relationship('User', foreign_keys=[sale_manager_id], lazy='joined')
     bank = db.relationship('Bank', foreign_keys=[bank_id], lazy='joined')
     bank_branch = db.relationship('BankBranch', foreign_keys=[bank_branch_id], lazy='joined')
+    user = db.relationship('User', foreign_keys=[user_id], lazy='joined')
 
     @validates('client_phone')
     def validate_client_phone(self, _, number):

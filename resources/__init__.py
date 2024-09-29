@@ -11,7 +11,7 @@ from .log_resource import LogResource
 from .paypoint_resource import PaypointResource, PaypointListResource
 from .query_resource import QueryResource, QueryListResource
 from .query_response_resource import QueryResponseResource, QueryResponseByIdResource
-from .report_resource import ComprehensiveReportResource, ParallelReportResource
+from .report_resource import SalesReportResource
 from .retention_resource import RetentionPolicyResource
 from .role_resource import RolesResource, RoleByIdResource
 from .sales_executive_resource import SalesExecutiveResource, SalesExecutiveListResource

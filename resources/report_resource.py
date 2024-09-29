@@ -1,326 +1,195 @@
-import os
-import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-from io import BytesIO
-from flask_restx import Namespace, Resource, fields
-from flask import request, jsonify, send_file
-from models.sales_model import Sale
-from models.sales_executive_model import SalesExecutive
-from models.branch_model import Branch
-from models.user_model import User
-from models.audit_model import AuditTrail
-from models.paypoint_model import Paypoint
-from models.bank_model import Bank, BankBranch
-from models.inception_model import Inception
-from models.under_investigation_model import UnderInvestigation
-from models.query_model import Query
-from models.performance_model import SalesTarget
-from pmdarima import auto_arima
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense
-from sklearn.preprocessing import MinMaxScaler
-import numpy as np
-from datetime import datetime
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask import request, jsonify, Response, stream_with_context
+from flask_jwt_extended import jwt_required
+import csv
+from io import StringIO  # Use StringIO to generate CSV in memory
 from app import db
-from joblib import Parallel, delayed
-from sqlalchemy import or_
-from fpdf import FPDF
-from utils import get_client_ip
+from models.sales_model import Sale
+from models.user_model import User, Role
+from models.sales_executive_model import SalesExecutive
+from flask_restx import Namespace, Resource, fields
+from sqlalchemy.orm import aliased  # Import aliased for handling multiple joins on the same table
 
 # Define namespace for report-related operations
 report_ns = Namespace('reports', description='Comprehensive Sales and Performance Report Generation')
 
 # Define the model for Swagger documentation
 report_model = report_ns.model('Report', {
-    'report_type': fields.String(required=True, description='Type of the report to generate'),
-    'filters': fields.Raw(description="Filters for the report"),
-    'group_by': fields.String(description="Group by field for data aggregation")
+    'filters': fields.Raw(description="Filters for the report")
 })
 
-@report_ns.route('/generate')
-class ComprehensiveReportResource(Resource):
-    @report_ns.doc(security='Bearer Auth')
+# Define the report endpoint for generating sales reports
+@report_ns.route('/sales')
+@report_ns.doc(security='Bearer Auth')
+@report_ns.expect(report_model, validate=True)
+@report_ns.param('page', 'Page number for pagination', type='integer', default=1)
+@report_ns.param('per_page', 'Number of items per page', type='integer', default=10)
+@report_ns.param('sort_by', 'Sort by field (e.g., created_at, name)', type='string', default='created_at')
+class SalesReportResource(Resource):
     @jwt_required()
-    @report_ns.expect(report_model, validate=True)
     def post(self):
-        """Generate a comprehensive dynamic report with filters, statistics, and visualizations."""
-        current_user = get_jwt_identity()
-        data = request.json
-        report_type = data.get('report_type')
-        filters = data.get('filters', {})
-        group_by = data.get('group_by', None)
+        try:
+            data = request.get_json()
+            filters = data.get('filters', {})
+            sort_by = data.get('sort_by', 'created_at')
+            sort_order = data.get('sort_order', 'asc')
 
-        # Step 1: Fetch and combine data from different models
-        combined_df = self.fetch_combined_data(filters)
+            # Create aliases and build the query
+            sales_manager_alias = aliased(User)
+            user_alias = aliased(User)
 
-        # Step 2: Apply filtering logic
-        if filters:
-            combined_df = self.apply_filters(combined_df, filters)
+            query = (
+                Sale.query
+                .join(user_alias, Sale.user_id == user_alias.id)
+                .join(Role, user_alias.role_id == Role.id)
+                .join(sales_manager_alias, Sale.sale_manager_id == sales_manager_alias.id)
+                .join(SalesExecutive, Sale.sales_executive_id == SalesExecutive.id)
+                .filter(Sale.is_deleted == False)
+            )
 
-        # Step 3: Handle different report types
-        if report_type == 'sales_performance':
-            return self.generate_sales_performance_report(combined_df, group_by)
-        elif report_type == 'investigations':
-            return self.generate_investigations_report(combined_df, group_by)
-        elif report_type == 'queries':
-            return self.generate_queries_report(combined_df, group_by)
-        elif report_type == 'statistics':
-            return self.generate_statistics_report(combined_df)
-        elif report_type == 'predictive':
-            return self.generate_predictive_report(combined_df)
-        elif report_type == 'lstm_predictive':
-            return self.generate_lstm_predictive_report(combined_df)
+            # Apply filters and sorting
+            query = self.apply_filters(query, filters)
+            query = self.apply_sorting(query, sort_by, sort_order)
+
+            # Stream CSV as response
+            return Response(
+                stream_with_context(self.generate_csv(query)),
+                mimetype="text/csv",
+                headers={"Content-Disposition": "attachment;filename=sales_report.csv"}
+            )
+
+        except Exception as e:
+            print(f"An error occurred: {e}")  # Log error for debugging
+            return jsonify({'message': 'Error fetching sales report', 'error': str(e)}), 500
+
+    def apply_filters(self, query, filters):
+        """Apply filters to the query."""
+        from models.inception_model import Inception  # Import locally to avoid circular imports
+
+        # Filter for date range
+        if 'start_date' in filters and 'end_date' in filters:
+            query = query.filter(Sale.created_at.between(filters['start_date'], filters['end_date']))
+
+        if 'user_id' in filters:
+            query = query.filter(Sale.user_id == filters['user_id'])
+
+        if 'sale_manager_id' in filters:
+            query = query.filter(Sale.sale_manager_id == filters['sale_manager_id'])
+
+        if 'client_name' in filters:
+            query = query.filter(Sale.client_name.ilike(f"%{filters['client_name']}%"))
+
+        if 'status' in filters:
+            query = query.filter(Sale.status == filters['status'])
+
+        if 'collection_platform' in filters:
+            query = query.filter(Sale.collection_platform == filters['collection_platform'])
+
+        if 'bank_id' in filters:
+            query = query.filter(Sale.bank_id == filters['bank_id'])
+
+        if 'paypoint_id' in filters:
+            query = query.filter(Sale.paypoint_id == filters['paypoint_id'])
+
+        # Filter by user name
+        if 'user_name' in filters:
+            query = query.filter(User.name.ilike(f"%{filters['user_name']}%"))
+
+        # Filter by role name
+        if 'role_name' in filters:
+            query = query.filter(Role.name.ilike(f"%{filters['role_name']}%"))
+
+        # Combine Inception-related filters and join Inception only once if necessary
+        if any(k in filters for k in ['inception_start_date', 'inception_end_date', 'inception_amount_min', 'inception_amount_max', 'inception_description']):
+            query = query.join(Inception)
+            if 'inception_start_date' in filters and 'inception_end_date' in filters:
+                query = query.filter(Inception.received_at.between(filters['inception_start_date'], filters['inception_end_date']))
+
+            if 'inception_amount_min' in filters:
+                query = query.filter(Inception.amount_received >= filters['inception_amount_min'])
+
+            if 'inception_amount_max' in filters:
+                query = query.filter(Inception.amount_received <= filters['inception_amount_max'])
+
+            if 'inception_description' in filters:
+                query = query.filter(Inception.description.ilike(f"%{filters['inception_description']}%"))
+
+        return query
+
+    def apply_sorting(self, query, sort_by, sort_order):
+        """Apply sorting to the query."""
+        sort_column = getattr(Sale, sort_by, None)
+        if sort_column is None:
+            sort_column = Sale.created_at  # Default sorting column
+        if sort_order == 'desc':
+            query = query.order_by(db.desc(sort_column))
         else:
-            return {'message': 'Invalid report type'}, 400
+            query = query.order_by(db.asc(sort_column))
+        return query
 
-    def fetch_combined_data(self, filters):
-        """Fetch sales data combined with Inception, Paypoint, Bank, Sales Executive, Investigations, Queries."""
-        sales_data = db.session.query(Sale).all()
-        sales_df = pd.DataFrame([sale.serialize() for sale in sales_data])
+    def generate_csv(self, query):
+        """Generate CSV row by row with dynamic headers."""
+        # Fetch the first row to dynamically determine the headers
+        first_row = query.first()
+        if not first_row:
+            # No data available, yield an empty CSV
+            yield "No data available\n"
+            return
 
-        # Fetch additional data and merge into sales_df
-        inception_data = db.session.query(Inception).all()
-        inception_df = pd.DataFrame([inception.serialize() for inception in inception_data])
+        # Serialize the first row to get the headers dynamically
+        first_row_dict = first_row.serialize()
 
-        paypoint_data = db.session.query(Paypoint).all()
-        paypoint_df = pd.DataFrame([paypoint.serialize() for paypoint in paypoint_data])
+        # Define the headers and columns to drop
+        columns_to_drop = [
+            'user_id', 'sale_manager', 'sales_executive_id', 'bank',
+            'bank_branch', 'policy_type', 'is_deleted',
+            'geolocation_latitude', 'geolocation_longitude',
+            ]  # Specify the columns to drop
+        dynamic_headers = [key for key in first_row_dict.keys() if key not in columns_to_drop] + [
+            'sale_manager_name', 'inception_amount_received',
+            'sales_executive_name', 'sales_executive_branch',
+            'product_name', 'product_category', 'product_group',
+            'bank_name', 'bank_branch_name'
+        ]
 
-        bank_data = db.session.query(Bank).all()
-        bank_df = pd.DataFrame([bank.serialize() for bank in bank_data])
+        # Create a StringIO buffer to write CSV data in memory
+        output = StringIO()
+        writer = csv.writer(output)
 
-        branch_data = db.session.query(BankBranch).all()
-        branch_df = pd.DataFrame([branch.serialize() for branch in branch_data])
-
-        sales_executive_data = db.session.query(SalesExecutive).all()
-        sales_executive_df = pd.DataFrame([se.serialize() for se in sales_executive_data])
-
-        product_data = db.session.query(ImpactProduct).all()
-        product_df = pd.DataFrame([product.serialize() for product in product_data])
-
-        investigation_data = db.session.query(UnderInvestigation).all()
-        investigation_df = pd.DataFrame([inv.serialize() for inv in investigation_data])
-
-        query_data = db.session.query(Query).all()
-        query_df = pd.DataFrame([q.serialize() for q in query_data])
-
-        # Merge all the data into a single DataFrame
-        merged_df = pd.merge(sales_df, inception_df, how='left', on='sale_id')
-        merged_df = pd.merge(merged_df, paypoint_df, how='left', on='paypoint_id')
-        merged_df = pd.merge(merged_df, bank_df, how='left', on='bank_id')
-        merged_df = pd.merge(merged_df, branch_df, how='left', on='bank_branch_id')
-        merged_df = pd.merge(merged_df, sales_executive_df, how='left', on='sales_executive_id')
-        merged_df = pd.merge(merged_df, product_df, how='left', on='policy_type_id')
-        merged_df = pd.merge(merged_df, investigation_df, how='left', on='sale_id')
-        merged_df = pd.merge(merged_df, query_df, how='left', on='sale_id')
-
-        return merged_df
-
-    def apply_filters(self, df, filters):
-        """Apply filters to the DataFrame."""
-        for column, value in filters.items():
-            if value:
-                df = df[df[column] == value]
-        return df
-
-    def generate_sales_performance_report(self, df, group_by=None):
-        """Generate sales performance report comparing sales against targets."""
-        df['performance'] = (df['amount'] / df['target_amount']) * 100
-        performance_df = df.groupby(group_by).agg({
-            'amount': ['sum', 'min', 'max', 'mean'],
-            'target_amount': ['sum', 'min', 'max', 'mean'],
-            'performance': ['mean']
-        })
-
-        return self.export_to_format(performance_df, 'sales_performance_report')
-
-    def generate_investigations_report(self, df, group_by=None):
-        """Generate report on sales under investigation."""
-        investigation_df = df[df['resolved'] == False].groupby(group_by).agg({
-            'amount': ['sum', 'count'],
-            'inception_amount': ['sum', 'count'],
-        })
-
-        return self.export_to_format(investigation_df, 'investigations_report')
-
-    def generate_queries_report(self, df, group_by=None):
-        """Generate report on sales queries and responses."""
-        query_df = df.groupby(group_by).agg({
-            'amount': ['sum', 'count'],
-            'query_status': ['count'],  # Count of queried sales
-            'response_status': ['count']  # Count of resolved queries
-        })
-
-        return self.export_to_format(query_df, 'queries_report')
-
-    def generate_statistics_report(self, df):
-        """Generate statistical report on sales and incepted amounts."""
-        stats_sales = df['amount'].agg(['sum', 'min', 'max', 'mean', 'std', 'var']).to_dict()
-        stats_incepted = df['inception_amount'].agg(['sum', 'min', 'max', 'mean', 'std', 'var']).to_dict()
-
-        return {
-            'sales_statistics': stats_sales,
-            'inception_statistics': stats_incepted,
-        }
-
-    def generate_predictive_report(self, df):
-        """Generate predictive sales report using ARIMA."""
-        df['created_at'] = pd.to_datetime(df['created_at'])
-        df.set_index('created_at', inplace=True)
-
-        # Ensure sufficient data
-        if df.shape[0] < 60:  # Example condition for minimal data sufficiency
-            return {'message': 'Insufficient data for prediction'}, 400
-
-        # Train ARIMA model
-        model = auto_arima(df['amount'], seasonal=False, stepwise=True, suppress_warnings=True)
-        forecast = model.predict(n_periods=30)
-        forecast_dates = pd.date_range(start=datetime.today(), periods=30, freq='D')
-
-        # Generate forecast DataFrame
-        future_df = pd.DataFrame({
-            'Date': forecast_dates,
-            'Predicted Sales': forecast
-        })
-
-        # Visualization: Line plot for predictions
-        plt.plot(future_df['Date'], future_df['Predicted Sales'], label='Predicted Sales')
-        plt.title('Predicted Sales for the Next 30 Days')
-        plt.xlabel('Date')
-        plt.ylabel('Sales Amount')
-        plt.legend()
-        plt.tight_layout()
-
-        return self.export_visualization('predictive_sales_report')
-
-    def generate_lstm_predictive_report(self, df):
-        """Generate a predictive sales report using LSTM."""
-        df['created_at'] = pd.to_datetime(df['created_at'])
-        df.set_index('created_at', inplace=True)
-
-        # Ensure sufficient data
-        if df.shape[0] < 60:  # Example condition for minimal data sufficiency
-            return {'message': 'Insufficient data for LSTM prediction'}, 400
-
-        # Normalize data
-        scaler = MinMaxScaler(feature_range=(0, 1))
-        scaled_data = scaler.fit_transform(df[['amount']])
-
-        look_back = request.args.get('look_back', default=30, type=int)
-        batch_size = request.args.get('batch_size', default=32, type=int)
-        epochs = request.args.get('epochs', default=10, type=int)
-
-        def create_dataset(data, look_back=1):
-            X, y = [], []
-            for i in range(len(data) - look_back - 1):
-                X.append(data[i:(i + look_back), 0])
-                y.append(data[i + look_back, 0])
-            return np.array(X), np.array(y)
-
-        X, y = create_dataset(scaled_data, look_back)
-        X = np.reshape(X, (X.shape[0], X.shape[1], 1))
-
-        model = Sequential()
-        model.add(LSTM(50, return_sequences=True, input_shape=(look_back, 1)))
-        model.add(LSTM(50))
-        model.add(Dense(1))
-        model.compile(optimizer='adam', loss='mean_squared_error')
-
-        model.fit(X, y, epochs=epochs, batch_size=batch_size)
-
-        last_data = scaled_data[-look_back:]
-        last_data = np.reshape(last_data, (1, look_back, 1))
-        predicted_sales = model.predict(last_data)
-        predicted_sales = scaler.inverse_transform(predicted_sales)
-
-        future_df = pd.DataFrame({
-            'Date': pd.date_range(start=datetime.today(), periods=30, freq='D'),
-            'Predicted Sales': predicted_sales.flatten()
-        })
-
-        # Visualization: Line plot for predictions
-        plt.figure(figsize=(10, 6))
-        plt.plot(future_df['Date'], future_df['Predicted Sales'], label='Predicted Sales')
-        plt.title('LSTM Predicted Sales for the Next 30 Days')
-        plt.xlabel('Date')
-        plt.ylabel('Sales Amount')
-        plt.legend()
-        plt.tight_layout()
-
-        return self.export_visualization('lstm_sales_forecast')
-
-    def export_to_format(self, df, filename):
-        """Export DataFrame to the desired format (Excel or PDF)."""
-        export_format = request.args.get('format', 'excel').lower()
-
-        if export_format == 'pdf':
-            return self.export_to_pdf(df, filename)
-        else:
-            return self.export_to_excel(df, filename)
-
-    def export_visualization(self, filename):
-        """Export the visualization as a PNG image."""
-        output = BytesIO()
-        plt.savefig(output, format='png')
+        # Write the dynamic CSV headers
+        writer.writerow(dynamic_headers)
+        yield output.getvalue()
         output.seek(0)
-        plt.close()
-        return send_file(output, attachment_filename=f"{filename}.png", as_attachment=True)
+        output.truncate(0)
 
-    def export_to_excel(self, df, filename):
-        """Export the DataFrame to an Excel file."""
-        output = BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name='Report')
-            writer.save()
+        # Fetch the data in batches for efficiency
+        for sale in query.yield_per(200):  # Adjust batch size as needed
+            # Filter the sale_dict to remove unwanted columns
+            sale_dict = {k: v for k, v in sale.serialize().items() if k not in columns_to_drop}
+            sale_manager_data = sale.sale_manager.serialize() if sale.sale_manager else {}
+            inception_data = sale.inceptions[0].amount_received if sale.inceptions else None
+            sales_executive_name = sale.sales_executive.name if sale.sales_executive else None
+            sales_executive_branch = sale.sales_executive.branches[0].name if sale.sales_executive.branches else None
+            product_name = sale.policy_type.name if sale.policy_type else None
+            product_category = sale.policy_type.category.name if sale.policy_type.category else None
+            product_group = sale.policy_type.group if sale.policy_type.group else None
+            bank_name = sale.bank.name if sale.bank else None
+            bank_branch_name = sale.bank_branch.name if sale.bank_branch else None
 
-        output.seek(0)
-        return send_file(output, attachment_filename=f"{filename}.xlsx", as_attachment=True)
+            # Write a row to the CSV
+            writer.writerow([
+                *sale_dict.values(),  # Include all fields from the filtered sale
+                sale_manager_data.get('name', 'N/A'),
+                inception_data if inception_data else 'N/A',  # Include inception amount if available
+                sales_executive_name if sales_executive_name else 'N/A',
+                sales_executive_branch if sales_executive_branch else 'N/A',
+                product_name if product_name else 'N/A',
+                product_category if product_category else 'N/A',
+                product_group if product_group else 'N/A',
+                bank_name if bank_name else 'N/A',
+                bank_branch_name if bank_branch_name else 'N/A',
+            ])
 
-    def export_to_pdf(self, df, filename):
-        """Export the DataFrame to a PDF file."""
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("Arial", size=12)
-
-        for row in df.to_dict(orient='records'):
-            row_text = ', '.join(f"{key}: {value}" for key, value in row.items())
-            pdf.cell(200, 10, txt=row_text, ln=True)
-
-        output = BytesIO()
-        pdf.output(output)
-        output.seek(0)
-        return send_file(output, attachment_filename=f"{filename}.pdf", as_attachment=True)
-
-@report_ns.route('/generate-parallel')
-# Register ParallelReportResource if needed
-class ParallelReportResource(Resource):
-    @jwt_required()
-    def get(self):
-        """Generate reports in parallel using joblib."""
-
-        # Use joblib to parallelize report generation tasks
-        reports = ['performance', 'sales', 'branch', 'sales_executive', 'sales_manager']
-        parallel_reports = Parallel(n_jobs=-1)(delayed(self.generate_report)(report) for report in reports)
-
-        return jsonify({
-            'message': 'Reports generated successfully in parallel',
-            'report_paths': parallel_reports
-        })
-
-    def generate_report(self, report_type):
-        """Generate report based on report type."""
-        report_mapping = {
-            'performance': self.generate_sales_performance_report,
-            'sales': self.generate_sales_report,
-            'branch': self.generate_branch_wise_report,
-            'sales_executive': self.generate_sales_executive_wise_report,
-            'sales_manager': self.generate_sales_manager_wise_report,
-            'predictive': self.generate_predictive_report,
-            'lstm_predictive': self.generate_lstm_predictive_report
-        }
-
-        if report_type in report_mapping:
-            return report_mapping[report_type]()
-        else:
-            return {'message': 'Invalid report type'}, 400
+            # Yield the CSV content row by row
+            yield output.getvalue()
+            output.seek(0)
+            output.truncate(0)  # Clear the buffer after each yield

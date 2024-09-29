@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, Button, Table, Pagination, Form } from 'react-bootstrap';
+import { Modal, Button, Table, Pagination, Form, Spinner } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEdit, faTrashAlt, faPlus } from '@fortawesome/free-solid-svg-icons';
 import api from '../services/api';
@@ -54,7 +54,9 @@ const SalesTargetPage = ({ showToast }) => {
     setError(null);
 
     try {
-      const response = await api.get(`/sales_target/?sort_by=created_at&per_page=100&page=1`);
+      const res_tot = await api.get('/sales_target/?sort_by=created_at&per_page=10&page=1');
+      const total_item = parseInt(res_tot.data.total) || res_tot.data.total;
+      const response = await api.get(`/sales_target/?sort_by=created_at&per_page=${total_item}&page=1`);
       const targets = Array.isArray(response.data.sales_targets) ? response.data.sales_targets : [];
 
       const filteredTargets = role_id === 4
@@ -67,11 +69,12 @@ const SalesTargetPage = ({ showToast }) => {
       setCriteriaValues(values);
 
       const additionalFilteredTargets = filteredTargets.filter(target => {
-        const matchesManager = selectedManager ? target.sales_manager_id === selectedManager : true;
+        const matchesManager = selectedManager ? target.sales_manager_id === parseInt(selectedManager, 10) : true; // Ensure type match
         const matchesCriteriaType = selectedCriteriaType ? target.target_criteria_type === selectedCriteriaType : true;
         const matchesCriteriaValue = selectedCriteriaValue ? target.target_criteria_value === selectedCriteriaValue : true;
         const matchesDate = (startDate && endDate) ?
-          new Date(target.period_start) >= new Date(startDate) && new Date(target.period_end) <= new Date(endDate) : true;
+          new Date(target.period_start).toISOString().slice(0, 10) >= startDate &&
+          new Date(target.period_end).toISOString().slice(0, 10) <= endDate : true;
 
         return matchesManager && matchesCriteriaType && matchesCriteriaValue && matchesDate;
       });
@@ -93,30 +96,30 @@ const SalesTargetPage = ({ showToast }) => {
   }, [fetchSalesManagers, fetchSalesTargets]);
 
   const handleShowAddModal = () => {
-    setCurrentTarget(null); // Reset current target for add
+    setCurrentTarget(null);
     setShowAddModal(true);
-    setCustomCriteriaType(''); // Reset custom input
-    setCustomCriteriaValue(''); // Reset custom input
+    setCustomCriteriaType('');
+    setCustomCriteriaValue('');
   };
 
   const handleCloseAddModal = () => {
     setShowAddModal(false);
-    setCustomCriteriaType(''); // Reset custom input
-    setCustomCriteriaValue(''); // Reset custom input
+    setCustomCriteriaType('');
+    setCustomCriteriaValue('');
   };
 
   const handleShowEditModal = (target) => {
     setCurrentTarget(target);
     setShowEditModal(true);
-    setCustomCriteriaType(''); // Reset custom input
-    setCustomCriteriaValue(''); // Reset custom input
+    setCustomCriteriaType('');
+    setCustomCriteriaValue('');
   };
 
   const handleCloseEditModal = () => {
     setCurrentTarget(null);
     setShowEditModal(false);
-    setCustomCriteriaType(''); // Reset custom input
-    setCustomCriteriaValue(''); // Reset custom input
+    setCustomCriteriaType('');
+    setCustomCriteriaValue('');
   };
 
   const handleShowDeleteModal = (target) => {
@@ -160,14 +163,20 @@ const SalesTargetPage = ({ showToast }) => {
     const periodEndDate = new Date(formData.get('period_end'));
     periodEndDate.setHours(0, 0, 0); // Set to 12:00 AM
 
+    // Validation for dates
+    if (isNaN(periodStartDate.getTime()) || isNaN(periodEndDate.getTime())) {
+      showToast('danger', 'Please enter valid date and time.', 'Error');
+      return;
+    }
+
     const targetData = {
-      sales_manager_id: parseInt(formData.get('sales_manager_id'), 10), // Convert to integer
-      target_sales_count: Math.round(Number(formData.get('target_sales_count'))), // Ensure it's a whole number
-      target_premium_amount: parseFloat(formData.get('target_premium_amount')), // Convert to float
+      sales_manager_id: parseInt(formData.get('sales_manager_id'), 10),
+      target_sales_count: Math.round(Number(formData.get('target_sales_count'))),
+      target_premium_amount: parseFloat(formData.get('target_premium_amount')),
       target_criteria_type: customCriteriaType || formData.get('target_criteria_type'),
       target_criteria_value: customCriteriaValue || formData.get('target_criteria_value'),
-      period_start: periodStartDate.toISOString(), // Convert to ISO string
-      period_end: periodEndDate.toISOString(), // Convert to ISO string
+      period_start: periodStartDate.toISOString(), // Converts to ISO string with 12:00 AM
+      period_end: periodEndDate.toISOString(), // Converts to ISO string with 12:00 AM
       is_active: true
     };
 
@@ -201,7 +210,7 @@ const SalesTargetPage = ({ showToast }) => {
   return (
     <div className="container mt-5">
       <h1 className="text-center mb-4">Manage Sales Targets</h1>
-      {loading && <p>Loading sales targets...</p>}
+      {loading && <Spinner animation="border" variant="primary" />}
       {error && <p className="text-danger">{error}</p>}
 
       <div className="d-flex justify-content-between align-items-center mb-3">
@@ -268,8 +277,8 @@ const SalesTargetPage = ({ showToast }) => {
               <td>{parseFloat(target.target_premium_amount).toFixed(2)}</td>
               <td>{target.target_criteria_type}</td>
               <td>{target.target_criteria_value}</td>
-              <td>{new Date(target.period_start).toLocaleString()}</td>
-              <td>{new Date(target.period_end).toLocaleString()}</td>
+              <td>{new Date(target.period_start).toISOString().slice(0, 10)}</td> {/* Display only the date */}
+              <td>{new Date(target.period_end).toISOString().slice(0, 10)}</td> {/* Display only the date */}
               <td>
                 {(role_id === 3 || role_id === 2) && (
                   <>
@@ -291,8 +300,8 @@ const SalesTargetPage = ({ showToast }) => {
               <td>{parseFloat(target.target_premium_amount).toFixed(2)}</td>
               <td>{target.target_criteria_type}</td>
               <td>{target.target_criteria_value}</td>
-              <td>{new Date(target.period_start).toLocaleString()}</td>
-              <td>{new Date(target.period_end).toLocaleString()}</td>
+              <td>{new Date(target.period_start).toISOString().slice(0, 10)}</td> {/* Display only the date */}
+              <td>{new Date(target.period_end).toISOString().slice(0, 10)}</td> {/* Display only the date */}
               <td>
                 {(role_id === 3 || role_id === 2) && (
                   <>
@@ -387,11 +396,11 @@ const SalesTargetPage = ({ showToast }) => {
             </div>
             <div className="mb-3">
               <label htmlFor="period_start" className="form-label">Period Start</label>
-              <input type="datetime-local" name="period_start" className="form-control" required />
+              <input type="date" name="period_start" className="form-control" required />
             </div>
             <div className="mb-3">
               <label htmlFor="period_end" className="form-label">Period End</label>
-              <input type="datetime-local" name="period_end" className="form-control" required />
+              <input type="date" name="period_end" className="form-control" required />
             </div>
             <Button variant="primary" type="submit">
               Create Target
@@ -447,11 +456,11 @@ const SalesTargetPage = ({ showToast }) => {
             </div>
             <div className="mb-3">
               <label htmlFor="period_start" className="form-label">Period Start</label>
-              <input type="datetime-local" name="period_start" className="form-control" defaultValue={currentTarget ? currentTarget.period_start : ''} required />
+              <input type="date" name="period_start" className="form-control" defaultValue={currentTarget ? currentTarget.period_start.slice(0, 10) : ''} required /> {/* Only show date */}
             </div>
             <div className="mb-3">
               <label htmlFor="period_end" className="form-label">Period End</label>
-              <input type="datetime-local" name="period_end" className="form-control" defaultValue={currentTarget ? currentTarget.period_end : ''} required />
+              <input type="date" name="period_end" className="form-control" defaultValue={currentTarget ? currentTarget.period_end.slice(0, 10) : ''} required /> {/* Only show date */}
             </div>
             <Button variant="primary" type="submit">
               Update Target
