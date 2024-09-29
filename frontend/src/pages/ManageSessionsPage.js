@@ -11,6 +11,7 @@ const ManageSessionsPage = ({ showToast }) => {
   // Fetch all user sessions
   const fetchSessions = useCallback(async () => {
     setLoadingSessions(true);
+    setError(null); // Reset error before fetching
     const timeoutId = setTimeout(() => {
       showToast('warning', 'Fetching sessions is taking longer than expected.', 'Warning');
     }, 5000);
@@ -45,18 +46,20 @@ const ManageSessionsPage = ({ showToast }) => {
   };
 
   return (
-    <div className="container mt-5">
-      <h1 className="text-center mb-4">Manage User Sessions</h1>
+    <div className="container mt-5" role="main">
+      <h1 className="text-center mb-4" aria-live="polite">Manage User Sessions</h1>
       {loadingSessions ? (
         <Loading />
-      ) : (
+      ) : sessions.length > 0 ? (
         <SessionTable
           sessions={sessions}
           onEndSession={handleEndSession}
           showToast={showToast}
         />
+      ) : (
+        <p className="text-center" aria-live="polite">No active sessions available.</p> // Feedback for empty session list
       )}
-      {error && <p className="text-danger">{error}</p>}
+      {error && <p className="text-danger" role="alert">{error}</p>} {/* Display error message */}
     </div>
   );
 };

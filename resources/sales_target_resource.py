@@ -18,7 +18,11 @@ sales_target_model = sales_target_ns.model('SalesTarget', {
     'target_sales_count': fields.Integer(required=True, description='Target number of sales'),
     'target_premium_amount': fields.Float(required=True, description='Target premium amount'),
     'target_criteria_type': fields.String(required=False, description='Target criteria type (e.g., source_type, product_group)'),
-    'target_criteria_value': fields.String(required=False, description='Target criteria value (e.g., paypoint, risk)')
+    'target_criteria_value': fields.String(required=False, description='Target criteria value (e.g., paypoint, risk)'),
+    'period_start': fields.DateTime(required=False, description='Start date of the target period'),
+    'period_end': fields.DateTime(required=False, description='End date of the target period'),
+    'created_at': fields.DateTime(description='Creation date of the Sales Target'),
+    'is_active': fields.Boolean(description='Is the target currently active')
 })
 
 # Helper function to check role permissions
@@ -85,9 +89,12 @@ class SalesTargetListResource(Resource):
 
         data = request.json
 
+        # Parse datetime strings to datetime objects
+        period_start = datetime.fromisoformat(data['period_start'].replace("Z", "+00:00"))
+        period_end = datetime.fromisoformat(data['period_end'].replace("Z", "+00:00"))
+
         # Validate Sales Manager
         sales_manager = User.query.filter_by(id=data['sales_manager_id']).first()
-
         if not sales_manager:
             logger.error(f"Sales Manager not found by user {current_user['id']}")
             return {'message': 'Sales Manager not found'}, 404
@@ -97,7 +104,9 @@ class SalesTargetListResource(Resource):
             target_sales_count=data['target_sales_count'],
             target_premium_amount=data['target_premium_amount'],
             target_criteria_type=data.get('target_criteria_type'),
-            target_criteria_value=data.get('target_criteria_value')
+            target_criteria_value=data.get('target_criteria_value'),
+            period_start=period_start,
+            period_end=period_end
         )
         db.session.add(new_target)
         db.session.commit()
@@ -168,11 +177,17 @@ class SalesTargetResource(Resource):
 
         data = request.json
 
+        # Parse datetime strings to datetime objects
+        period_start = datetime.fromisoformat(data['period_start'].replace("Z", "+00:00"))
+        period_end = datetime.fromisoformat(data['period_end'].replace("Z", "+00:00"))
+
         target.sales_manager_id = data.get('sales_manager_id', target.sales_manager_id)
         target.target_sales_count = data.get('target_sales_count', target.target_sales_count)
         target.target_premium_amount = data.get('target_premium_amount', target.target_premium_amount)
         target.target_criteria_type = data.get('target_criteria_type', target.target_criteria_type)
         target.target_criteria_value = data.get('target_criteria_value', target.target_criteria_value)
+        target.period_start = period_start
+        target.period_end = period_end
         target.updated_at = datetime.utcnow()
 
         db.session.commit()

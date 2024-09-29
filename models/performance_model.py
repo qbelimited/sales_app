@@ -1,5 +1,5 @@
 from app import db
-from datetime import datetime
+from datetime import datetime, timedelta
 from sqlalchemy.orm import validates
 
 class SalesTarget(db.Model):
@@ -8,6 +8,8 @@ class SalesTarget(db.Model):
     target_sales_count = db.Column(db.Integer, nullable=False)  # Number of sales to achieve
     target_premium_amount = db.Column(db.Float, nullable=False)  # Total premium amount to sell
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_deleted = db.Column(db.Boolean, default=False, index=True)
+    is_active = db.Column(db.Boolean, default=True, index=True)
 
     # Flexible target criteria
     target_criteria_type = db.Column(db.String(100), nullable=True)  # E.g., 'source_type', 'product_group'
@@ -27,15 +29,18 @@ class SalesTarget(db.Model):
             raise ValueError(f"{key} cannot be negative")
         return value
 
-    def is_active(self):
-        """Check if the target is within the active period."""
+    def check_activity_status(self):
+        """Update the active status based on the current date."""
         now = datetime.utcnow()
         if self.period_start and self.period_end:
-            return self.period_start <= now <= self.period_end
-        return True  # If no period is set, consider the target always active
+            self.is_active = self.period_start <= now <= self.period_end
+        else:
+            self.is_active = True  # If no period is set, consider the target always active
 
     def serialize(self):
         """Return a serialized version of the SalesTarget object."""
+        # Ensure the activity status is updated before serialization
+        self.check_activity_status()
         return {
             'id': self.id,
             'sales_manager_id': self.sales_manager_id,
@@ -46,7 +51,7 @@ class SalesTarget(db.Model):
             'created_at': self.created_at.isoformat(),
             'period_start': self.period_start.isoformat() if self.period_start else None,
             'period_end': self.period_end.isoformat() if self.period_end else None,
-            'is_active': self.is_active()
+            'is_active': self.is_active
         }
 
     @staticmethod
@@ -58,6 +63,39 @@ class SalesTarget(db.Model):
             db.or_(SalesTarget.period_end >= now, SalesTarget.period_end == None)
         ).all()
 
+    @staticmethod
+    def create_monthly_targets(sales_manager_id, target_sales_count, target_premium_amount, period_start, period_end, target_criteria_type=None, target_criteria_value=None):
+        """Create monthly targets if the period exceeds one month."""
+        targets = []
+        current_start = period_start
+
+        # Calculate the number of months in the period
+        total_months = ((period_end.year - period_start.year) * 12 + (period_end.month - period_start.month)) + 1
+
+        # Calculate monthly targets
+        monthly_sales_count = target_sales_count // total_months
+        monthly_premium_amount = target_premium_amount / total_months
+
+        while current_start < period_end:
+            next_month = (current_start + timedelta(days=30)).replace(day=1)
+            current_end = min(next_month, period_end)
+
+            monthly_target = SalesTarget(
+                sales_manager_id=sales_manager_id,
+                target_sales_count=monthly_sales_count,
+                target_premium_amount=monthly_premium_amount,
+                period_start=current_start,
+                period_end=current_end,
+                target_criteria_type=target_criteria_type,
+                target_criteria_value=target_criteria_value
+            )
+            targets.append(monthly_target)
+
+            # Move to the next month
+            current_start = next_month
+
+        db.session.bulk_save_objects(targets)
+        db.session.commit()
 
 class SalesPerformance(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -66,6 +104,7 @@ class SalesPerformance(db.Model):
     actual_premium_amount = db.Column(db.Float, nullable=False)  # Actual premium amount sold
     target_id = db.Column(db.Integer, db.ForeignKey('sales_target.id'), nullable=True)  # Link to the SalesTarget
     performance_date = db.Column(db.DateTime, default=datetime.utcnow)
+    is_deleted = db.Column(db.Boolean, default=False, index=True)
 
     # Flexible criteria fields
     criteria_type = db.Column(db.String(100), nullable=True)  # E.g., 'source_type', 'product_group'

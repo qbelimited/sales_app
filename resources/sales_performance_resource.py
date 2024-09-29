@@ -29,7 +29,7 @@ def check_role_permission(current_user, required_roles):
     roles = {
         'admin': ['admin'],
         'manager': ['admin', 'manager'],
-        'sales_manager': ['admin', 'manager', 'sales_manager']
+        'sales_manager': ['admin', 'manager', 'back_office', 'sales_manager']
     }
     return current_user['role'].lower() in roles.get(required_roles, [])
 

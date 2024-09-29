@@ -19,6 +19,7 @@ import {
   FaCog,
   FaFolder,
   FaUsers,
+  FaBullseye,
 } from 'react-icons/fa';
 import './Sidebar.css';
 
@@ -92,6 +93,12 @@ function Sidebar() {
                   <NavLink to="/sales-performance" className={({ isActive }) => (isActive ? 'active' : '')}>
                     <FaRegChartBar />
                     <span>Sales Performance</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink to="/sales-targets" className={({ isActive }) => (isActive ? 'active' : '')}>
+                    <FaBullseye />
+                    <span>Sales Targets</span>
                   </NavLink>
                 </li>
                 <li>

@@ -3,14 +3,18 @@ import { useUser } from '../contexts/UserContext';
 import { Modal, Button } from 'react-bootstrap';
 
 const SessionTable = ({ showToast, onEndSession }) => {
-  const { sessions, loading } = useUser(); // Access sessions from UserContext
+  const { sessions, loading, error } = useUser(); // Access sessions from UserContext
   const [viewAllSessionsForUser, setViewAllSessionsForUser] = useState(null);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState(null);
   const [visibleInactiveSessions, setVisibleInactiveSessions] = useState({}); // Track which user's inactive sessions are visible
 
   if (loading) {
-    return <p>Loading sessions...</p>;
+    return <p aria-live="polite">Loading sessions...</p>;
+  }
+
+  if (error) {
+    return <p className="text-danger" role="alert">Failed to load sessions.</p>;
   }
 
   // Get unique users from sessions
@@ -33,8 +37,11 @@ const SessionTable = ({ showToast, onEndSession }) => {
   // Calculate session duration
   const calculateSessionDuration = (loginTime, logoutTime) => {
     if (logoutTime) {
-      const duration = new Date(logoutTime) - new Date(loginTime);
-      return `${Math.floor(duration / 60000)} minutes`;
+      const duration = (new Date(logoutTime) - new Date(loginTime)) / 1000; // duration in seconds
+      const hours = Math.floor(duration / 3600);
+      const minutes = Math.floor((duration % 3600) / 60);
+      const seconds = Math.floor(duration % 60);
+      return `${hours} hours, ${minutes} minutes, ${seconds} seconds`;
     }
     return 'Active';
   };
@@ -70,7 +77,7 @@ const SessionTable = ({ showToast, onEndSession }) => {
           >
             Back to All Users
           </button>
-          <table className="table table-striped">
+          <table className="table table-striped" role="table">
             <thead>
               <tr>
                 <th>Session ID</th>
@@ -85,7 +92,7 @@ const SessionTable = ({ showToast, onEndSession }) => {
             </thead>
             <tbody>
               {filterSessionsForUser(viewAllSessionsForUser).map((session) => (
-                <tr key={session.id}>
+                <tr key={session.id} role="row">
                   <td>{session.id}</td>
                   <td>{session.user_name}</td>
                   <td>{new Date(session.login_time).toLocaleString()}</td>
@@ -108,7 +115,7 @@ const SessionTable = ({ showToast, onEndSession }) => {
               {/* Render Inactive Sessions */}
               {visibleInactiveSessions[viewAllSessionsForUser] && (
                 filterSessionsForUser(viewAllSessionsForUser, false).map((session) => (
-                  <tr key={session.id} className="table-secondary">
+                  <tr key={session.id} className="table-secondary" role="row">
                     <td>{session.id}</td>
                     <td>{session.user_name}</td>
                     <td>{new Date(session.login_time).toLocaleString()}</td>
@@ -130,7 +137,7 @@ const SessionTable = ({ showToast, onEndSession }) => {
           </button>
         </div>
       ) : (
-        <table className="table table-striped">
+        <table className="table table-striped" role="table">
           <thead>
             <tr>
               <th>User Name</th>
@@ -141,7 +148,7 @@ const SessionTable = ({ showToast, onEndSession }) => {
           <tbody>
             {uniqueUsers.length > 0 ? (
               uniqueUsers.map(user => (
-                <tr key={user.user_id}>
+                <tr key={user.user_id} role="row">
                   <td>{user.user_name}</td>
                   <td>{filterSessionsForUser(user.user_id).length}</td>
                   <td>
