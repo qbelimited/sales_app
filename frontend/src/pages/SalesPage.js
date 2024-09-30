@@ -23,6 +23,7 @@ const SalesPage = ({ showToast }) => {
   const [branches, setBranches] = useState([]);
   const [salesExecutives, setSalesExecutives] = useState([]);
   const [saleToDelete, setSaleToDelete] = useState(null); // Track sale to delete
+  const [refreshToggle, setRefreshToggle] = useState(false);
 
   const local_user = JSON.parse(localStorage.getItem('user')); // Fetch current logged-in user
   const loggedInUserName = local_user?.name; // Get logged-in user's name
@@ -97,7 +98,7 @@ const SalesPage = ({ showToast }) => {
   const fetchSalesRecords = useCallback(async (currentPage, sortKey, sortDirection, filterParams) => {
     setLoading(true);
     try {
-        //get the total sales executives
+        //get the total Sales
         const res1tot = await api.get('/sales/', {
           params: {
             sort_by: 'created_at',
@@ -138,7 +139,8 @@ const SalesPage = ({ showToast }) => {
             setSalesRecords(sortedSales);
         }
 
-        setTotalPages(Math.ceil(sortedSales.length / 10) || 1);
+        // Calculate total pages
+        setTotalPages(Math.ceil(response.data.total / 10) || 1);
     } catch (error) {
         console.error('Error fetching sales records:', error);
         showToast('danger', 'Failed to fetch sales records.', 'Error');
@@ -255,6 +257,7 @@ const SalesPage = ({ showToast }) => {
       try {
         const response = await api.post('/sales/', newSaleData);
         setSalesRecords([...salesRecords, response.data]);
+        setRefreshToggle(prev => !prev); // Force a re-render by toggling the state
         showToast('success', 'Sale added successfully.', 'Success');
       } catch (error) {
         console.error('Error adding new sale record:', error);
@@ -285,7 +288,7 @@ const SalesPage = ({ showToast }) => {
   useEffect(() => {
     fetchBanksAndBranches();
     fetchSalesExecutives();
-  }, [fetchBanksAndBranches, fetchSalesExecutives]);
+  }, [fetchBanksAndBranches, fetchSalesExecutives, refreshToggle]);
 
   const renderActions = (sale) => {
     const local_user = JSON.parse(localStorage.getItem('user'));

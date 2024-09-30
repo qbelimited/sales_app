@@ -91,81 +91,83 @@ class Sale(db.Model):
     def check_duplicate(self):
         """Check for duplicate sale based on combinations of key fields, including phone number."""
         try:
-            # Ensure the sale ID is not part of the search for duplicates (new sales won't have an ID yet)
-            query = Sale.query.filter(Sale.is_deleted == False)
-
-            if self.id:
-                query = query.filter(Sale.id != self.id)  # Exclude self from the query for updates
-
-            # Normalize client name and phone for consistent matching (strip spaces, make lowercase)
-            client_name_normalized = self.client_name.strip().lower()
-            client_phone_normalized = self.client_phone.strip()
-
-            # Define refined potential duplicate conditions (combinations of three key fields including phone number)
-            critical_conditions = or_(
-                and_(
-                    Sale.client_name.ilike(f'%{client_name_normalized}%'),
-                    Sale.client_phone == client_phone_normalized,
-                    Sale.client_id_no == self.client_id_no,
-                    Sale.policy_type_id == self.policy_type_id
-                ),
-                and_(
-                    Sale.client_phone == client_phone_normalized,
-                    Sale.serial_number == self.serial_number,
-                    Sale.momo_reference_number == self.momo_reference_number
-                ),
-                and_(
-                    Sale.client_id_no == self.client_id_no,
-                    Sale.bank_acc_number == self.bank_acc_number,
-                    Sale.serial_number == self.serial_number
-                )
-            )
-
-            # Define less critical conditions (combinations of two fields including phone number)
-            less_critical_conditions = or_(
-                and_(
-                    Sale.client_name.ilike(f'%{client_name_normalized}%'),
-                    Sale.client_phone == client_phone_normalized,
-                    Sale.policy_type_id == self.policy_type_id
-                ),
-                and_(
-                    Sale.client_phone == self.client_phone,
-                    Sale.serial_number == self.serial_number
-                )
-            )
-
-            # Using atomic transactions to ensure data integrity
+            # Use atomic transactions to ensure data integrity
             with db.session.begin():
+                # Add the sale to the session to get its ID
+                db.session.add(self)
+                db.session.flush()  # This will generate the ID for the sale
+
+                # Ensure the sale ID is not part of the search for duplicates (new sales won't have an ID yet)
+                query = Sale.query.filter(Sale.is_deleted == False)
+
+                # Normalize client name and phone for consistent matching (strip spaces, make lowercase)
+                client_name_normalized = self.client_name.strip().lower()
+                client_phone_normalized = self.client_phone.strip()
+
+                # Define refined potential duplicate conditions (combinations of three key fields including phone number)
+                critical_conditions = or_(
+                    and_(
+                        Sale.client_name.ilike(f'%{client_name_normalized}%'),
+                        Sale.client_phone == client_phone_normalized,
+                        Sale.client_id_no == self.client_id_no,
+                        Sale.policy_type_id == self.policy_type_id
+                    ),
+                    and_(
+                        Sale.client_phone == client_phone_normalized,
+                        Sale.serial_number == self.serial_number,
+                        Sale.momo_reference_number == self.momo_reference_number
+                    ),
+                    and_(
+                        Sale.client_id_no == self.client_id_no,
+                        Sale.bank_acc_number == self.bank_acc_number,
+                        Sale.serial_number == self.serial_number
+                    )
+                )
+
+                # Define less critical conditions (combinations of two fields including phone number)
+                less_critical_conditions = or_(
+                    and_(
+                        Sale.client_name.ilike(f'%{client_name_normalized}%'),
+                        Sale.client_phone == client_phone_normalized,
+                        Sale.policy_type_id == self.policy_type_id
+                    ),
+                    and_(
+                        Sale.client_phone == self.client_phone,
+                        Sale.serial_number == self.serial_number
+                    )
+                )
+
                 # Check for critical duplicates
                 critical_duplicate = query.filter(critical_conditions).first()
-                # Check for less critical duplicates
-                potential_duplicate = query.filter(less_critical_conditions).first()
-
                 if critical_duplicate:
                     # Mark this sale as 'under investigation'
                     self.status = 'under investigation'
                     investigation = UnderInvestigation(
-                        sale_id=self.id,
+                        sale_id=self.id,  # Now self.id is available
                         reason='Critical duplicate detected',
                         notes='Auto-flagged by system based on three matching fields'
                     )
                     db.session.add(investigation)
-                elif potential_duplicate:
+                    db.session.commit()  # Commit the transaction here to save the sale and investigation
+
+                # Check for less critical duplicates
+                elif query.filter(less_critical_conditions).first():
                     # Optionally mark this sale as a "potential duplicate" for manual review
                     self.status = 'potential duplicate'
                     investigation = UnderInvestigation(
-                        sale_id=self.id,
+                        sale_id=self.id,  # Now self.id is available
                         reason='Potential duplicate detected',
                         notes='Auto-flagged by system based on two matching fields'
                     )
                     db.session.add(investigation)
+                    db.session.commit()  # Commit the transaction here to save the sale and investigation
+
                 else:
                     # Mark this sale as 'new' if no duplicates are found
                     self.status = 'submitted'
+                    db.session.commit()  # Commit the transaction here to save the sale
 
-                db.session.commit()
-
-            return self
+                return self
 
         except ValueError as ve:
             logger.error(f"Validation error in duplicate check: {ve}")
