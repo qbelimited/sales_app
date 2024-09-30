@@ -97,41 +97,35 @@ const SalesPage = ({ showToast }) => {
   const fetchSalesRecords = useCallback(async (currentPage, sortKey, sortDirection, filterParams) => {
     setLoading(true);
     try {
-
-        // Get the total Sales
-        const res1tot = await api.get('/sales/', {
-          params: {
-              sort_by: 'created_at',
-              per_page: 10,
-              page: 1,
-            },
-        });
+        const res1tot = await api.get('/sales/', { params: { sort_by: 'created_at', per_page: 10, page: 1 } });
         const total1 = parseInt(res1tot.data.total);
 
-        // Get all Sales
         const params = {
             page: currentPage,
             total1,
             ...filterParams,
         };
 
-        // Format dates for the API if they are selected
         if (filterParams.startDate) {
-            params.startDate = filterParams.startDate.toISOString().split('T')[0]; // Format to YYYY-MM-DD
+            params.startDate = filterParams.startDate.toISOString().split('T')[0];
         }
         if (filterParams.endDate) {
-            params.endDate = filterParams.endDate.toISOString().split('T')[0]; // Format to YYYY-MM-DD
+            params.endDate = filterParams.endDate.toISOString().split('T')[0];
         }
 
         const response = await api.get('/sales/', { params });
         let salesData = response.data.sales || [];
 
-        // Sort data on the client side
         const sortedSales = sortSalesData(salesData, sortKey, sortDirection);
 
-        const filteredSales = sortedSales.filter(
-            (sale) => sale.sale_manager?.name === loggedInUserName
-        );
+        // Log for debugging
+        console.log('Sorted Sales:', sortedSales);
+
+        // Filter sales records by manager name
+        const filteredSales = sortedSales.filter((sale) => sale.sale_manager?.name === loggedInUserName);
+
+        // Log for debugging
+        console.log('Filtered Sales by Manager:', filteredSales);
 
         if (role === 'Sales_Manager') {
             setSalesRecords(filteredSales.length > 0 ? filteredSales : []);
@@ -147,6 +141,7 @@ const SalesPage = ({ showToast }) => {
         setLoading(false);
     }
   }, [showToast, loggedInUserName, role]);
+
 
 
   const handleSort = (key) => {
