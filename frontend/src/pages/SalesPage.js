@@ -129,20 +129,26 @@ const SalesPage = ({ showToast }) => {
         // Sort data on the client side
         const sortedSales = sortSalesData(salesData, sortKey, sortDirection);
 
-        // Check if the role is Sales_Manager and filter accordingly
-        const filteredSales = role === 'Sales_Manager'
-            ? sortedSales.filter(sale => sale.sale_manager?.name === loggedInUserName)
-            : sortedSales;
 
-        setSalesRecords(filteredSales.length > 0 ? filteredSales : []);
+        // Filter sales where the sales manager's name matches the logged-in user's name
+        const filteredSales = sortedSales.filter(
+          (sale) => sale.sale_manager?.name === loggedInUserName
+        );
+
+        // Handle cases where the logged-in user is a Sales Manager
+        if (role === 'Sales_Manager') {
+          setSalesRecords(filteredSales.length > 0 ? filteredSales : []);
+        } else {
+            setSalesRecords(sortedSales);
+        }
 
         // Calculate total pages
         setTotalPages(Math.ceil(response.data.total / 10) || 1);
     } catch (error) {
-        console.error('Error fetching sales records:', error);
-        showToast('danger', 'Failed to fetch sales records.', 'Error');
+      console.error('Error fetching sales records:', error);
+      showToast('danger', 'Failed to fetch sales records.', 'Error');
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   }, [showToast, loggedInUserName, role]);
 
