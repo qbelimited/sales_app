@@ -118,13 +118,20 @@ const SalesPage = ({ showToast }) => {
 
         const sortedSales = sortSalesData(salesData, sortKey, sortDirection);
 
-        // Log for debugging
-        console.log('Sorted Sales:', sortedSales);
+        // Log fetched sales data
+        console.log('Sales Data:', sortedSales);
+        console.log('Logged In User Name:', loggedInUserName);
 
-        // Filter sales records by manager name
-        const filteredSales = sortedSales.filter((sale) => sale.sale_manager?.name === loggedInUserName);
+        // Inspect sale manager names
+        sortedSales.forEach(sale => {
+            console.log('Sale ID:', sale.id, 'Sale Manager Name:', sale.sale_manager?.name);
+        });
 
-        // Log for debugging
+        // Filter sales records by manager name (case insensitive)
+        const filteredSales = sortedSales.filter(
+            (sale) => (sale.sale_manager?.name || '').toLowerCase() === (loggedInUserName || '').toLowerCase()
+        );
+
         console.log('Filtered Sales by Manager:', filteredSales);
 
         if (role === 'Sales_Manager') {
@@ -133,8 +140,7 @@ const SalesPage = ({ showToast }) => {
             setSalesRecords(sortedSales);
         }
 
-        console.log(response.data);
-        setTotalPages(Math.ceil(response.data.total / 10) || 1);
+        setTotalPages(response.data.pages || 1);
     } catch (error) {
         console.error('Error fetching sales records:', error);
         showToast('danger', 'Failed to fetch sales records.', 'Error');
@@ -142,8 +148,6 @@ const SalesPage = ({ showToast }) => {
         setLoading(false);
     }
   }, [showToast, loggedInUserName, role]);
-
-
 
   const handleSort = (key) => {
     let direction = 'asc';
