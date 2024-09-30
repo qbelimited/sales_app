@@ -133,6 +133,7 @@ const SalesPage = ({ showToast }) => {
             setSalesRecords(sortedSales);
         }
 
+        console.log(response.data);
         setTotalPages(Math.ceil(response.data.total / 10) || 1);
     } catch (error) {
         console.error('Error fetching sales records:', error);
