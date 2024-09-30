@@ -23,7 +23,6 @@ const SalesPage = ({ showToast }) => {
   const [branches, setBranches] = useState([]);
   const [salesExecutives, setSalesExecutives] = useState([]);
   const [saleToDelete, setSaleToDelete] = useState(null); // Track sale to delete
-  const [refreshToggle, setRefreshToggle] = useState(false);
 
   const local_user = JSON.parse(localStorage.getItem('user')); // Fetch current logged-in user
   const loggedInUserName = local_user?.name; // Get logged-in user's name
@@ -78,7 +77,7 @@ const SalesPage = ({ showToast }) => {
       });
       const total = parseInt(restot.data.total);
 
-      // Fetch all sales executives
+      //get all sales executives
       const response = await api.get('/sales_executives/', {
         params: {
           sort_by: 'created_at',
@@ -94,20 +93,22 @@ const SalesPage = ({ showToast }) => {
     }
   }, [showToast]);
 
+  // Fetch sales records and filter based on sales manager (logged-in user)
   const fetchSalesRecords = useCallback(async (currentPage, sortKey, sortDirection, filterParams) => {
     setLoading(true);
     try {
+
         // Get the total Sales
         const res1tot = await api.get('/sales/', {
-            params: {
-                sort_by: 'created_at',
-                per_page: 10,
-                page: 1,
+          params: {
+              sort_by: 'created_at',
+              per_page: 10,
+              page: 1,
             },
         });
         const total1 = parseInt(res1tot.data.total);
 
-        // Prepare the params for API request
+        // Get all Sales
         const params = {
             page: currentPage,
             total1,
@@ -122,35 +123,31 @@ const SalesPage = ({ showToast }) => {
             params.endDate = filterParams.endDate.toISOString().split('T')[0]; // Format to YYYY-MM-DD
         }
 
-        // Fetch sales records from the API
         const response = await api.get('/sales/', { params });
         let salesData = response.data.sales || [];
 
         // Sort data on the client side
         const sortedSales = sortSalesData(salesData, sortKey, sortDirection);
 
-
-        // Filter sales where the sales manager's name matches the logged-in user's name
         const filteredSales = sortedSales.filter(
-          (sale) => sale.sale_manager?.name === loggedInUserName
+            (sale) => sale.sale_manager?.name === loggedInUserName
         );
 
-        // Handle cases where the logged-in user is a Sales Manager
         if (role === 'Sales_Manager') {
-          setSalesRecords(filteredSales.length > 0 ? filteredSales : []);
+            setSalesRecords(filteredSales.length > 0 ? filteredSales : []);
         } else {
             setSalesRecords(sortedSales);
         }
 
-        // Calculate total pages
         setTotalPages(Math.ceil(response.data.total / 10) || 1);
     } catch (error) {
-      console.error('Error fetching sales records:', error);
-      showToast('danger', 'Failed to fetch sales records.', 'Error');
+        console.error('Error fetching sales records:', error);
+        showToast('danger', 'Failed to fetch sales records.', 'Error');
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
   }, [showToast, loggedInUserName, role]);
+
 
   const handleSort = (key) => {
     let direction = 'asc';
@@ -259,7 +256,6 @@ const SalesPage = ({ showToast }) => {
       try {
         const response = await api.post('/sales/', newSaleData);
         setSalesRecords([...salesRecords, response.data]);
-        setRefreshToggle(prev => !prev); // Force a re-render by toggling the state
         showToast('success', 'Sale added successfully.', 'Success');
       } catch (error) {
         console.error('Error adding new sale record:', error);
@@ -290,7 +286,7 @@ const SalesPage = ({ showToast }) => {
   useEffect(() => {
     fetchBanksAndBranches();
     fetchSalesExecutives();
-  }, [fetchBanksAndBranches, fetchSalesExecutives, refreshToggle]);
+  }, [fetchBanksAndBranches, fetchSalesExecutives]);
 
   const renderActions = (sale) => {
     const local_user = JSON.parse(localStorage.getItem('user'));
