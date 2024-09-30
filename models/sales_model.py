@@ -48,9 +48,10 @@ class Sale(db.Model):
 
     @validates('client_phone')
     def validate_client_phone(self, _, number):
-        if len(number) != 10 or not number.isdigit():
+        sanitized_number = number.strip()  # Input sanitization
+        if len(sanitized_number) != 10 or not sanitized_number.isdigit():
             raise ValueError("Client phone number must be exactly 10 digits")
-        return number
+        return sanitized_number
 
     @validates('bank_acc_number', 'bank_id')
     def validate_bank_acc_number(self, key, value):
@@ -105,7 +106,8 @@ class Sale(db.Model):
                 and_(
                     Sale.client_name.ilike(f'%{client_name_normalized}%'),
                     Sale.client_phone == client_phone_normalized,
-                    Sale.client_id_no == self.client_id_no
+                    Sale.client_id_no == self.client_id_no,
+                    Sale.policy_type_id == self.policy_type_id
                 ),
                 and_(
                     Sale.client_phone == client_phone_normalized,
@@ -123,7 +125,8 @@ class Sale(db.Model):
             less_critical_conditions = or_(
                 and_(
                     Sale.client_name.ilike(f'%{client_name_normalized}%'),
-                    Sale.client_phone == client_phone_normalized
+                    Sale.client_phone == client_phone_normalized,
+                    Sale.policy_type_id == self.policy_type_id
                 ),
                 and_(
                     Sale.client_phone == self.client_phone,
@@ -131,42 +134,45 @@ class Sale(db.Model):
                 )
             )
 
-            # Check for critical duplicates
-            critical_duplicate = query.filter(critical_conditions).first()
-            # Check for less critical duplicates
-            potential_duplicate = query.filter(less_critical_conditions).first()
+            # Using atomic transactions to ensure data integrity
+            with db.session.begin():
+                # Check for critical duplicates
+                critical_duplicate = query.filter(critical_conditions).first()
+                # Check for less critical duplicates
+                potential_duplicate = query.filter(less_critical_conditions).first()
 
-            if critical_duplicate:
-                # Mark this sale as 'under investigation'
-                self.status = 'under investigation'
-                with db.session.begin():
+                if critical_duplicate:
+                    # Mark this sale as 'under investigation'
+                    self.status = 'under investigation'
                     investigation = UnderInvestigation(
                         sale_id=self.id,
                         reason='Critical duplicate detected',
                         notes='Auto-flagged by system based on three matching fields'
                     )
                     db.session.add(investigation)
-                    db.session.commit()
-            elif potential_duplicate:
-                # Optionally mark this sale as a "potential duplicate" for manual review
-                self.status = 'potential duplicate'
-                with db.session.begin():
+                elif potential_duplicate:
+                    # Optionally mark this sale as a "potential duplicate" for manual review
+                    self.status = 'potential duplicate'
                     investigation = UnderInvestigation(
                         sale_id=self.id,
                         reason='Potential duplicate detected',
                         notes='Auto-flagged by system based on two matching fields'
                     )
                     db.session.add(investigation)
-                    db.session.commit()
-            else:
-                # Mark this sale as 'new' if no duplicates are found
-                self.status = 'submitted'
+                else:
+                    # Mark this sale as 'new' if no duplicates are found
+                    self.status = 'submitted'
+
+                db.session.commit()
 
             return self
 
+        except ValueError as ve:
+            logger.error(f"Validation error in duplicate check: {ve}")
+            raise  # Re-raise the validation error for higher-level handling
         except Exception as e:
             db.session.rollback()
-            logger.error(f"Error checking for duplicates: {e}")
+            logger.error(f"Database error checking for duplicates: {e}")
             raise ValueError("An error occurred while checking for duplicates. Please try again.")
 
     def serialize(self):
@@ -211,4 +217,5 @@ class Sale(db.Model):
             sales = Sale.query.filter_by(is_deleted=False).paginate(page=page, per_page=per_page)
             return sales.items, sales.total, sales.pages, sales.page
         except Exception as e:
+            logger.error(f"Error fetching active sales: {e}")
             raise ValueError(f"Error fetching active sales: {e}")
