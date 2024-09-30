@@ -94,21 +94,20 @@ const SalesPage = ({ showToast }) => {
     }
   }, [showToast]);
 
-  // Fetch sales records and filter based on sales manager (logged-in user)
   const fetchSalesRecords = useCallback(async (currentPage, sortKey, sortDirection, filterParams) => {
     setLoading(true);
     try {
-        //get the total Sales
+        // Get the total Sales
         const res1tot = await api.get('/sales/', {
-          params: {
-            sort_by: 'created_at',
-            per_page: 10,
-            page: 1,
-          },
+            params: {
+                sort_by: 'created_at',
+                per_page: 10,
+                page: 1,
+            },
         });
         const total1 = parseInt(res1tot.data.total);
 
-        // Fetch all sales
+        // Prepare the params for API request
         const params = {
             page: currentPage,
             total1,
@@ -123,21 +122,19 @@ const SalesPage = ({ showToast }) => {
             params.endDate = filterParams.endDate.toISOString().split('T')[0]; // Format to YYYY-MM-DD
         }
 
+        // Fetch sales records from the API
         const response = await api.get('/sales/', { params });
         let salesData = response.data.sales || [];
 
         // Sort data on the client side
         const sortedSales = sortSalesData(salesData, sortKey, sortDirection);
 
-        const filteredSales = sortedSales.filter(
-            (sale) => sale.sale_manager?.name === loggedInUserName
-        );
+        // Check if the role is Sales_Manager and filter accordingly
+        const filteredSales = role === 'Sales_Manager'
+            ? sortedSales.filter(sale => sale.sale_manager?.name === loggedInUserName)
+            : sortedSales;
 
-        if (role === 'Sales_Manager') {
-            setSalesRecords(filteredSales.length > 0 ? filteredSales : []);
-        } else {
-            setSalesRecords(sortedSales);
-        }
+        setSalesRecords(filteredSales.length > 0 ? filteredSales : []);
 
         // Calculate total pages
         setTotalPages(Math.ceil(response.data.total / 10) || 1);
@@ -148,7 +145,6 @@ const SalesPage = ({ showToast }) => {
         setLoading(false);
     }
   }, [showToast, loggedInUserName, role]);
-
 
   const handleSort = (key) => {
     let direction = 'asc';
