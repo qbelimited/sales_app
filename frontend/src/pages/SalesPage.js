@@ -213,6 +213,7 @@ const SalesPage = ({ showToast }) => {
       } finally {
         setShowDeleteModal(false);
         setSaleToDelete(null);
+        fetchSalesRecords(page, sortConfig.key, sortConfig.direction, filters); // Re-fetch records to ensure table is up to date
       }
     }
   };
@@ -254,6 +255,7 @@ const SalesPage = ({ showToast }) => {
 
     setShowModal(false);
     setCurrentSale(null);
+    fetchSalesRecords(page, sortConfig.key, sortConfig.direction, filters); // Re-fetch records to ensure table is up to date
   };
 
   // Render the status with color coding
