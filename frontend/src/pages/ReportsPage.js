@@ -60,7 +60,7 @@ const ReportsPage = ({ showToast }) => {
         params: {
           sort_order: 'desc',
           sort_by: 'created_at',
-          per_page: 10,
+          per_page: 100000,
           page: 1,
         },
       });
