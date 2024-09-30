@@ -115,26 +115,15 @@ const SalesPage = ({ showToast }) => {
 
         const response = await api.get('/sales/', { params });
         let salesData = response.data.sales || [];
-        console.log('Sales Data:', salesData);
 
         const sortedSales = sortSalesData(salesData, sortKey, sortDirection);
-
-        // Log fetched sales data
-        console.log('Sales Data:', sortedSales);
-        console.log('Logged In User Name:', loggedInUserName);
-
-        // Inspect sale manager names
-        sortedSales.forEach(sale => {
-            console.log('Sale ID:', sale.id, 'Sale Manager Name:', sale.sale_manager?.name);
-        });
 
         // Filter sales records by manager name (case insensitive)
         const filteredSales = sortedSales.filter(
             (sale) => (sale.sale_manager?.name || '').toLowerCase() === (loggedInUserName || '').toLowerCase()
         );
 
-        console.log('Filtered Sales by Manager:', filteredSales);
-
+        // Update sales records state
         if (role === 'Sales_Manager') {
             setSalesRecords(filteredSales.length > 0 ? filteredSales : []);
         } else {

@@ -244,13 +244,13 @@ class SalesReportResource(Resource):
         first_row_dict = sales[0].serialize()
         columns_to_drop = [
             'user_id', 'sale_manager', 'sales_executive_id',
-            'bank_branch', 'policy_type', 'is_deleted',
+            'bank_branch', 'policy_type',
             'geolocation_latitude', 'geolocation_longitude',
             'paypoint', 'bank',
         ]
 
         dynamic_headers = [key for key in first_row_dict.keys() if key not in columns_to_drop] + [
-            'sale_manager_name', 'inception_amount_received',
+            'sales_id', 'sale_manager_name', 'inception_amount_received',
             'sales_executive_code', 'sales_executive_name', 'sales_executive_branch',
             'product_name', 'product_category', 'product_group',
             'bank_name', 'bank_branch_name', 'paypoint_name',
@@ -266,6 +266,7 @@ class SalesReportResource(Resource):
         # Write each sale's data to the CSV
         for sale in sales:
             sale_dict = {k: v for k, v in sale.serialize().items() if k not in columns_to_drop}
+            sales_id = sale.id if sale.id else None
             sale_manager_data = sale.sale_manager.serialize() if sale.sale_manager else {}
             inception_data = sale.inceptions[0].amount_received if sale.inceptions else None
             sales_executive_code = sale.sales_executive.code if sale.sales_executive else None
@@ -281,6 +282,7 @@ class SalesReportResource(Resource):
             # Write the row for the current sale
             writer.writerow([
                 *sale_dict.values(),
+                sales_id if sales_id else 'N/A',
                 sale_manager_data.get('name', 'N/A'),
                 inception_data if inception_data else 'N/A',
                 sales_executive_code if sales_executive_code else 'N/A',
