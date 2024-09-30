@@ -115,6 +115,7 @@ const SalesPage = ({ showToast }) => {
 
         const response = await api.get('/sales/', { params });
         let salesData = response.data.sales || [];
+        console.log('Sales Data:', salesData);
 
         const sortedSales = sortSalesData(salesData, sortKey, sortDirection);
 
