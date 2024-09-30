@@ -102,7 +102,7 @@ const SalesPage = ({ showToast }) => {
 
         const params = {
             page: currentPage,
-            total1,
+            per_page: total1,
             ...filterParams,
         };
 
