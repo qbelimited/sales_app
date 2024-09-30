@@ -161,12 +161,14 @@ function Sidebar() {
           </li>
 
           {/* Reports Link */}
+          {(role_id === 1 || role_id === 2 || role_id === 3) && (
           <li>
             <NavLink to="/reports" className={({ isActive }) => (isActive ? 'active' : '')}>
               <FaFileContract />
               <span>Reports</span>
             </NavLink>
           </li>
+          )}
 
           {/* Settings Dropdown */}
           {(role_id === 1 || role_id === 2 || role_id === 3) && (
