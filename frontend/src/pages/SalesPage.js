@@ -29,7 +29,7 @@ const SalesPage = ({ showToast }) => {
   const role = local_user?.role?.name; // Get logged-in user's role
   const navigate = useNavigate();
 
-  const limit = 20;
+  // Maximum number of pages to display
   const maxPageDisplay = 5;
 
   // Function to navigate to the details page
@@ -67,10 +67,21 @@ const SalesPage = ({ showToast }) => {
   // Fetch sales executives
   const fetchSalesExecutives = useCallback(async () => {
     try {
+      //get the total sales executives
+      const restot = await api.get('/sales_executives/', {
+        params: {
+          sort_by: 'created_at',
+          per_page: 10,
+          page: 1,
+        },
+      });
+      const total = parseInt(restot.data.total);
+
+      // Fetch all sales executives
       const response = await api.get('/sales_executives/', {
         params: {
           sort_by: 'created_at',
-          per_page: 10000,
+          per_page: total,
           page: 1,
         },
       });
@@ -86,9 +97,20 @@ const SalesPage = ({ showToast }) => {
   const fetchSalesRecords = useCallback(async (currentPage, sortKey, sortDirection, filterParams) => {
     setLoading(true);
     try {
+        //get the total sales executives
+        const res1tot = await api.get('/sales/', {
+          params: {
+            sort_by: 'created_at',
+            per_page: 10,
+            page: 1,
+          },
+        });
+        const total1 = parseInt(res1tot.data.total);
+
+        // Fetch all sales
         const params = {
             page: currentPage,
-            limit,
+            total1,
             ...filterParams,
         };
 
@@ -116,14 +138,14 @@ const SalesPage = ({ showToast }) => {
             setSalesRecords(sortedSales);
         }
 
-        setTotalPages(response.data.pages || 1);
+        setTotalPages(Math.ceil(sortedSales.length / 10) || 1);
     } catch (error) {
         console.error('Error fetching sales records:', error);
         showToast('danger', 'Failed to fetch sales records.', 'Error');
     } finally {
         setLoading(false);
     }
-  }, [limit, showToast, loggedInUserName, role]);
+  }, [showToast, loggedInUserName, role]);
 
 
   const handleSort = (key) => {
@@ -485,7 +507,7 @@ const SalesPage = ({ showToast }) => {
           {salesRecords.length > 0 ? (
             salesRecords.map((sale, index) => (
               <tr key={sale.id}>
-                <td>{(page - 1) * limit + index + 1}</td>
+                <td>{(page - 1) * 10 + index + 1}</td>
                 <td>{sale.client_name}</td>
                 <td>{sale.amount}</td>
                 <td>{sale.policy_type?.name || 'N/A'}</td>
