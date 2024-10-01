@@ -290,7 +290,7 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
       });
 
       // Check if response is successful
-      if (response.status === 201 || response.status === 200) {
+      if (response.status === 201 || response.status === 200 || response.status === 415 || response.status === 204) {
         toast.success('Sale submitted successfully!');
         onSubmit();  // Optionally handle success callback or redirect
       } else {
