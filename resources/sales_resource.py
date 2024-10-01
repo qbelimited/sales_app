@@ -200,6 +200,20 @@ class SaleListResource(Resource):
             logger.error(f"Error creating sale: {str(e)}")
             return {'message': 'Error creating sale. Please check your input and try again.'}, 400
 
+@sales_ns.route('/check-serial')
+class SerialNumberCheckResource(Resource):
+    @sales_ns.doc(security='Bearer Auth', responses={200: 'OK', 400: 'Invalid Input'})
+    @jwt_required()
+    def get(self):
+        """Check if a serial number exists."""
+        serial_number = request.args.get('serial_number')
+        if not serial_number:
+            return {'message': 'Serial number not provided'}, 400
+
+        exists = Sale.query.filter_by(serial_number=serial_number, is_deleted=False).first() is not None
+
+        return {'exists': exists}, 200
+
 @sales_ns.route('/<int:sale_id>')
 class SaleDetailResource(Resource):
     @sales_ns.doc(security='Bearer Auth', responses={200: 'OK', 404: 'Sale Not Found'})

@@ -135,12 +135,40 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
     }
   };
 
-  const handleInputChange = (e) => {
+  const checkSerialNumberExists = async (serialNumber) => {
+    try {
+      const response = await api.get('/sales/check-serial', {
+        params: { serial_number: serialNumber },
+      });
+      return response.data.exists; // This returns true/false based on existence
+    } catch (error) {
+      toast.error('Failed to check serial number');
+      return false;
+    }
+  };
+
+  const handleInputChange = async (e) => {
     const { name, value, type, checked } = e.target;
     setFormData((prevData) => ({
       ...prevData,
       [name]: type === 'checkbox' ? checked : value,
     }));
+
+    if (name === 'serial_number') {
+      const exists = await checkSerialNumberExists(value);
+      if (exists) {
+        toast.error('The serial number already exists.');
+        setErrors((prevErrors) => ({
+          ...prevErrors,
+          serial_number: 'The serial number already exists.',
+        }));
+      } else {
+        setErrors((prevErrors) => ({
+          ...prevErrors,
+          serial_number: undefined, // Clear the error if it doesn't exist
+        }));
+      }
+    }
 
     if (name === 'sale_manager_id') {
       fetchSalesExecutives(value);
@@ -177,6 +205,7 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
     if (!formData.policy_type_id) newErrors.policy_type_id = 'Policy type is required';
     if (!formData.client_phone || formData.client_phone.length !== 10) newErrors.client_phone = 'Valid client phone number is required';
     if (!formData.serial_number) newErrors.serial_number = 'Serial number is required';
+    else if (errors.serial_number) newErrors.serial_number = errors.serial_number;
     if (!formData.amount) newErrors.amount = 'Amount is required';
 
     // Validate for Momo transactions
@@ -202,11 +231,12 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
         const bankName = formData.bank_id || '';
 
         // Bank-specific validation
-        if (bankName.includes('UBA') && length !== 14) {
+        const lowerCaseBankName = bankName.toLowerCase(); // Convert bank name to lower case for case-insensitive comparison
+        if (lowerCaseBankName.includes('uba') && length !== 14) {
           newErrors.bank_acc_number = 'UBA account number must be 14 digits';
-        } else if ((bankName.includes('Zenith') || bankName.includes('Absa')) && length !== 10) {
+        } else if ((lowerCaseBankName.includes('zenith') || lowerCaseBankName.includes('absa')) && length !== 10) {
           newErrors.bank_acc_number = 'Zenith or Absa account number must be 10 digits';
-        } else if (bankName.includes('SG') && length !== 12 && length !== 13) {
+        } else if (lowerCaseBankName.includes('sg') && length !== 12 && length !== 13) {
           newErrors.bank_acc_number = 'SG account number must be 12 or 13 digits';
         } else if (length !== 13 && length !== 16) {
           newErrors.bank_acc_number = 'Account number must be 13 or 16 digits';

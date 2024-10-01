@@ -1,8 +1,9 @@
 from app import db, logger
-from datetime import datetime, timedelta
 from sqlalchemy import and_, or_
+from flask import jsonify, request
 from models.bank_model import Bank
 from sqlalchemy.orm import validates
+from datetime import datetime, timedelta
 from models.under_investigation_model import UnderInvestigation
 
 class Sale(db.Model):
@@ -279,3 +280,13 @@ class Sale(db.Model):
         except Exception as e:
             logger.error(f"Error fetching active sales: {e}")
             raise ValueError(f"Error fetching active sales: {e}")
+
+    @staticmethod
+    def check_serial_number():
+        """Check if a serial number exists."""
+        serial_number = request.args.get('serial_number')
+        if not serial_number:
+            return jsonify({"exists": False, "message": "Serial number not provided"}), 400
+
+        exists = Sale.query.filter_by(serial_number=serial_number).first() is not None
+        return jsonify({"exists": exists})
