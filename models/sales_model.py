@@ -1,9 +1,9 @@
 from app import db, logger
-from datetime import datetime
+from datetime import datetime, timedelta
+from sqlalchemy import and_, or_
+from models.bank_model import Bank
 from sqlalchemy.orm import validates
 from models.under_investigation_model import UnderInvestigation
-from models.bank_model import Bank
-from sqlalchemy import and_, or_
 
 class Sale(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -46,6 +46,10 @@ class Sale(db.Model):
     bank_branch = db.relationship('BankBranch', foreign_keys=[bank_branch_id], lazy='joined')
     user = db.relationship('User', foreign_keys=[user_id], lazy='joined')
 
+    ALLOWED_PLATFORMS = ['', 'Transflow', 'Hubtel', 'company Momo number']
+    MAX_RECENT_TRANSACTIONS = 10
+    TRANSACTION_PERIOD_DAYS = 30
+
     @validates('client_phone')
     def validate_client_phone(self, _, number):
         sanitized_number = number.strip()  # Input sanitization
@@ -56,25 +60,38 @@ class Sale(db.Model):
     @validates('bank_acc_number', 'bank_id')
     def validate_bank_acc_number(self, key, value):
         """Ensure account numbers are valid for selected banks."""
-        if key == 'bank_acc_number':
-            if self.bank_id:  # Only validate if bank_id is provided
-                bank = Bank.query.get(self.bank_id)
-                length = len(value)
-                if bank.name == 'UBA' and length != 14:
-                    raise ValueError("UBA account number must be 14 digits")
-                elif (bank.name == 'Zenith' or bank.name == 'Absa') and length != 10:
-                    raise ValueError("Zenith or Absa account number must be 10 digits")
-                elif bank.name == 'SG' and length not in [12, 13]:
-                    raise ValueError("SG account number must be 12 or 13 digits")
-                elif length not in [13, 16]:
-                    raise ValueError("Account number must be 13 or 16 digits")
+        if key == 'bank_acc_number' and self.bank_id:  # Only validate if bank_id is provided
+            bank = Bank.query.get(self.bank_id)
+            length = len(value)
+
+            # Define account number length requirements based on bank names
+            account_length_requirements = {
+                'UBA': 14,
+                'Zenith': 10,
+                'Absa': 10,
+                'SG': [12, 13]
+            }
+
+            # Check account number requirements based on the bank name
+            for keyword, required_length in account_length_requirements.items():
+                if keyword in bank.name:
+                    if isinstance(required_length, list):  # Handle cases with multiple valid lengths
+                        if length not in required_length:
+                            raise ValueError(f"{keyword} account number must be {required_length} digits")
+                    else:
+                        if length != required_length:
+                            raise ValueError(f"{keyword} account number must be {required_length} digits")
+                    break  # Exit loop once the matching bank is found
+
+            # Handle generic case if no specific bank requirements were met
+            if length not in [13, 16]:
+                raise ValueError("Account number must be 13 or 16 digits")
         return value
 
     @validates('collection_platform')
     def validate_collection_platform(self, _, value):
-        allowed_platforms = ['', 'Transflow', 'Hubtel', 'company Momo number']
-        if value not in allowed_platforms:
-            raise ValueError(f"Invalid collection platform. Must be one of {allowed_platforms}.")
+        if value not in self.ALLOWED_PLATFORMS:
+            raise ValueError(f"Invalid collection platform. Must be one of {self.ALLOWED_PLATFORMS}.")
         return value
 
     @validates('geolocation_latitude', 'geolocation_longitude')
@@ -95,87 +112,128 @@ class Sale(db.Model):
             db.session.add(self)
             db.session.flush()  # This will generate the ID for the sale
 
-            # Ensure the sale ID is not part of the search for duplicates (new sales won't have an ID yet)
-            query = Sale.query.filter(Sale.is_deleted == False)
+            # Normalize and sanitize user inputs
+            client_name_normalized = self.sanitize_input(self.client_name.strip().lower())
+            client_phone_normalized = self.sanitize_input(self.client_phone.strip())
+            client_id_no_normalized = self.sanitize_input(self.client_id_no.strip().lower() or "")
+            serial_number_normalized = self.sanitize_input(self.serial_number.strip().lower() or "")
+            momo_reference_number_normalized = self.sanitize_input(self.momo_reference_number.strip().lower() or "")
+            bank_acc_number_normalized = self.sanitize_input(self.bank_acc_number.strip() or "")
 
-            # Normalize client name and phone for consistent matching (strip spaces, make lowercase)
-            client_name_normalized = self.client_name.strip().lower()
-            client_phone_normalized = self.client_phone.strip()
+            # Check transaction frequency
+            recent_transactions_count = self.get_recent_transaction_count(client_phone_normalized)
 
-            # Define refined potential duplicate conditions (combinations of three key fields including phone number)
-            critical_conditions = or_(
-                and_(
-                    Sale.client_name.ilike(f'%{client_name_normalized}%'),
-                    Sale.client_phone == client_phone_normalized,
-                    Sale.client_id_no == self.client_id_no,
-                    Sale.policy_type_id == self.policy_type_id
-                ),
-                and_(
-                    Sale.client_phone == client_phone_normalized,
-                    Sale.serial_number == self.serial_number,
-                    Sale.momo_reference_number == self.momo_reference_number
-                ),
-                and_(
-                    Sale.client_id_no == self.client_id_no,
-                    Sale.bank_acc_number == self.bank_acc_number,
-                    Sale.serial_number == self.serial_number
-                )
-            )
+            if recent_transactions_count > self.MAX_RECENT_TRANSACTIONS:
+                logger.warning(f"High transaction frequency detected for {client_phone_normalized}. Consider flagging for review.")
+                self.flag_under_investigation("High transaction frequency detected.")
+                return self
 
-            # Define less critical conditions (combinations of two fields including phone number)
-            less_critical_conditions = or_(
-                and_(
-                    Sale.client_name.ilike(f'%{client_name_normalized}%'),
-                    Sale.client_phone == client_phone_normalized,
-                    Sale.policy_type_id == self.policy_type_id
-                ),
-                and_(
-                    Sale.client_phone == self.client_phone,
-                    Sale.serial_number == self.serial_number
-                )
-            )
+            # Check for duplicates
+            critical_duplicate = self.find_duplicate(critical=True,
+                                                    client_name=client_name_normalized,
+                                                    client_phone=client_phone_normalized,
+                                                    client_id_no=client_id_no_normalized,
+                                                    serial_number=serial_number_normalized,
+                                                    momo_reference_number=momo_reference_number_normalized,
+                                                    bank_acc_number=bank_acc_number_normalized)
 
-            # Check for critical duplicates
-            critical_duplicate = query.filter(critical_conditions).first()
             if critical_duplicate:
-                # Mark this sale as 'under investigation'
                 self.status = 'under investigation'
-                investigation = UnderInvestigation(
-                    sale_id=self.id,  # Now self.id is available
-                    reason='Critical duplicate detected',
-                    notes='Auto-flagged by system based on three matching fields'
-                )
-                db.session.add(investigation)
-                db.session.commit()  # Commit the transaction here to save the sale and investigation
-                return self  # Stop further processing after critical duplicate is found
+                self.flag_under_investigation("Critical duplicate detected.")
+                return self
 
-            # Check for less critical duplicates
-            less_critical_duplicate = query.filter(less_critical_conditions).first()
+            less_critical_duplicate = self.find_duplicate(critical=False,
+                                                        client_name=client_name_normalized,
+                                                        client_phone=client_phone_normalized,
+                                                        serial_number=serial_number_normalized)
+
             if less_critical_duplicate:
-                # Optionally mark this sale as a "potential duplicate" for manual review
                 self.status = 'potential duplicate'
-                investigation = UnderInvestigation(
-                    sale_id=self.id,  # Now self.id is available
-                    reason='Potential duplicate detected',
-                    notes='Auto-flagged by system based on two matching fields'
-                )
-                db.session.add(investigation)
-                db.session.commit()  # Commit the transaction here to save the sale and investigation
-                return self  # Stop further processing after potential duplicate is found
+                self.flag_under_investigation("Potential duplicate detected.")
+                return self
 
-            # If no duplicates are found, mark as 'submitted'
+            # No duplicates found, proceed with normal submission
             self.status = 'submitted'
-            db.session.commit()  # Commit the transaction here to save the sale
-
+            db.session.commit()
             return self
 
         except ValueError as ve:
             logger.error(f"Validation error in duplicate check: {ve}")
-            raise  # Re-raise the validation error for higher-level handling
+            db.session.rollback()  # Rollback session on validation errors
+            raise ValueError("Validation error: " + str(ve))
         except Exception as e:
-            db.session.rollback()  # Rollback in case of any exception
+            db.session.rollback()  # Ensure rollback on any exception
             logger.error(f"Database error checking for duplicates: {e}")
             raise ValueError("An error occurred while checking for duplicates. Please try again.")
+
+    def get_recent_transaction_count(self, client_phone):
+        """Retrieve the count of recent transactions for a client phone number."""
+        try:
+            return Sale.query.filter(
+                Sale.client_phone == client_phone,
+                Sale.created_at >= datetime.utcnow() - timedelta(days=self.TRANSACTION_PERIOD_DAYS)
+            ).count()
+        except Exception as e:
+            logger.error(f"Error fetching recent transaction count: {e}")
+            raise
+
+    def find_duplicate(self, critical, client_name, client_phone, client_id_no, serial_number, momo_reference_number, bank_acc_number):
+        """Check for duplicates based on specified criteria."""
+        query = Sale.query.filter(Sale.is_deleted == False, Sale.status.notin_(['under investigation', 'potential duplicate']))
+
+        if critical:
+            conditions = or_(
+                and_(
+                    Sale.client_name == client_name,
+                    Sale.client_phone == client_phone,
+                    Sale.client_id_no == client_id_no,
+                    Sale.policy_type_id == self.policy_type_id
+                ),
+                and_(
+                    Sale.client_phone == client_phone,
+                    Sale.serial_number == serial_number,
+                    Sale.momo_reference_number == momo_reference_number
+                ),
+                and_(
+                    Sale.client_id_no == client_id_no,
+                    Sale.bank_acc_number == bank_acc_number,
+                    Sale.serial_number == serial_number
+                )
+            )
+        else:
+            conditions = or_(
+                and_(
+                    Sale.client_name == client_name,
+                    Sale.client_phone == client_phone,
+                    Sale.policy_type_id == self.policy_type_id
+                ),
+                and_(
+                    Sale.client_phone == client_phone,
+                    Sale.serial_number == serial_number
+                )
+            )
+
+        return query.filter(conditions).first()
+
+    def flag_under_investigation(self, reason):
+        """Flag the current sale under investigation and log the reason."""
+        self.status = 'under investigation'
+        db.session.add(self)
+        investigation = UnderInvestigation(
+            sale_id=self.id,  # Now self.id is available
+            reason=reason,
+            notes='Auto-flagged by system based on fraud detection rules'
+        )
+        db.session.add(investigation)
+        db.session.commit()
+
+    def sanitize_input(self, value):
+        """Sanitize input to avoid injection attacks."""
+        if isinstance(value, str):
+            # Strip whitespace and escape special characters
+            sanitized_value = value.strip().replace("'", "''")  # Simple SQL escaping
+            return sanitized_value
+        return value
 
     def serialize(self):
         """Serialize the sale object for API responses."""
