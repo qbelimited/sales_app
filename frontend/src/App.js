@@ -11,6 +11,7 @@ import useToasts from './hooks/useToasts';
 import { useServiceWorker } from './hooks/useServiceWorker'; // Custom hook for service worker registration
 import { useLocalStorage } from './hooks/useLocalStorage'; // Custom hook for localStorage interaction
 import './App.css';
+import authService from './services/authService';
 
 // Lazy-loaded pages
 const LoginPage = React.lazy(() => import('./pages/LoginPage'));
@@ -75,19 +76,30 @@ function App() {
 
   // Handle navigation based on user role
   useEffect(() => {
-    if (role && showHelpTour) {
-      // Automatically hide the tour after a delay or when the user interacts with it
-      const timer = setTimeout(() => setShowHelpTour(false), 120000); //auto-hide after 2 minutes
+    const checkLogin = async () => {
+      const isLoggedIn = await authService.isLoggedIn(navigate);
 
-      const redirectPath = role.id === userRoles.ADMIN ? '/manage-users' : '/sales';
-      // Only navigate if the user is on the login page
-      if (window.location.pathname === '/login') {
-        navigate(redirectPath);
+      if (!isLoggedIn) {
+        // If the user is not logged in, redirect to the login page
+        navigate('/login');
+      } else {
+        // Only handle help tour visibility if the user is logged in
+        if (role) {
+          const timer = setTimeout(() => setShowHelpTour(false), 120000); // auto-hide after 2 minutes
+
+          const redirectPath = role.id === userRoles.ADMIN ? '/manage-users' : '/sales';
+          // Only navigate if the user is on the login page
+          if (window.location.pathname === '/login') {
+            navigate(redirectPath);
+          }
+
+          // Clean up the timer when the component unmounts
+          return () => clearTimeout(timer);
+        }
       }
+    };
 
-      // Clean up the timer when the component unmounts or when dependencies change
-      return () => clearTimeout(timer);
-    }
+    checkLogin();
   }, [role, navigate, showHelpTour, setShowHelpTour]);
 
   // Memoize appRoutes to prevent unnecessary re-renders

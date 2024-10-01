@@ -13,7 +13,7 @@ class Sale(db.Model):
     client_name = db.Column(db.String(150), nullable=False, index=True)
     client_id_no = db.Column(db.String(150), nullable=True)
     client_phone = db.Column(db.String(10), nullable=False, index=True)
-    serial_number = db.Column(db.String(100), nullable=False, index=True)
+    serial_number = db.Column(db.String(100), nullable=False, index=True, unique=True)
     source_type = db.Column(db.String(50), nullable=False)
     momo_reference_number = db.Column(db.String(100), nullable=True)
     collection_platform = db.Column(db.String(100), nullable=True)  # Transflow, Hubtel, Momo

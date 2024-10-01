@@ -78,35 +78,38 @@ const authService = {
     }
   },
 
-  isLoggedIn: async () => {
+  isLoggedIn: async (navigate) => {
     const token = authService.getAccessToken();
     const expiry = localStorage.getItem('expiry');
 
     if (token && expiry) {
-      if (Date.now() < expiry) {
-        return true;
-      } else {
-        try {
-          await authService.refreshToken();
-          return true;
-        } catch (error) {
-          authService.handleSessionExpired();
+        const timeLeft = expiry - Date.now();
+        const bufferTime = 5 * 60 * 1000; // 5 minutes buffer
+
+        if (timeLeft > bufferTime) {
+            return true; // Token is still valid
+        } else {
+            // Token is about to expire, refresh it
+            try {
+                await authService.refreshToken();
+                return true; // Successfully refreshed token
+            } catch (error) {
+                authService.handleSessionExpired(navigate);
+            }
         }
-      }
     } else {
-      authService.handleSessionExpired();
+        authService.handleSessionExpired(navigate);
     }
     return false;
   },
 
   getAccessToken: () => localStorage.getItem('access_token') || null,
 
-  handleSessionExpired: () => {
-    const refreshToken = localStorage.getItem('refresh_token');
-    if (refreshToken) {
-      authService.logout(null, true);
-    }
-    toast.error('You are not logged in. Please log in.');
+  handleSessionExpired: (navigate) => {
+    authService.clearSession();
+    toast.error('Your session has expired. Please log in again.');
+    // Use the passed navigate function to redirect to the login page
+    navigate('/login');
   },
 
   storeSession: (access_token, refresh_token, user, expiry) => {
