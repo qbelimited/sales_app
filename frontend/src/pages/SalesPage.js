@@ -67,7 +67,7 @@ const SalesPage = ({ showToast }) => {
   // Fetch sales executives
   const fetchSalesExecutives = useCallback(async () => {
     try {
-      // Get the total sales executives
+      //get the total sales executives
       const restot = await api.get('/sales_executives/', {
         params: {
           sort_by: 'created_at',
@@ -77,7 +77,7 @@ const SalesPage = ({ showToast }) => {
       });
       const total = parseInt(restot.data.total);
 
-      // Get all sales executives
+      //get all sales executives
       const response = await api.get('/sales_executives/', {
         params: {
           sort_by: 'created_at',
@@ -97,42 +97,47 @@ const SalesPage = ({ showToast }) => {
   const fetchSalesRecords = useCallback(async (currentPage, sortKey, sortDirection, filterParams) => {
     setLoading(true);
     try {
-      const res1tot = await api.get('/sales/', { params: { sort_by: 'created_at', per_page: 10, page: 1 } });
-      const total1 = parseInt(res1tot.data.total);
+        const res1tot = await api.get('/sales/', { params: { sort_by: 'created_at', per_page: 10, page: 1 } });
+        const total1 = parseInt(res1tot.data.total);
 
-      const params = {
-          page: currentPage,
-          per_page: total1,
-          ...filterParams,
-      };
+        const params = {
+            page: currentPage,
+            per_page: total1,
+            ...filterParams,
+        };
 
-      // Format dates for API request
-      if (filterParams.startDate) {
-        params.startDate = filterParams.startDate.toISOString().split('T')[0];
-      }
-      if (filterParams.endDate) {
-        params.endDate = filterParams.endDate.toISOString().split('T')[0];
-      }
+        if (filterParams.startDate) {
+            params.startDate = filterParams.startDate.toISOString().split('T')[0];
+        }
+        if (filterParams.endDate) {
+            params.endDate = filterParams.endDate.toISOString().split('T')[0];
+        }
 
-      const response = await api.get('/sales/', { params });
-      let salesData = response.data.sales || [];
+        const response = await api.get('/sales/', { params });
+        let salesData = response.data.sales || [];
 
-      // Sort and filter sales data
-      const sortedSales = sortSalesData(salesData, sortKey, sortDirection);
-      const filteredSales = sortedSales.filter(
-        (sale) => (sale.sale_manager?.name || '').toLowerCase() === (loggedInUserName || '').toLowerCase()
-      );
+        const sortedSales = sortSalesData(salesData, sortKey, sortDirection);
 
-      // Update sales records and total pages based on filtered results
-      setSalesRecords(filteredSales);
-      setTotalPages(Math.ceil(filteredSales.length / 10)); // Set total pages based on filtered sales count
+        // Filter sales records by manager name (case insensitive)
+        const filteredSales = sortedSales.filter(
+            (sale) => (sale.sale_manager?.name || '').toLowerCase() === (loggedInUserName || '').toLowerCase()
+        );
+
+        // Update sales records state
+        if (role === 'Sales_Manager') {
+            setSalesRecords(filteredSales.length > 0 ? filteredSales : []);
+        } else {
+            setSalesRecords(sortedSales);
+        }
+
+        setTotalPages(response.data.pages || 1);
     } catch (error) {
-      console.error('Error fetching sales records:', error);
-      showToast('danger', 'Failed to fetch sales records.', 'Error');
+        console.error('Error fetching sales records:', error);
+        showToast('danger', 'Failed to fetch sales records.', 'Error');
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  }, [showToast, loggedInUserName]);
+  }, [showToast, loggedInUserName, role]);
 
   const handleSort = (key) => {
     let direction = 'asc';
@@ -141,13 +146,11 @@ const SalesPage = ({ showToast }) => {
     }
     setSortConfig({ key, direction });
     fetchSalesRecords(1, key, direction, filters); // Fetch new records with the updated sorting
-    setPage(1); // Reset to first page on sort change
   };
 
   const handlePageChange = (pageNumber) => {
     if (pageNumber >= 1 && pageNumber <= totalPages) {
       setPage(pageNumber);
-      fetchSalesRecords(pageNumber, sortConfig.key, sortConfig.direction, filters); // Fetch records for the new page
     }
   };
 
@@ -162,7 +165,7 @@ const SalesPage = ({ showToast }) => {
   const handleFilterSubmit = (e) => {
     e.preventDefault();
     setPage(1); // Reset to the first page when filters are applied
-    fetchSalesRecords(1, sortConfig.key, sortConfig.direction, filters); // Fetch filtered records
+    fetchSalesRecords(1, sortConfig.key, sortConfig.direction, filters);
   };
 
   const handleEdit = (sale) => {
@@ -354,24 +357,24 @@ const SalesPage = ({ showToast }) => {
         <h3 className="text-center text-muted">No sales keyed by manager yet</h3>
 
         <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
-          <Modal.Header closeButton>
-            <Modal.Title>{currentSale ? 'Edit Sale' : 'Add New Sale'}</Modal.Title>
-          </Modal.Header>
-          <Modal.Body>
-            {currentSale ? (
-              <SalesEditForm
-                saleData={currentSale}
-                onCancel={() => setShowModal(false)}
-                onSubmit={handleFormSubmit}
-              />
-            ) : (
-              <SalesForm
-                onSubmit={handleFormSubmit}
-                onCancel={() => setShowModal(false)}
-              />
-            )}
-          </Modal.Body>
-        </Modal>
+        <Modal.Header closeButton>
+          <Modal.Title>{currentSale ? 'Edit Sale' : 'Add New Sale'}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {currentSale ? (
+            <SalesEditForm
+              saleData={currentSale}
+              onCancel={() => setShowModal(false)}
+              onSubmit={handleFormSubmit}
+            />
+          ) : (
+            <SalesForm
+              onSubmit={handleFormSubmit}
+              onCancel={() => setShowModal(false)}
+            />
+          )}
+        </Modal.Body>
+      </Modal>
       </div>
     );
   }
