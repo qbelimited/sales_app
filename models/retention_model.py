@@ -9,7 +9,8 @@ class RetentionPolicy(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)  # Timestamp when the policy is created
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    __table_args__ = (db.UniqueConstraint('id', name='_single_retention_policy_uc'),)  # Ensure only one policy exists
+    # Removed unique constraint on `id` since it is already a primary key
+    __table_args__ = (db.UniqueConstraint('retention_days', name='_single_retention_policy_uc'),)  # Ensure only one policy exists
 
     @validates('retention_days')
     def validate_retention_days(self, _, retention_days):
