@@ -26,14 +26,19 @@ const LogsPage = ({ showToast }) => {
       const params = {
         page: currentPage,
         per_page: itemsPerPage,
-        ...(filter.type && { type: filter.type }),
+        ...(filter.type && { type: filter.type.toLowerCase() }), // Convert to lowercase
         ...(filter.level && { level: filter.level }),
-        ...(filter.startDate && { start_date: filter.startDate.toISOString() }), // include full timestamp
-        ...(filter.endDate && { end_date: filter.endDate.toISOString() }), // include full timestamp
+        ...(filter.startDate && { start_date: filter.startDate.toISOString() }),
+        ...(filter.endDate && { end_date: filter.endDate.toISOString() }),
       };
 
       const response = await api.get('/logs/', { params });
-      setLogs(response.data.logs || []);
+      const fetchedLogs = response.data.logs || [];
+
+      // Sort logs in descending order by timestamp
+      fetchedLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+      setLogs(fetchedLogs);
       setTotalPages(response.data.total_pages || 1);
     } catch (error) {
       console.error('Error fetching logs:', error);
@@ -55,13 +60,12 @@ const LogsPage = ({ showToast }) => {
   }, [fetchLogs]);
 
   const handleFilter = () => {
-    // Ensure startDate and endDate logic works correctly
     if (filter.startDate && filter.endDate && filter.startDate > filter.endDate) {
       showToast('warning', 'Start date must be before end date.', 'Invalid Date Range');
       return;
     }
     setCurrentPage(1); // Reset to first page on filter change
-    fetchLogs(); // Fetch logs with the new filters
+    fetchLogs();
   };
 
   const handleResetFilters = () => {
@@ -71,7 +75,7 @@ const LogsPage = ({ showToast }) => {
   };
 
   const handlePageChange = (pageNumber) => {
-    if (pageNumber < 1 || pageNumber > totalPages) return; // Prevent out-of-bounds pagination
+    if (pageNumber < 1 || pageNumber > totalPages) return;
     setCurrentPage(pageNumber);
   };
 
@@ -79,7 +83,6 @@ const LogsPage = ({ showToast }) => {
   const startPage = Math.max(1, currentPage - Math.floor(maxPageNumbers / 2));
   const endPage = Math.min(totalPages, startPage + maxPageNumbers - 1);
 
-  // Function to parse log entries
   const parseLogEntry = (logEntry) => {
     const timestampRegex = /(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3})/;
     const matches = logEntry.match(timestampRegex);
@@ -87,14 +90,14 @@ const LogsPage = ({ showToast }) => {
     if (matches) {
       const timestamp = matches[0];
       const message = logEntry.replace(timestampRegex, '').trim();
-      const dateObject = new Date(timestamp.replace(',', '.')); // Replace comma with dot for JS date parsing
+      const dateObject = new Date(timestamp.replace(',', '.'));
       return {
         timestamp: isNaN(dateObject.getTime()) ? 'Invalid Date' : dateObject,
         message,
       };
     }
 
-    return { timestamp: 'No Timestamp', message: logEntry }; // No timestamp
+    return { timestamp: 'No Timestamp', message: logEntry };
   };
 
   const parsedLogs = logs.map(log => parseLogEntry(log));
@@ -113,7 +116,7 @@ const LogsPage = ({ showToast }) => {
             <Form.Control
               as="select"
               value={filter.type}
-              onChange={(e) => setFilter({ ...filter, type: e.target.value })}
+              onChange={(e) => setFilter({ ...filter, type: e.target.value.toLowerCase() })} // Ensure lowercase
               aria-label="Log Type"
             >
               <option value="">Log Type</option>
@@ -130,9 +133,9 @@ const LogsPage = ({ showToast }) => {
               aria-label="Log Level"
             >
               <option value="">Log Level</option>
-              <option value="INFO">INFO</option>
-              <option value="WARNING">WARNING</option>
-              <option value="ERROR">ERROR</option>
+              <option value="info">INFO</option>
+              <option value="warning">WARNING</option>
+              <option value="error">ERROR</option>
             </Form.Control>
           </Col>
           <Col xs={12} md={3} lg={2}>
@@ -142,8 +145,8 @@ const LogsPage = ({ showToast }) => {
               placeholderText="Start Date"
               className="form-control"
               aria-label="Start Date"
-              showTimeSelect // Enables time selection
-              dateFormat="Pp" // Formats the date and time display
+              showTimeSelect
+              dateFormat="Pp"
             />
           </Col>
           <Col xs={12} md={3} lg={2}>
@@ -153,8 +156,8 @@ const LogsPage = ({ showToast }) => {
               placeholderText="End Date"
               className="form-control"
               aria-label="End Date"
-              showTimeSelect // Enables time selection
-              dateFormat="Pp" // Formats the date and time display
+              showTimeSelect
+              dateFormat="Pp"
             />
           </Col>
           <Col xs={12} md={3} lg={2}>
