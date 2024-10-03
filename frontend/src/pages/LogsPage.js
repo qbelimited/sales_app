@@ -16,10 +16,9 @@ const LogsPage = ({ showToast }) => {
     endDate: null,
   });
   const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(50); // Default items per page
+  const [itemsPerPage] = useState(50);
   const [totalPages, setTotalPages] = useState(1);
 
-  // Fetch logs with filters
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -29,8 +28,8 @@ const LogsPage = ({ showToast }) => {
         per_page: itemsPerPage,
         ...(filter.type && { type: filter.type }),
         ...(filter.level && { level: filter.level }),
-        ...(filter.startDate && { start_date: filter.startDate.toISOString().split('T')[0] }),
-        ...(filter.endDate && { end_date: filter.endDate.toISOString().split('T')[0] }),
+        ...(filter.startDate && { start_date: filter.startDate.toISOString() }), // include full timestamp
+        ...(filter.endDate && { end_date: filter.endDate.toISOString() }), // include full timestamp
       };
 
       const response = await api.get('/logs/', { params });
@@ -38,8 +37,14 @@ const LogsPage = ({ showToast }) => {
       setTotalPages(response.data.total_pages || 1);
     } catch (error) {
       console.error('Error fetching logs:', error);
-      setError('Failed to fetch logs. Please try again later.');
-      showToast('danger', 'Failed to fetch logs. Please try again later.', 'Error');
+      let errorMessage = 'Failed to fetch logs. Please try again later.';
+      if (error.response) {
+        errorMessage = error.response.data.message || errorMessage;
+      } else if (error.request) {
+        errorMessage = 'Network error: Unable to reach the server.';
+      }
+      setError(errorMessage);
+      showToast('danger', errorMessage, 'Error');
     } finally {
       setLoading(false);
     }
@@ -49,31 +54,50 @@ const LogsPage = ({ showToast }) => {
     fetchLogs();
   }, [fetchLogs]);
 
-  // Handle filter submission
   const handleFilter = () => {
-    setCurrentPage(1); // Reset to the first page when filtering
-    fetchLogs();
+    // Ensure startDate and endDate logic works correctly
+    if (filter.startDate && filter.endDate && filter.startDate > filter.endDate) {
+      showToast('warning', 'Start date must be before end date.', 'Invalid Date Range');
+      return;
+    }
+    setCurrentPage(1); // Reset to first page on filter change
+    fetchLogs(); // Fetch logs with the new filters
   };
 
-  // Handle reset filters
   const handleResetFilters = () => {
-    setFilter({
-      type: '',
-      level: '',
-      startDate: null,
-      endDate: null,
-    });
+    setFilter({ type: '', level: '', startDate: null, endDate: null });
     setCurrentPage(1);
     fetchLogs();
   };
 
-  // Handle page change
-  const handlePageChange = (pageNumber) => setCurrentPage(pageNumber);
+  const handlePageChange = (pageNumber) => {
+    if (pageNumber < 1 || pageNumber > totalPages) return; // Prevent out-of-bounds pagination
+    setCurrentPage(pageNumber);
+  };
 
-  // Calculate pagination range
   const maxPageNumbers = 5;
   const startPage = Math.max(1, currentPage - Math.floor(maxPageNumbers / 2));
   const endPage = Math.min(totalPages, startPage + maxPageNumbers - 1);
+
+  // Function to parse log entries
+  const parseLogEntry = (logEntry) => {
+    const timestampRegex = /(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3})/;
+    const matches = logEntry.match(timestampRegex);
+
+    if (matches) {
+      const timestamp = matches[0];
+      const message = logEntry.replace(timestampRegex, '').trim();
+      const dateObject = new Date(timestamp.replace(',', '.')); // Replace comma with dot for JS date parsing
+      return {
+        timestamp: isNaN(dateObject.getTime()) ? 'Invalid Date' : dateObject,
+        message,
+      };
+    }
+
+    return { timestamp: 'No Timestamp', message: logEntry }; // No timestamp
+  };
+
+  const parsedLogs = logs.map(log => parseLogEntry(log));
 
   return (
     <div style={{ marginTop: '20px', padding: '20px' }}>
@@ -83,14 +107,14 @@ const LogsPage = ({ showToast }) => {
         </Col>
       </Row>
 
-      {/* Filter Section */}
       <Form className="mb-4">
         <Row className="align-items-end">
-          <Col md={2}>
+          <Col xs={12} md={3} lg={2}>
             <Form.Control
               as="select"
               value={filter.type}
               onChange={(e) => setFilter({ ...filter, type: e.target.value })}
+              aria-label="Log Type"
             >
               <option value="">Log Type</option>
               <option value="general">General</option>
@@ -98,11 +122,12 @@ const LogsPage = ({ showToast }) => {
               <option value="success">Success</option>
             </Form.Control>
           </Col>
-          <Col md={2}>
+          <Col xs={12} md={3} lg={2}>
             <Form.Control
               as="select"
               value={filter.level}
               onChange={(e) => setFilter({ ...filter, level: e.target.value })}
+              aria-label="Log Level"
             >
               <option value="">Log Level</option>
               <option value="INFO">INFO</option>
@@ -110,27 +135,33 @@ const LogsPage = ({ showToast }) => {
               <option value="ERROR">ERROR</option>
             </Form.Control>
           </Col>
-          <Col md={2}>
+          <Col xs={12} md={3} lg={2}>
             <DatePicker
               selected={filter.startDate}
               onChange={(date) => setFilter({ ...filter, startDate: date })}
               placeholderText="Start Date"
               className="form-control"
+              aria-label="Start Date"
+              showTimeSelect // Enables time selection
+              dateFormat="Pp" // Formats the date and time display
             />
           </Col>
-          <Col md={2}>
+          <Col xs={12} md={3} lg={2}>
             <DatePicker
               selected={filter.endDate}
               onChange={(date) => setFilter({ ...filter, endDate: date })}
               placeholderText="End Date"
               className="form-control"
+              aria-label="End Date"
+              showTimeSelect // Enables time selection
+              dateFormat="Pp" // Formats the date and time display
             />
           </Col>
-          <Col md={2}>
-            <Button variant="primary" onClick={handleFilter}>
+          <Col xs={12} md={3} lg={2}>
+            <Button variant="primary" onClick={handleFilter} aria-label="Filter Logs">
               <FaSearch /> Filter
             </Button>
-            <Button variant="secondary" onClick={handleResetFilters} className="ms-2">
+            <Button variant="secondary" onClick={handleResetFilters} className="ms-2" aria-label="Reset Filters">
               <FaUndo /> Reset
             </Button>
           </Col>
@@ -138,52 +169,44 @@ const LogsPage = ({ showToast }) => {
       </Form>
 
       {error && <p className="text-center text-danger">{error}</p>}
+      {loading && <div className="text-center my-3"><Spinner animation="border" aria-label="Loading logs..." /></div>}
 
-      {/* Loading Spinner */}
-      {loading && <div className="text-center my-3"><Spinner animation="border" /></div>}
-
-      {/* Logs Table */}
       {!loading && (
         <Table striped bordered hover responsive>
           <thead>
             <tr>
               <th>#</th>
               <th>Timestamp</th>
-              <th>Type</th>
-              <th>Level</th>
               <th>Message</th>
             </tr>
           </thead>
           <tbody>
-            {logs.length > 0 ? (
-              logs.map((log, index) => (
-                <tr key={log.id || index}>
+            {parsedLogs.length > 0 ? (
+              parsedLogs.map((log, index) => (
+                <tr key={index}>
                   <td>{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                  <td>{new Date(log.timestamp).toLocaleString()}</td>
-                  <td>{log.type}</td>
-                  <td>{log.level}</td>
+                  <td>{typeof log.timestamp === 'string' ? log.timestamp : log.timestamp.toLocaleString()}</td>
                   <td>{log.message}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="5" className="text-center">No logs found</td>
+                <td colSpan="3" className="text-center">No logs found</td>
               </tr>
             )}
           </tbody>
         </Table>
       )}
 
-      {/* Pagination Controls */}
       {!loading && totalPages > 1 && (
         <Row className="mt-3">
           <Col className="text-center">
             {currentPage > 1 && (
               <>
-                <Button variant="secondary" onClick={() => handlePageChange(1)} className="mx-1">
+                <Button variant="secondary" onClick={() => handlePageChange(1)} className="mx-1" aria-label="First Page">
                   <FaAngleDoubleLeft />
                 </Button>
-                <Button variant="secondary" onClick={() => handlePageChange(currentPage - 1)} className="mx-1">
+                <Button variant="secondary" onClick={() => handlePageChange(currentPage - 1)} className="mx-1" aria-label="Previous Page">
                   <FaArrowLeft />
                 </Button>
               </>
@@ -194,16 +217,17 @@ const LogsPage = ({ showToast }) => {
                 variant={currentPage === startPage + number ? 'primary' : 'secondary'}
                 onClick={() => handlePageChange(startPage + number)}
                 className="mx-1"
+                aria-label={`Page ${startPage + number}`}
               >
                 {startPage + number}
               </Button>
             ))}
             {currentPage < totalPages && (
               <>
-                <Button variant="secondary" onClick={() => handlePageChange(currentPage + 1)} className="mx-1">
+                <Button variant="secondary" onClick={() => handlePageChange(currentPage + 1)} className="mx-1" aria-label="Next Page">
                   <FaArrowRight />
                 </Button>
-                <Button variant="secondary" onClick={() => handlePageChange(totalPages)} className="mx-1">
+                <Button variant="secondary" onClick={() => handlePageChange(totalPages)} className="mx-1" aria-label="Last Page">
                   <FaAngleDoubleRight />
                 </Button>
               </>
