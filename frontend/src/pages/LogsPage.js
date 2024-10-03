@@ -37,8 +37,12 @@ const LogsPage = ({ showToast }) => {
 
       // Sort logs in descending order by timestamp
       fetchedLogs.sort((a, b) => {
-        const dateA = new Date(a.timestamp.replace(',', '.')); // Ensure the comma is replaced
-        const dateB = new Date(b.timestamp.replace(',', '.'));
+        const timestampA = a.timestamp ? a.timestamp.replace(',', '.') : ''; // Ensure we have a valid timestamp
+        const timestampB = b.timestamp ? b.timestamp.replace(',', '.') : '';
+
+        const dateA = new Date(timestampA);
+        const dateB = new Date(timestampB);
+
         return dateB - dateA; // Descending order
       });
 
