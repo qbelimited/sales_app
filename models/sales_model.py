@@ -129,21 +129,25 @@ class Sale(db.Model):
                 return self
 
             # Check for duplicates
-            critical_duplicate = self.find_duplicate(critical=True,
-                                                    client_phone=client_phone_normalized,
-                                                    client_id_no=client_id_no_normalized,
-                                                    serial_number=serial_number_normalized,
-                                                    momo_reference_number=momo_reference_number_normalized,
-                                                    bank_acc_number=bank_acc_number_normalized)
+            critical_duplicate = self.find_duplicate(
+                critical=True,
+                client_phone=client_phone_normalized,
+                client_id_no=client_id_no_normalized,
+                serial_number=serial_number_normalized,
+                momo_reference_number=momo_reference_number_normalized,
+                bank_acc_number=bank_acc_number_normalized
+            )
 
             if critical_duplicate:
                 self.status = 'under investigation'
                 self.flag_under_investigation("Critical duplicate detected.")
                 return self
 
-            less_critical_duplicate = self.find_duplicate(critical=False,
-                                                        client_phone=client_phone_normalized,
-                                                        serial_number=serial_number_normalized)
+            less_critical_duplicate = self.find_duplicate(
+                critical=False,
+                client_phone=client_phone_normalized,
+                serial_number=serial_number_normalized
+            )
 
             if less_critical_duplicate:
                 self.status = 'potential duplicate'
