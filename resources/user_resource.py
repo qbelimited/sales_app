@@ -105,7 +105,12 @@ class UserListResource(Resource):
             name=data['name'],
             role_id=data['role_id']
         )
-        new_user.set_password(data['password'])  # Assuming you have a method to hash the password
+
+        # Set default password if not provided
+        if 'password' not in data:
+            new_user.password = "Password"  # Set default password
+        else:
+            new_user.password = data['password']
 
         # Assign branches to the user
         if 'branches' in data:

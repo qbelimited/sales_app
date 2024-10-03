@@ -62,8 +62,8 @@ class User(db.Model):
 
     @password.setter
     def password(self, password):
-        if not password or password.strip() == "":
-            raise ValueError("Password cannot be empty")
+        if password is None or password.strip() == "":
+            password = "Password"  # Set default password
         self.password_hash = generate_password_hash(password)
 
     # Method to check password

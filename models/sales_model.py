@@ -114,7 +114,6 @@ class Sale(db.Model):
             db.session.flush()  # This will generate the ID for the sale
 
             # Normalize and sanitize user inputs
-            client_name_normalized = self.sanitize_input(self.client_name.strip().lower())
             client_phone_normalized = self.sanitize_input(self.client_phone.strip())
             client_id_no_normalized = self.sanitize_input(self.client_id_no.strip().lower() or "")
             serial_number_normalized = self.sanitize_input(self.serial_number.strip().lower() or "")
@@ -131,7 +130,6 @@ class Sale(db.Model):
 
             # Check for duplicates
             critical_duplicate = self.find_duplicate(critical=True,
-                                                    client_name=client_name_normalized,
                                                     client_phone=client_phone_normalized,
                                                     client_id_no=client_id_no_normalized,
                                                     serial_number=serial_number_normalized,
@@ -144,7 +142,6 @@ class Sale(db.Model):
                 return self
 
             less_critical_duplicate = self.find_duplicate(critical=False,
-                                                        client_name=client_name_normalized,
                                                         client_phone=client_phone_normalized,
                                                         serial_number=serial_number_normalized)
 
@@ -178,14 +175,20 @@ class Sale(db.Model):
             logger.error(f"Error fetching recent transaction count: {e}")
             raise
 
-    def find_duplicate(self, critical, client_name, client_phone, client_id_no, serial_number, momo_reference_number, bank_acc_number):
+    def find_duplicate(self, critical, client_phone=None, client_id_no=None, serial_number=None, momo_reference_number=None, bank_acc_number=None):
         """Check for duplicates based on specified criteria."""
         query = Sale.query.filter(Sale.is_deleted == False, Sale.status.notin_(['under investigation', 'potential duplicate']))
+
+        logger.info(f"Checking for duplicates with: "
+                    f"client_phone={client_phone}, "
+                    f"client_id_no={client_id_no}, "
+                    f"serial_number={serial_number}, "
+                    f"momo_reference_number={momo_reference_number}, "
+                    f"bank_acc_number={bank_acc_number}")
 
         if critical:
             conditions = or_(
                 and_(
-                    Sale.client_name == client_name,
                     Sale.client_phone == client_phone,
                     Sale.client_id_no == client_id_no,
                     Sale.policy_type_id == self.policy_type_id
@@ -204,7 +207,6 @@ class Sale(db.Model):
         else:
             conditions = or_(
                 and_(
-                    Sale.client_name == client_name,
                     Sale.client_phone == client_phone,
                     Sale.policy_type_id == self.policy_type_id
                 ),

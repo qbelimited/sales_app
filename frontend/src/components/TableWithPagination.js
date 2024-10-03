@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Table, Spinner, Row, Col, Button, Form, Modal, Badge } from 'react-bootstrap';
-import { FaSort, FaSortUp, FaSortDown, FaPen, FaTrash, FaKey } from 'react-icons/fa';
+import { FaSort, FaSortUp, FaSortDown, FaPen, FaTrash, FaKey, FaPlus } from 'react-icons/fa';
 import api from '../services/api';
 
 const TableWithPagination = ({ endpoint, columns, title, showToast }) => {
@@ -26,6 +26,17 @@ const TableWithPagination = ({ endpoint, columns, title, showToast }) => {
   // State for deletion modal
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
+
+  // State for adding user modal
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newUser, setNewUser] = useState({
+    email: '',
+    name: '',
+    role_id: '',
+    branches: [],
+    is_active: true,
+    is_deleted: false,
+  });
 
   const fetchBranches = useCallback(async () => {
     try {
@@ -178,6 +189,29 @@ const TableWithPagination = ({ endpoint, columns, title, showToast }) => {
     setShowPasswordModal(true);
   };
 
+  const handleAddUser = async () => {
+    try {
+      const response = await api.post('/users/', {
+        ...newUser,
+        branches: selectedBranches,
+      });
+      setData((prevData) => [...prevData, response.data]);
+      showToast('success', 'User added successfully!', 'Success');
+      setShowAddModal(false);
+      setNewUser({
+        email: '',
+        name: '',
+        role_id: '',
+        branches: [],
+        is_active: true,
+        is_deleted: false,
+      });
+    } catch (error) {
+      console.error('Error adding user:', error);
+      showToast('danger', 'Error adding user', 'Error');
+    }
+  };
+
   if (loading) return <Spinner animation="border" />;
 
   return (
@@ -208,6 +242,11 @@ const TableWithPagination = ({ endpoint, columns, title, showToast }) => {
             <option value={10}>10 per page</option>
             <option value={20}>20 per page</option>
           </Form.Control>
+        </Col>
+        <Col md={4} className="text-right">
+          <Button variant="primary" onClick={() => setShowAddModal(true)}>
+            <FaPlus /> Add User
+          </Button>
         </Col>
       </Row>
 
@@ -368,6 +407,89 @@ const TableWithPagination = ({ endpoint, columns, title, showToast }) => {
           </Modal.Footer>
         </Modal>
       )}
+
+      {/* Add User Modal */}
+      <Modal show={showAddModal} onHide={() => setShowAddModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title>Add User</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            <Form.Group className="mb-3">
+              <Form.Label>Name</Form.Label>
+              <Form.Control
+                type="text"
+                value={newUser.name}
+                onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Email</Form.Label>
+              <Form.Control
+                type="email"
+                value={newUser.email}
+                onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+              />
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Role</Form.Label>
+              <Form.Control
+                as="select"
+                value={newUser.role_id || ''}
+                onChange={(e) => setNewUser({ ...newUser, role_id: parseInt(e.target.value, 10) })}
+              >
+                <option value="" disabled>Select Role</option>
+                {roles.map((role) => (
+                  <option key={role.id} value={role.id}>
+                    {role.name}
+                  </option>
+                ))}
+              </Form.Control>
+            </Form.Group>
+            <Form.Group className="mb-3">
+              <Form.Label>Branches</Form.Label>
+              <Form.Control
+                as="select"
+                onChange={(e) => handleBranchChange(parseInt(e.target.value, 10))}
+                value=""
+              >
+                <option value="" disabled>Select Branch to Add</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </Form.Control>
+              <div className="mt-2">
+                {newUser.branches.map(branchId => {
+                  const branch = branches.find(b => b.id === branchId);
+                  return (
+                    <Badge key={branchId} pill variant="primary" className="mr-2">
+                      {branch ? branch.name : branchId}
+                      <Button
+                        variant="link"
+                        size="sm"
+                        onClick={() => handleBranchChange(branchId)}
+                        className="ml-1 text-white"
+                      >
+                        x
+                      </Button>
+                    </Badge>
+                  );
+                })}
+              </div>
+            </Form.Group>
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowAddModal(false)}>
+            Close
+          </Button>
+          <Button variant="primary" onClick={handleAddUser}>
+            Add User
+          </Button>
+        </Modal.Footer>
+      </Modal>
 
       {/* Update Password Modal */}
       {currentUser && (

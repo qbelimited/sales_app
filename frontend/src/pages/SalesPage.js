@@ -15,59 +15,41 @@ const SalesPage = ({ showToast }) => {
   const [sortConfig, setSortConfig] = useState({ key: 'created_at', direction: 'desc' });
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [filters, setFilters] = useState({ startDate: null, endDate: null, clientName: '', bankId: '', branchId: '' });
+  const [filters, setFilters] = useState({ startDate: null, endDate: null, clientName: '', bankId: '', productId: '', status: '' });
   const [showModal, setShowModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [currentSale, setCurrentSale] = useState(null);
   const [banks, setBanks] = useState([]);
-  const [branches, setBranches] = useState([]);
+  const [products, setProducts] = useState([]);
   const [salesExecutives, setSalesExecutives] = useState([]);
-  const [saleToDelete, setSaleToDelete] = useState(null); // Track sale to delete
+  const [saleToDelete, setSaleToDelete] = useState(null);
 
-  const local_user = JSON.parse(localStorage.getItem('user')); // Fetch current logged-in user
-  const loggedInUserName = local_user?.name; // Get logged-in user's name
-  const role = local_user?.role?.name; // Get logged-in user's role
+  const local_user = JSON.parse(localStorage.getItem('user'));
+  const loggedInUserName = local_user?.name;
+  const role = local_user?.role?.name;
   const navigate = useNavigate();
 
-  // Maximum number of pages to display
   const maxPageDisplay = 5;
 
-  // Function to navigate to the details page
   const handleViewDetails = (saleId) => {
     navigate(`/sales/${saleId}`);
   };
 
-  // Fetch banks and branches data
-  const fetchBanksAndBranches = useCallback(async () => {
+  const fetchBanksAndProducts = useCallback(async () => {
     try {
-      const response = await api.get('/bank/');
-      setBanks(response.data);
+      const bankResponse = await api.get('/bank/');
+      setBanks(bankResponse.data);
+
+      const productResponse = await api.get('/impact_products/?sort_by=created_at&per_page=100&page=1');
+      setProducts(productResponse.data.products);
     } catch (error) {
-      console.error('Error fetching banks:', error);
-      showToast('danger', 'Failed to fetch banks.', 'Error');
+      console.error('Error fetching banks/products:', error);
+      showToast('danger', 'Failed to fetch banks/products.', 'Error');
     }
   }, [showToast]);
 
-  const fetchBranches = async (bankId) => {
-    try {
-      if (bankId) {
-        const response = await api.get('/dropdown/', {
-          params: { type: 'branch', bank_id: bankId },
-        });
-        setBranches(response.data);
-      } else {
-        setBranches([]);
-      }
-    } catch (error) {
-      console.error('Error fetching branches:', error);
-      showToast('danger', 'Failed to fetch branches.', 'Error');
-    }
-  };
-
-  // Fetch sales executives
   const fetchSalesExecutives = useCallback(async () => {
     try {
-      //get the total sales executives
       const restot = await api.get('/sales_executives/', {
         params: {
           sort_by: 'created_at',
@@ -77,7 +59,6 @@ const SalesPage = ({ showToast }) => {
       });
       const total = parseInt(restot.data.total);
 
-      //get all sales executives
       const response = await api.get('/sales_executives/', {
         params: {
           sort_by: 'created_at',
@@ -93,51 +74,74 @@ const SalesPage = ({ showToast }) => {
     }
   }, [showToast]);
 
-  // Fetch sales records and filter based on sales manager (logged-in user)
   const fetchSalesRecords = useCallback(async (currentPage, sortKey, sortDirection, filterParams) => {
     setLoading(true);
     try {
-        const res1tot = await api.get('/sales/', { params: { sort_by: 'created_at', per_page: 10, page: 1 } });
-        const total1 = parseInt(res1tot.data.total);
+      const res1tot = await api.get('/sales/', { params: { sort_by: 'created_at', per_page: 10, page: 1 } });
+      const total1 = parseInt(res1tot.data.total);
 
-        const params = {
-            page: currentPage,
-            per_page: total1,
-            ...filterParams,
-        };
+      const params = {
+        page: currentPage,
+        per_page: total1,
+        ...filterParams,
+      };
 
-        if (filterParams.startDate) {
-            params.startDate = filterParams.startDate.toISOString().split('T')[0];
-        }
-        if (filterParams.endDate) {
-            params.endDate = filterParams.endDate.toISOString().split('T')[0];
-        }
+      if (filterParams.startDate) {
+        params.startDate = filterParams.startDate.toISOString().split('T')[0];
+      }
+      if (filterParams.endDate) {
+        params.endDate = filterParams.endDate.toISOString().split('T')[0];
+      }
 
-        const response = await api.get('/sales/', { params });
-        let salesData = response.data.sales || [];
+      const response = await api.get('/sales/', { params });
+      let salesData = response.data.sales || [];
 
-        const sortedSales = sortSalesData(salesData, sortKey, sortDirection);
+      // Filter based on start and end date
+      if (filterParams.startDate || filterParams.endDate) {
+        salesData = salesData.filter(sale => {
+          const createdAt = new Date(sale.created_at);
+          const isAfterStartDate = filterParams.startDate ? createdAt >= filterParams.startDate : true;
+          const isBeforeEndDate = filterParams.endDate ? createdAt <= filterParams.endDate : true;
+          return isAfterStartDate && isBeforeEndDate;
+        });
+      }
 
-        // Filter sales records by manager name (case insensitive)
-        const filteredSales = sortedSales.filter(
-            (sale) => (sale.sale_manager?.name || '').toLowerCase() === (loggedInUserName || '').toLowerCase()
-        );
+      // New filtering logic for client, sales manager, and sales executive names
+      if (filterParams.clientName) {
+        salesData = salesData.filter(sale => {
+          const clientNameMatch = sale.client_name?.toLowerCase().includes(filterParams.clientName.toLowerCase());
+          const managerNameMatch = sale.sale_manager?.name?.toLowerCase().includes(filterParams.clientName.toLowerCase());
+          const executiveNameMatch = salesExecutives.find(executive => executive.id === sale.sales_executive_id)?.name?.toLowerCase().includes(filterParams.clientName.toLowerCase());
 
-        // Update sales records state
-        if (role === 'Sales_Manager') {
-            setSalesRecords(filteredSales.length > 0 ? filteredSales : []);
-        } else {
-            setSalesRecords(sortedSales);
-        }
+          return clientNameMatch || managerNameMatch || executiveNameMatch;
+        });
+      }
 
-        setTotalPages(response.data.pages || 1);
+      // Filtering by product
+      if (filterParams.productId) {
+        salesData = salesData.filter(sale => sale.product_id === filterParams.productId);
+      }
+
+      const sortedSales = sortSalesData(salesData, sortKey, sortDirection);
+
+      const filteredSales = sortedSales.filter(
+        (sale) => (sale.sale_manager?.name || '').toLowerCase() === (loggedInUserName || '').toLowerCase()
+      );
+
+      if (role === 'Sales_Manager') {
+        setSalesRecords(filteredSales.length > 0 ? filteredSales : []);
+      } else {
+        setSalesRecords(sortedSales);
+      }
+
+      setTotalPages(response.data.pages || 1);
     } catch (error) {
-        console.error('Error fetching sales records:', error);
-        showToast('danger', 'Failed to fetch sales records.', 'Error');
+      console.error('Error fetching sales records:', error);
+      showToast('danger', 'Failed to fetch sales records.', 'Error');
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
-  }, [showToast, loggedInUserName, role]);
+  }, [showToast, loggedInUserName, role, salesExecutives]);
 
   const handleSort = (key) => {
     let direction = 'asc';
@@ -145,7 +149,7 @@ const SalesPage = ({ showToast }) => {
       direction = 'desc';
     }
     setSortConfig({ key, direction });
-    fetchSalesRecords(1, key, direction, filters); // Fetch new records with the updated sorting
+    fetchSalesRecords(1, key, direction, filters);
   };
 
   const handlePageChange = (pageNumber) => {
@@ -157,15 +161,19 @@ const SalesPage = ({ showToast }) => {
   const handleFilterChange = (e) => {
     const { name, value } = e.target;
     setFilters((prevFilters) => ({ ...prevFilters, [name]: value }));
-    if (name === 'bankId') {
-      fetchBranches(value);
-    }
   };
 
   const handleFilterSubmit = (e) => {
     e.preventDefault();
-    setPage(1); // Reset to the first page when filters are applied
+    setPage(1);
     fetchSalesRecords(1, sortConfig.key, sortConfig.direction, filters);
+  };
+
+  const handleResetFilters = () => {
+    setFilters({ startDate: null, endDate: null, clientName: '', bankId: '', productId: '', status: '' });
+    fetchSalesRecords(1, sortConfig.key, sortConfig.direction, {
+      startDate: null, endDate: null, clientName: '', bankId: '', productId: '', status: ''
+    });
   };
 
   const handleEdit = (sale) => {
@@ -182,19 +190,17 @@ const SalesPage = ({ showToast }) => {
     return salesData.sort((a, b) => {
       let aValue, bValue;
 
-      // Determine the value to sort by
       if (sortKey === 'policy_type') {
-        aValue = a.policy_type?.name || ''; // Fallback to empty string if undefined
-        bValue = b.policy_type?.name || ''; // Fallback to empty string if undefined
+        aValue = a.policy_type?.name || '';
+        bValue = b.policy_type?.name || '';
       } else if (sortKey === 'sales_manager') {
-        aValue = a.sale_manager?.name || ''; // Fallback to empty string if undefined
-        bValue = b.sale_manager?.name || ''; // Fallback to empty string if undefined
+        aValue = a.sale_manager?.name || '';
+        bValue = b.sale_manager?.name || '';
       } else {
         aValue = a[sortKey];
         bValue = b[sortKey];
       }
 
-      // Compare values based on sort direction
       if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
       if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
       return 0;
@@ -213,7 +219,7 @@ const SalesPage = ({ showToast }) => {
       } finally {
         setShowDeleteModal(false);
         setSaleToDelete(null);
-        fetchSalesRecords(page, sortConfig.key, sortConfig.direction, filters); // Re-fetch records to ensure table is up to date
+        fetchSalesRecords(page, sortConfig.key, sortConfig.direction, filters);
       }
     }
   };
@@ -255,18 +261,17 @@ const SalesPage = ({ showToast }) => {
 
     setShowModal(false);
     setCurrentSale(null);
-    fetchSalesRecords(page, sortConfig.key, sortConfig.direction, filters); // Re-fetch records to ensure table is up to date
+    fetchSalesRecords(page, sortConfig.key, sortConfig.direction, filters);
   };
 
-  // Render the status with color coding
   const renderStatusBadge = (status) => {
-    let variant = 'secondary'; // Default color
+    let variant = 'secondary';
     if (status === 'submitted') {
-      variant = 'success'; // Green for submitted
+      variant = 'success';
     } else if (status === 'under investigation') {
-      variant = 'warning'; // Yellow for under investigation
+      variant = 'warning';
     } else if (status === 'rejected') {
-      variant = 'danger'; // Red for rejected
+      variant = 'danger';
     }
     return <Badge bg={variant} className="text-white">{status}</Badge>;
   };
@@ -276,9 +281,9 @@ const SalesPage = ({ showToast }) => {
   }, [page, sortConfig, filters, fetchSalesRecords]);
 
   useEffect(() => {
-    fetchBanksAndBranches();
+    fetchBanksAndProducts();
     fetchSalesExecutives();
-  }, [fetchBanksAndBranches, fetchSalesExecutives]);
+  }, [fetchBanksAndProducts, fetchSalesExecutives]);
 
   const renderActions = (sale) => {
     const local_user = JSON.parse(localStorage.getItem('user'));
@@ -294,7 +299,7 @@ const SalesPage = ({ showToast }) => {
         >
           <FontAwesomeIcon icon={faEye} />
         </Button>
-        {role_id === 3 || role_id === 2 ? ( // Check if user is admin or manager
+        {role_id === 3 || role_id === 2 ? (
           <>
             <Button
               variant="warning"
@@ -332,6 +337,11 @@ const SalesPage = ({ showToast }) => {
     return pages;
   };
 
+  const handleFilterByStatus = (status) => {
+    setFilters((prev) => ({ ...prev, status }));
+    fetchSalesRecords(1, sortConfig.key, sortConfig.direction, { ...filters, status });
+  };
+
   if (loading) {
     return (
       <div className="text-center mt-5">
@@ -340,7 +350,6 @@ const SalesPage = ({ showToast }) => {
     );
   }
 
-  // Render "No sales keyed by manager yet" if the user is Sales_Manager and no sales found
   if (role === 'Sales_Manager' && salesRecords.length === 0) {
     return (
       <div className="container mt-5">
@@ -357,24 +366,24 @@ const SalesPage = ({ showToast }) => {
         <h3 className="text-center text-muted">No sales keyed by manager yet</h3>
 
         <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
-        <Modal.Header closeButton>
-          <Modal.Title>{currentSale ? 'Edit Sale' : 'Add New Sale'}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {currentSale ? (
-            <SalesEditForm
-              saleData={currentSale}
-              onCancel={() => setShowModal(false)}
-              onSubmit={handleFormSubmit}
-            />
-          ) : (
-            <SalesForm
-              onSubmit={handleFormSubmit}
-              onCancel={() => setShowModal(false)}
-            />
-          )}
-        </Modal.Body>
-      </Modal>
+          <Modal.Header closeButton>
+            <Modal.Title>{currentSale ? 'Edit Sale' : 'Add New Sale'}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            {currentSale ? (
+              <SalesEditForm
+                saleData={currentSale}
+                onCancel={() => setShowModal(false)}
+                onSubmit={handleFormSubmit}
+              />
+            ) : (
+              <SalesForm
+                onSubmit={handleFormSubmit}
+                onCancel={() => setShowModal(false)}
+              />
+            )}
+          </Modal.Body>
+        </Modal>
       </div>
     );
   }
@@ -388,6 +397,23 @@ const SalesPage = ({ showToast }) => {
         <Col className="text-right">
           <Button onClick={() => setShowModal(true)} variant="primary" className="mb-3">
             Make Sale
+          </Button>
+        </Col>
+      </Row>
+
+      <Row className="mb-3">
+        <Col>
+          <Button variant="info" onClick={() => handleFilterByStatus('submitted')}>
+            Filter Submitted
+          </Button>
+          <Button variant="warning" onClick={() => handleFilterByStatus('under investigation')}>
+            Filter Under Investigation
+          </Button>
+          <Button variant="danger" onClick={() => handleFilterByStatus('rejected')}>
+            Filter Rejected
+          </Button>
+          <Button variant="secondary" onClick={handleResetFilters}>
+            Reset Filters
           </Button>
         </Col>
       </Row>
@@ -418,13 +444,13 @@ const SalesPage = ({ showToast }) => {
           </Col>
           <Col>
             <Form.Group controlId="filterClientName">
-              <Form.Label>Client Name</Form.Label>
+              <Form.Label>Name filter</Form.Label>
               <Form.Control
                 type="text"
                 name="clientName"
                 value={filters.clientName}
                 onChange={handleFilterChange}
-                placeholder="Enter client name"
+                placeholder="Enter name"
               />
             </Form.Group>
           </Col>
@@ -442,13 +468,13 @@ const SalesPage = ({ showToast }) => {
             </Form.Group>
           </Col>
           <Col>
-            <Form.Group controlId="filterBranch">
-              <Form.Label>Branch</Form.Label>
-              <Form.Control as="select" name="branchId" value={filters.branchId} onChange={handleFilterChange}>
-                <option value="">Select Branch</option>
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
+            <Form.Group controlId="filterProduct">
+              <Form.Label>Product</Form.Label>
+              <Form.Control as="select" name="productId" value={filters.productId} onChange={handleFilterChange}>
+                <option value="">Select Product</option>
+                {products.map((product) => (
+                  <option key={product.id} value={product.id}>
+                    {product.name}
                   </option>
                 ))}
               </Form.Control>
@@ -535,7 +561,6 @@ const SalesPage = ({ showToast }) => {
         <Pagination.Last onClick={() => handlePageChange(totalPages)} disabled={page === totalPages} />
       </Pagination>
 
-      {/* Delete Confirmation Modal */}
       <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)}>
         <Modal.Header closeButton>
           <Modal.Title>Confirm Deletion</Modal.Title>
@@ -551,7 +576,6 @@ const SalesPage = ({ showToast }) => {
         </Modal.Footer>
       </Modal>
 
-      {/* Sales Modal for Create/Edit */}
       <Modal show={showModal} onHide={() => setShowModal(false)} size="lg">
         <Modal.Header closeButton>
           <Modal.Title>{currentSale ? 'Edit Sale' : 'Add New Sale'}</Modal.Title>
