@@ -1,7 +1,7 @@
 /* eslint-disable no-restricted-globals */
 
 const CACHE_NAME = 'sales_app_v2';
-const CACHE_EXPIRATION_MS = 5 * 60 * 1000; // 5 minutes in milliseconds
+const CACHE_EXPIRATION_MS = 2 * 60 * 1000; // 2 minutes in milliseconds
 const MAX_CACHE_ITEMS = 30; // Limit cache size to prevent it from growing indefinitely
 
 const urlsToCache = [

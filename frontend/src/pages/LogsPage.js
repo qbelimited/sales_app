@@ -36,7 +36,11 @@ const LogsPage = ({ showToast }) => {
       const fetchedLogs = response.data.logs || [];
 
       // Sort logs in descending order by timestamp
-      fetchedLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      fetchedLogs.sort((a, b) => {
+        const dateA = new Date(a.timestamp.replace(',', '.')); // Ensure the comma is replaced
+        const dateB = new Date(b.timestamp.replace(',', '.'));
+        return dateB - dateA; // Descending order
+      });
 
       setLogs(fetchedLogs);
       setTotalPages(response.data.total_pages || 1);
@@ -90,7 +94,7 @@ const LogsPage = ({ showToast }) => {
     if (matches) {
       const timestamp = matches[0];
       const message = logEntry.replace(timestampRegex, '').trim();
-      const dateObject = new Date(timestamp.replace(',', '.'));
+      const dateObject = new Date(timestamp.replace(',', '.')); // Ensure the comma is replaced for correct parsing
       return {
         timestamp: isNaN(dateObject.getTime()) ? 'Invalid Date' : dateObject,
         message,
