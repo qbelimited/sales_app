@@ -129,7 +129,7 @@ class Sale(db.Model):
                 return self
 
             # Check for duplicates
-            critical_duplicate = self.find_duplicate(
+            critical_duplicates = self.find_duplicate(
                 critical=True,
                 client_phone=client_phone_normalized,
                 client_id_no=client_id_no_normalized,
@@ -138,21 +138,23 @@ class Sale(db.Model):
                 bank_acc_number=bank_acc_number_normalized
             )
 
-            if critical_duplicate:
+            if critical_duplicates:  # If there are actual duplicates
                 self.status = 'under investigation'
                 self.flag_under_investigation("Critical duplicate detected.")
                 return self
 
-            less_critical_duplicate = self.find_duplicate(
+            less_critical_duplicates = self.find_duplicate(
                 critical=False,
                 client_phone=client_phone_normalized,
                 serial_number=serial_number_normalized
             )
 
-            if less_critical_duplicate:
+            if less_critical_duplicates:  # If there are actual duplicates
                 self.status = 'potential duplicate'
                 self.flag_under_investigation("Potential duplicate detected.")
                 return self
+
+            logger.info("No sales found that match the criteria.")
 
             # No duplicates found, proceed with normal submission
             self.status = 'submitted'
@@ -220,16 +222,33 @@ class Sale(db.Model):
                 )
             )
 
-        return query.filter(conditions).first()
+        return query.filter(conditions).all()  # Return all matching records
 
     def flag_under_investigation(self, reason):
         """Flag the current sale under investigation and log the reason."""
         self.status = 'under investigation'
+
+        # Retrieve all duplicates meeting the conditions for the current sale
+        duplicate_sales = self.find_duplicate(
+            critical=True,
+            client_phone=self.sanitize_input(self.client_phone.strip()),
+            client_id_no=self.sanitize_input(self.client_id_no.strip().lower() or ""),
+            serial_number=self.sanitize_input(self.serial_number.strip().lower() or ""),
+            momo_reference_number=self.sanitize_input(self.momo_reference_number.strip().lower() or ""),
+            bank_acc_number=self.sanitize_input(self.bank_acc_number.strip() or "")
+        )
+
+        # Collect IDs of duplicate sales
+        duplicate_ids = [sale.id for sale in duplicate_sales] if duplicate_sales else []
+
+        # Format notes with duplicate IDs
+        notes = f"Auto-flagged by system based on fraud detection rules [with sales_id {', '.join(map(str, duplicate_ids))}]"
+
         db.session.add(self)
         investigation = UnderInvestigation(
-            sale_id=self.id,  # Now self.id is available
+            sale_id=self.id,
             reason=reason,
-            notes='Auto-flagged by system based on fraud detection rules'
+            notes=notes  # Include duplicate IDs in the notes
         )
         db.session.add(investigation)
         db.session.commit()

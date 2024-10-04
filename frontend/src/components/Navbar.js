@@ -64,6 +64,7 @@ const Navbar = ({ onLogout, showToast }) => {
         </div>
         <button onClick={handleLogout} className="logout-button">
           <FaSignOutAlt />
+          <span>Log Out</span>
         </button>
       </div>
 

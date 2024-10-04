@@ -8,7 +8,7 @@ import * as d3 from 'd3';
 import jsPDF from 'jspdf'; // Import jsPDF for PDF export
 import autoTable from 'jspdf-autotable'; // Import autoTable for table export in PDF
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileCsv, faFilePdf, faChartBar, faChartLine, faChartPie } from '@fortawesome/free-solid-svg-icons';
+import { faFileCsv, faFilePdf } from '@fortawesome/free-solid-svg-icons';
 
 Chart.register(...registerables);
 
@@ -203,10 +203,15 @@ const ReportsPage = ({ showToast }) => {
         <Card.Body>
           <Form.Group controlId="chartType">
             <Form.Label>Select Chart Type</Form.Label>
-            <Form.Control as="select" size="sm" value={chartType} onChange={(e) => setChartType(e.target.value)}>
-              <option value="bar"><FontAwesomeIcon icon={faChartBar} /> Bar Chart</option>
-              <option value="line"><FontAwesomeIcon icon={faChartLine} /> Line Chart</option>
-              <option value="pie"><FontAwesomeIcon icon={faChartPie} /> Pie Chart</option>
+            <Form.Control
+              as="select"
+              size="sm"
+              value={chartType}
+              onChange={(e) => setChartType(e.target.value)}
+            >
+              <option value="bar">Bar Chart</option>
+              <option value="line">Line Chart</option>
+              <option value="pie">Pie Chart</option>
             </Form.Control>
           </Form.Group>
           <div style={{ position: 'relative', height: '400px' }}>

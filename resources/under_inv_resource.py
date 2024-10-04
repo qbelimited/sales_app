@@ -20,7 +20,8 @@ under_investigation_model = under_inv_ns.model('UnderInvestigation', {
     'notes_history': fields.String(description='Notes History'),
     'flagged_at': fields.DateTime(description='Time the sale was flagged'),
     'resolved': fields.Boolean(description='Whether the investigation is resolved'),
-    'resolved_at': fields.DateTime(description='Time the investigation was resolved')
+    'resolved_at': fields.DateTime(description='Time the investigation was resolved'),
+    'updated_by_user_id': fields.Integer(description='User ID of the last user who updated the investigation')
 })
 
 @under_inv_ns.route('/')
@@ -85,7 +86,8 @@ class UnderInvestigationListResource(Resource):
                 reason=data['reason'],
                 notes=data.get('notes', ''),
                 flagged_at=datetime.utcnow(),
-                resolved=False
+                resolved=False,
+                updated_by_user_id=current_user['id']  # Add updated_by_user_id on creation
             )
             db.session.add(new_investigation)
             db.session.commit()
@@ -160,6 +162,8 @@ class UnderInvestigationResource(Resource):
                 investigation.add_note_with_history(data['notes'], current_user['id'])
             investigation.resolved = data.get('resolved', investigation.resolved)
             investigation.resolved_at = datetime.utcnow() if investigation.resolved else None
+
+            # Update the updated_by_user_id field
             investigation.updated_by_user_id = current_user['id']
 
             db.session.commit()
@@ -204,7 +208,7 @@ class UnderInvestigationResource(Resource):
             logger.info(f"User {current_user['id']} resolved investigation with ID {investigation.id}")
             audit = AuditTrail(
                 user_id=current_user['id'],
-                action='RESOLVE',
+                action='UPDATE',
                 resource_type='under_investigation',
                 resource_id=investigation.id,
                 details=f"User resolved investigation with ID {investigation.id}",
@@ -219,3 +223,104 @@ class UnderInvestigationResource(Resource):
             logger.error(f"Error resolving investigation: {str(e)}")
             db.session.rollback()
             return {'message': 'Error resolving investigation'}, 500
+
+@under_inv_ns.route('/auto-update')
+class UpdateUnderInvestigationsResource(Resource):
+    @under_inv_ns.doc(security='Bearer Auth', responses={200: 'Updated', 500: 'Internal Server Error'})
+    @jwt_required()
+    def post(self):
+        """Update all investigations and related sales statuses."""
+        current_user = get_jwt_identity()
+        try:
+            # Fetch all under investigation records that are not resolved
+            investigations = UnderInvestigation.query.filter_by(resolved=False).all()
+            sales_to_update = []
+            investigations_to_delete = []
+            investigations_to_resolve = []
+
+            # Process each investigation
+            for investigation in investigations:
+                sale = Sale.query.filter_by(id=investigation.sale_id, is_deleted=False).first()
+
+                if sale:
+                    # Check for critical and potential duplicates
+                    critical_duplicates = sale.find_duplicate(critical=True)
+                    potential_duplicates = sale.find_duplicate(critical=False)
+
+                    if critical_duplicates or potential_duplicates:
+                        sale.status = 'under investigation'
+                        logger.info(f"Sale ID {sale.id} remains under investigation.")
+                        sales_to_update.append(sale)
+                    else:
+                        # No duplicates found, mark as submitted
+                        sale.status = 'submitted'
+                        investigations_to_resolve.append(investigation)
+                        investigation.resolved = True
+                        investigation.resolved_at = datetime.utcnow()
+                        investigation.notes = f"Sale ID {sale.id} was wrongly flagged system corrected and sale status marked as submitted."
+                        logger.info(f"Sale ID {sale.id} was wrongly flagged system corrected and sale status updated to submitted and investigation resolved.")
+                        sales_to_update.append(sale)
+                else:
+                    # Sale does not exist, mark for deletion
+                    logger.warning(f"Sale ID {investigation.sale_id} does not exist. Marking investigation for deletion.")
+                    investigations_to_delete.append(investigation)
+
+            # Commit updates to sales
+            for sale in sales_to_update:
+                db.session.add(sale)
+
+            # Commit resolutions
+            for investigation in investigations_to_resolve:
+                db.session.add(investigation)
+
+            # Permanent delete investigations that are no longer relevant
+            for investigation in investigations_to_delete:
+                db.session.delete(investigation)
+
+            # Commit all changes at once
+            db.session.commit()
+
+            # Audit Trail: Log the updates
+            for sale in sales_to_update:
+                audit = AuditTrail(
+                    user_id=current_user['id'],
+                    action='UPDATE',
+                    resource_type='sale',
+                    resource_id=sale.id,
+                    details=f"Sale ID {sale.id} was wrongly flagged system corrected and sale status updated to {sale.status}.",
+                    ip_address=get_client_ip(),
+                    user_agent=request.headers.get('User-Agent')
+                )
+                db.session.add(audit)
+
+            for investigation in investigations_to_resolve:
+                audit = AuditTrail(
+                    user_id=current_user['id'],
+                    action='UPDATE',
+                    resource_type='under_investigation',
+                    resource_id=investigation.id,
+                    details=f"Investigation for Sale ID {investigation.sale_id} resolved.",
+                    ip_address=get_client_ip(),
+                    user_agent=request.headers.get('User-Agent')
+                )
+                db.session.add(audit)
+
+            for investigation in investigations_to_delete:
+                audit = AuditTrail(
+                    user_id=current_user['id'],
+                    action='DELETE',
+                    resource_type='under_investigation',
+                    resource_id=investigation.id,
+                    details=f"Investigation for Sale ID {investigation.sale_id} deleted.",
+                    ip_address=get_client_ip(),
+                    user_agent=request.headers.get('User-Agent')
+                )
+                db.session.add(audit)
+
+            db.session.commit()  # Commit the audit trail entries
+
+            return {'message': 'Investigations and sales statuses updated successfully'}, 200
+        except Exception as e:
+            logger.error(f"Error updating investigations: {str(e)}")
+            db.session.rollback()
+            return {'message': 'Error updating investigations'}, 500

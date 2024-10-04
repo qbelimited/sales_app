@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Table, Spinner, Row, Col, Button, Form } from 'react-bootstrap';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -19,6 +19,7 @@ const LogsPage = ({ showToast }) => {
   const [itemsPerPage] = useState(50);
   const [totalPages, setTotalPages] = useState(1);
 
+  // Fetch logs from the API
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -26,26 +27,15 @@ const LogsPage = ({ showToast }) => {
       const params = {
         page: currentPage,
         per_page: itemsPerPage,
-        ...(filter.type && { type: filter.type.toLowerCase() }), // Convert to lowercase
+        sort_order: 'desc',
+        ...(filter.type && { type: filter.type.toLowerCase() }),
         ...(filter.level && { level: filter.level }),
-        ...(filter.startDate && { start_date: filter.startDate.toISOString() }),
-        ...(filter.endDate && { end_date: filter.endDate.toISOString() }),
       };
 
       const response = await api.get('/logs/', { params });
       const fetchedLogs = response.data.logs || [];
 
-      // Sort logs in descending order by timestamp
-      fetchedLogs.sort((a, b) => {
-        const timestampA = a.timestamp ? a.timestamp.replace(',', '.') : ''; // Ensure we have a valid timestamp
-        const timestampB = b.timestamp ? b.timestamp.replace(',', '.') : '';
-
-        const dateA = new Date(timestampA);
-        const dateB = new Date(timestampB);
-
-        return dateB - dateA; // Descending order
-      });
-
+      // Set logs and total pages
       setLogs(fetchedLogs);
       setTotalPages(response.data.total_pages || 1);
     } catch (error) {
@@ -67,6 +57,7 @@ const LogsPage = ({ showToast }) => {
     fetchLogs();
   }, [fetchLogs]);
 
+  // Handle filter changes
   const handleFilter = () => {
     if (filter.startDate && filter.endDate && filter.startDate > filter.endDate) {
       showToast('warning', 'Start date must be before end date.', 'Invalid Date Range');
@@ -76,29 +67,28 @@ const LogsPage = ({ showToast }) => {
     fetchLogs();
   };
 
+  // Reset filters
   const handleResetFilters = () => {
     setFilter({ type: '', level: '', startDate: null, endDate: null });
     setCurrentPage(1);
     fetchLogs();
   };
 
+  // Change page
   const handlePageChange = (pageNumber) => {
     if (pageNumber < 1 || pageNumber > totalPages) return;
     setCurrentPage(pageNumber);
   };
 
-  const maxPageNumbers = 5;
-  const startPage = Math.max(1, currentPage - Math.floor(maxPageNumbers / 2));
-  const endPage = Math.min(totalPages, startPage + maxPageNumbers - 1);
-
+  // Parse log entry
   const parseLogEntry = (logEntry) => {
-    const timestampRegex = /(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3})/;
+    const timestampRegex = /(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},)/;
     const matches = logEntry.match(timestampRegex);
 
     if (matches) {
-      const timestamp = matches[0];
+      const timestamp = matches[0].replace(',', ''); // Remove the comma
       const message = logEntry.replace(timestampRegex, '').trim();
-      const dateObject = new Date(timestamp.replace(',', '.')); // Ensure the comma is replaced for correct parsing
+      const dateObject = new Date(timestamp);
       return {
         timestamp: isNaN(dateObject.getTime()) ? 'Invalid Date' : dateObject,
         message,
@@ -108,7 +98,30 @@ const LogsPage = ({ showToast }) => {
     return { timestamp: 'No Timestamp', message: logEntry };
   };
 
-  const parsedLogs = logs.map(log => parseLogEntry(log));
+  // Filter logs based on selected date range
+  const filteredLogs = useMemo(() => {
+    return logs.filter(log => {
+      const parsedLog = parseLogEntry(log);
+      const logDate = parsedLog.timestamp;
+      const startDate = filter.startDate ? new Date(filter.startDate) : null;
+      const endDate = filter.endDate ? new Date(filter.endDate) : null;
+
+      return (
+        (!startDate || logDate >= startDate) &&
+        (!endDate || logDate <= endDate)
+      );
+    });
+  }, [logs, filter]);
+
+  // Memoized parsed logs to avoid re-calculation on every render
+  const parsedLogs = useMemo(() => {
+    return filteredLogs.map(log => parseLogEntry(log));
+  }, [filteredLogs]);
+
+  // Pagination calculation
+  const maxPageNumbers = 5;
+  const startPage = Math.max(1, currentPage - Math.floor(maxPageNumbers / 2));
+  const endPage = Math.min(totalPages, startPage + maxPageNumbers - 1);
 
   return (
     <div style={{ marginTop: '20px', padding: '20px' }}>
@@ -124,7 +137,7 @@ const LogsPage = ({ showToast }) => {
             <Form.Control
               as="select"
               value={filter.type}
-              onChange={(e) => setFilter({ ...filter, type: e.target.value.toLowerCase() })} // Ensure lowercase
+              onChange={(e) => setFilter({ ...filter, type: e.target.value.toLowerCase() })}
               aria-label="Log Type"
             >
               <option value="">Log Type</option>

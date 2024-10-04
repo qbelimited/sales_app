@@ -12,7 +12,7 @@ function LoginPage({ showToast }) {
 
   const onSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
+    setError(null); // Clear previous errors
 
     // Client-side validation
     if (!email || !password) {
@@ -30,14 +30,15 @@ function LoginPage({ showToast }) {
     setLoading(true);
 
     try {
-      await handleLogin({ email, password });
+      await handleLogin({ email, password }); // Try logging in with provided credentials
       showToast('success', 'Login successful!', 'Success');
     } catch (error) {
+      // Catch network or authentication errors
       console.error('Login error:', error);
-      setError(error.message || 'Login failed. Please try again.');
-      showToast('danger', error.message || 'Login failed!', 'Error');
+      setError(error?.message || 'Login failed. Please try again.');
+      showToast('danger', error?.message || 'Login failed!', 'Error');
     } finally {
-      setLoading(false);
+      setLoading(false); // Stop the loading spinner after the process finishes
     }
   };
 

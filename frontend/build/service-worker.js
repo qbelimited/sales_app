@@ -1,19 +1,18 @@
 /* eslint-disable no-restricted-globals */
 
 const CACHE_NAME = 'sales_app_v2';
-const CACHE_EXPIRATION_MS = 2 * 60 * 1000; // 2 minutes in milliseconds
-const MAX_CACHE_ITEMS = 30; // Limit cache size to prevent it from growing indefinitely
-
+const OFFLINE_CACHE = 'offline-cache';
+const CACHE_EXPIRATION_MS = 2 * 60 * 1000; // 2 minutes
+const MAX_CACHE_ITEMS = 30;
 const urlsToCache = [
   '/',
   '/index.html',
-  '/offline.html', // Ensure offline page is included
+  '/offline.html',
   '/favicon.ico',
   '/manifest.json',
   '/robots.txt',
   '/logo192.png',
   '/logo512.png',
-  // Static assets (Adjust paths based on your build setup)
   '/static/css/main.css',
   '/static/js/bundle.js',
 ];
@@ -45,7 +44,7 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
+          if (cache !== CACHE_NAME && cache !== OFFLINE_CACHE) {
             console.log('Deleting old cache:', cache);
             return caches.delete(cache);
           }
@@ -58,6 +57,11 @@ self.addEventListener('activate', (event) => {
 
 // Helper function to add response to cache with timestamp and limit cache size
 const addToCacheWithExpiration = async (cache, request, response) => {
+  if (!response || response.status < 200 || response.status > 599) {
+    console.warn(`Invalid response status ${response?.status} for request ${request.url}. Not caching.`);
+    return; // Exit if the response is invalid
+  }
+
   const responseClone = response.clone();
   const now = Date.now();
   const headers = new Headers(responseClone.headers);
@@ -66,26 +70,26 @@ const addToCacheWithExpiration = async (cache, request, response) => {
   const responseWithHeaders = new Response(responseClone.body, {
     status: responseClone.status,
     statusText: responseClone.statusText,
-    headers: headers
+    headers: headers,
   });
 
-  if (request.method === 'GET' && (request.url.startsWith('http://') || request.url.startsWith('https://'))) {
+  if (request.method === 'GET') {
     await cache.put(request, responseWithHeaders);
-    await limitCacheSize(cache, MAX_CACHE_ITEMS); // Ensure cache size stays within limit
+    await limitCacheSize(cache, MAX_CACHE_ITEMS); // Limit cache size
   } else {
     console.warn(`Request not cached: ${request.url}. Unsupported method or scheme.`);
   }
 };
 
-// Helper function to check if a cached response has expired
+// Check if cached response has expired
 const isCacheExpired = (cachedResponse) => {
   const timestamp = cachedResponse.headers.get('sw-cache-timestamp');
-  if (!timestamp) return true; // If no timestamp, consider it expired
+  if (!timestamp) return true;
   const age = Date.now() - parseInt(timestamp, 10);
-  return age > CACHE_EXPIRATION_MS; // Check if it's older than the expiration time
+  return age > CACHE_EXPIRATION_MS;
 };
 
-// Fetch event - applying different strategies based on content type
+// Fetch event - Offline-first for static assets, network-first for dynamic content
 self.addEventListener('fetch', (event) => {
   // Ignore requests from chrome-extension or non-GET methods
   if (event.request.url.startsWith('chrome-extension:') || event.request.method !== 'GET') {
@@ -99,13 +103,19 @@ self.addEventListener('fetch', (event) => {
         if (cachedResponse && !isCacheExpired(cachedResponse)) {
           return cachedResponse;
         }
-        // If cache is expired or missing, fetch from network
-        return fetch(event.request).then((networkResponse) => {
-          return caches.open(CACHE_NAME).then((cache) => {
-            addToCacheWithExpiration(cache, event.request, networkResponse);
-            return networkResponse.clone();
-          });
-        }).catch(() => caches.match('/offline.html'));
+        return fetch(event.request)
+          .then((networkResponse) => {
+            if (networkResponse && networkResponse.status >= 200 && networkResponse.status <= 599) {
+              return caches.open(CACHE_NAME).then((cache) => {
+                addToCacheWithExpiration(cache, event.request, networkResponse);
+                return networkResponse.clone();
+              });
+            } else {
+              console.warn(`Failed network request: ${networkResponse.status}`);
+              return networkResponse;
+            }
+          })
+          .catch(() => caches.match('/offline.html')); // Serve offline.html if network fails
       })
     );
     return;
@@ -113,38 +123,43 @@ self.addEventListener('fetch', (event) => {
 
   // Network-first strategy for dynamic content (e.g., API calls)
   event.respondWith(
-    fetch(event.request).then((networkResponse) => {
-      return caches.open(CACHE_NAME).then((cache) => {
-        addToCacheWithExpiration(cache, event.request, networkResponse);
-        return networkResponse.clone();
-      });
-    }).catch(() => {
-      return caches.match(event.request).then((cachedResponse) => {
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (!networkResponse || networkResponse.status === 0) {
+          throw new Error('Network response was not valid.');
+        }
+        return caches.open(CACHE_NAME).then((cache) => {
+          addToCacheWithExpiration(cache, event.request, networkResponse);
+          return networkResponse.clone();
+        });
+      })
+      .catch(() => caches.match(event.request).then((cachedResponse) => {
         if (cachedResponse && !isCacheExpired(cachedResponse)) {
           return cachedResponse;
         }
         return caches.match('/offline.html');
-      });
-    })
+      }))
   );
 });
 
-// Function to cache specific dynamic URLs (e.g., sale details)
+// Dynamic route caching for sales
 const cacheDynamicRoute = async (saleId) => {
   const dynamicUrl = `/sales/${saleId}`;
   const cache = await caches.open(CACHE_NAME);
-  return fetch(dynamicUrl).then((response) => {
-    if (response && response.status === 200) {
-      addToCacheWithExpiration(cache, dynamicUrl, response);
-    } else {
-      console.warn(`Failed to cache dynamic route ${dynamicUrl}: Status ${response.status}`);
-    }
-  }).catch((error) => {
-    console.error(`Failed to cache dynamic route ${dynamicUrl}:`, error);
-  });
+  return fetch(dynamicUrl)
+    .then((response) => {
+      if (response && response.status === 200) {
+        addToCacheWithExpiration(cache, dynamicUrl, response);
+      } else {
+        console.warn(`Failed to cache dynamic route ${dynamicUrl}: Status ${response.status}`);
+      }
+    })
+    .catch((error) => {
+      console.error(`Failed to cache dynamic route ${dynamicUrl}:`, error);
+    });
 };
 
-// Example of caching a sale when created or updated
+// Message listener for dynamic caching
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'CACHE_DYNAMIC_ROUTE') {
     cacheDynamicRoute(event.data.saleId);

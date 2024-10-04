@@ -1,4 +1,4 @@
-import React, { useEffect, Suspense, useMemo } from 'react';
+import React, { useEffect, Suspense, useMemo, useCallback } from 'react';
 import { Route, Routes, Navigate, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -12,6 +12,7 @@ import { useServiceWorker } from './hooks/useServiceWorker'; // Custom hook for 
 import { useLocalStorage } from './hooks/useLocalStorage'; // Custom hook for localStorage interaction
 import './App.css';
 import authService from './services/authService';
+import throttle from 'lodash.throttle'; // Import lodash.throttle
 
 // Lazy-loaded pages
 const LoginPage = React.lazy(() => import('./pages/LoginPage'));
@@ -53,9 +54,9 @@ const appRoutes = [
   { path: '/manage-sales-executives', component: ManageSalesExecutivesPage, allowedRoles: [1, 2, 3, 4] },
   { path: '/manage-paypoints', component: ManagePaypointsPage, allowedRoles: [1, 2, 3, 4] },
   { path: '/manage-targets', component: ManageSalesTargetsPage, allowedRoles: [1, 2, 3, 4] },
+  { path: '/investigations', component: FlaggedInvestigationsPage, allowedRoles: [1, 2, 3, 4] },
   { path: '/manage-banks', component: ManageBanksPage, allowedRoles: [1, 2, 3, 4] },
   { path: '/reports', component: ReportsPage, allowedRoles: [1, 2, 3] },
-  { path: '/investigations', component: FlaggedInvestigationsPage, allowedRoles: [1, 2, 3] },
   { path: '/manage-products', component: ManageProductsPage, allowedRoles: [1, 2, 3] },
   { path: '/manage-branches', component: ManageGenBranchesPage, allowedRoles: [1, 2, 3] },
   { path: '/audit-trail', component: AuditTrailPage, allowedRoles: [2, 3] },
@@ -66,6 +67,53 @@ const appRoutes = [
   { path: '/manage-users-sessions', component: ManageSessionsPage, allowedRoles: [3] },
 ];
 
+// Custom hook to handle login and redirection logic with throttled navigation
+// Custom hook to handle login and redirection logic with throttled navigation
+function useLoginRedirect(role, navigate, setShowHelpTour) {
+  const throttledNavigate = useCallback(
+    (path) => {
+      const throttledFn = throttle(() => navigate(path), 2000); // Define throttled inside the callback
+      throttledFn(); // Call the throttled function
+    },
+    [navigate] // Properly track navigate as a dependency
+  );
+
+  useEffect(() => {
+    const checkLogin = async () => {
+      const isLoggedIn = await authService.isLoggedIn();
+
+      if (!isLoggedIn) {
+        throttledNavigate('/login'); // Use throttled navigation
+      } else if (role) {
+        // Set a timeout to auto-hide the help tour after 2 minutes
+        const timer = setTimeout(() => setShowHelpTour(false), 120000);
+
+        // Determine redirection path
+        const redirectPath = role.id === userRoles.ADMIN ? '/manage-users' : '/sales';
+
+        // Only navigate if user is on the login page
+        if (window.location.pathname === '/login') {
+          throttledNavigate(redirectPath); // Use throttled navigation
+        }
+
+        // Cleanup the timer when component unmounts
+        return () => clearTimeout(timer);
+      }
+    };
+
+    checkLogin();
+  }, [role, throttledNavigate, setShowHelpTour]);
+}
+
+// Memoized Navbar and Sidebar to prevent unnecessary re-renders
+const MemoizedNavbar = React.memo(({ role, logout, showToast }) => (
+  role?.id && <Navbar onLogout={logout} showToast={showToast} />
+));
+
+const MemoizedSidebar = React.memo(({ role }) => (
+  role?.id && <Sidebar />
+));
+
 function App() {
   const { state, logout } = useAuth();
   const { role } = state;
@@ -74,35 +122,10 @@ function App() {
   const [showHelpTour, setShowHelpTour] = useLocalStorage('helpTourShown', false); // Custom hook for help tour state
   const navigate = useNavigate();
 
-  // Handle navigation based on user role
-  useEffect(() => {
-    const checkLogin = async () => {
-      const isLoggedIn = await authService.isLoggedIn(navigate);
+  // Handle login and redirection with throttled navigation
+  useLoginRedirect(role, navigate, setShowHelpTour);
 
-      if (!isLoggedIn) {
-        // If the user is not logged in, redirect to the login page
-        navigate('/login');
-      } else {
-        // Only handle help tour visibility if the user is logged in
-        if (role) {
-          const timer = setTimeout(() => setShowHelpTour(false), 120000); // auto-hide after 2 minutes
-
-          const redirectPath = role.id === userRoles.ADMIN ? '/manage-users' : '/sales';
-          // Only navigate if the user is on the login page
-          if (window.location.pathname === '/login') {
-            navigate(redirectPath);
-          }
-
-          // Clean up the timer when the component unmounts
-          return () => clearTimeout(timer);
-        }
-      }
-    };
-
-    checkLogin();
-  }, [role, navigate, showHelpTour, setShowHelpTour]);
-
-  // Memoize appRoutes to prevent unnecessary re-renders
+  // Memoized app routes
   const memoizedRoutes = useMemo(() => {
     return appRoutes.map((route) => (
       <Route
@@ -119,8 +142,8 @@ function App() {
 
   return (
     <div>
-      {role?.id && <Navbar onLogout={logout} showToast={showToast} />}
-      {role?.id && <Sidebar />}
+      <MemoizedNavbar role={role} logout={logout} showToast={showToast} />
+      <MemoizedSidebar role={role} />
       {showHelpTour && <HelpTour />}
 
       <div className={`content ${role?.id ? 'withSidebar' : 'noSidebar'}`}>

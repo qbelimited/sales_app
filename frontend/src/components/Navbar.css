@@ -46,7 +46,13 @@
 }
 
 .navbar-profile span {
-  margin-left: 0.5rem;
+  margin-left: 0.3rem;
+}
+
+/* Hover effect for logout button */
+.navbar-profile:hover {
+  color: rgb(0, 174, 255);
+  transform: scale(1.1); /* Slight pop-up effect */
 }
 
 /* Logout button */
@@ -58,6 +64,10 @@
   color: #fff;
   font-size: 1rem; /* Adjust font size */
   transition: transform 0.2s ease, color 0.2s ease; /* Animation on hover */
+}
+
+.logout-button span {
+  margin-left: 0.3rem;
 }
 
 /* Hover effect for logout button */

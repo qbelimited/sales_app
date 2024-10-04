@@ -103,7 +103,7 @@ function Sidebar() {
                   </NavLink>
                 </li>
                 <li>
-                  <NavLink to="/flagged-investigations" className={({ isActive }) => (isActive ? 'active' : '')}>
+                  <NavLink to="/investigations" className={({ isActive }) => (isActive ? 'active' : '')}>
                     <FaFlag />
                     <span>Flagged Investigations</span>
                   </NavLink>

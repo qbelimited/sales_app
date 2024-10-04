@@ -57,7 +57,7 @@ const authService = {
     }
   },
 
-  refreshToken: async () => {
+  refreshToken: async (navigate) => {
     try {
       const refreshToken = localStorage.getItem('refresh_token');
       if (!refreshToken) throw new Error('No refresh token available.');
@@ -73,12 +73,12 @@ const authService = {
         throw new Error('Missing access token in response.');
       }
     } catch (error) {
-      authService.handleSessionExpired();
+      authService.handleSessionExpired(navigate);
       throw error;
     }
   },
 
-  isLoggedIn: async (navigate) => {
+  isLoggedIn: async (navigate = () => {}) => {
     const token = authService.getAccessToken();
     const expiry = localStorage.getItem('expiry');
 
@@ -91,7 +91,7 @@ const authService = {
         } else {
             // Token is about to expire, refresh it
             try {
-                await authService.refreshToken();
+                await authService.refreshToken(navigate);
                 return true; // Successfully refreshed token
             } catch (error) {
                 authService.handleSessionExpired(navigate);

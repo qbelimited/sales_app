@@ -20,6 +20,7 @@ log_param.add_argument('page', type=int, required=False, default=1, help="Page n
 log_param.add_argument('per_page', type=int, required=False, default=50, help="Number of log entries per page")
 log_param.add_argument('start_date', type=str, required=False, help="Start date for log filter (YYYY-MM-DD)")
 log_param.add_argument('end_date', type=str, required=False, help="End date for log filter (YYYY-MM-DD)")
+log_param.add_argument('sort_order', type=str, required=False, default='desc', help="Sort order: 'asc' or 'desc'")
 
 # Helper function to check role permissions
 def check_role_permission(current_user):
@@ -44,6 +45,7 @@ class LogResource(Resource):
         per_page = request.args.get('per_page', 50, type=int)
         start_date = request.args.get('start_date')
         end_date = request.args.get('end_date')
+        sort_order = request.args.get('sort_order', 'desc').lower()  # 'asc' or 'desc'
 
         # Construct file pattern to match log files
         log_file_prefix = f"{log_type}_"
@@ -61,8 +63,8 @@ class LogResource(Resource):
             # Aggregate logs from multiple files using a generator
             filtered_logs = self.get_filtered_logs(log_files, level, start_date, end_date)
 
-            # Sort logs by date (newest first) if they have been successfully read
-            sorted_logs = sorted(filtered_logs, key=lambda x: x.split(' ')[0], reverse=True)
+            # Sort logs by date (newest first or oldest first)
+            sorted_logs = sorted(filtered_logs, key=lambda x: x.split(' ')[0], reverse=(sort_order == 'desc'))
 
             # Paginate the logs using islice for memory efficiency
             total_logs = len(sorted_logs)

@@ -3,6 +3,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Spinner, Card, Container, Row, Col, Button } from 'react-bootstrap';
 import api from '../services/api';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faArrowLeft} from '@fortawesome/free-solid-svg-icons';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet-defaulticon-compatibility';
@@ -57,7 +59,10 @@ const SaleDetailsPage = () => {
 
     return (
         <Container className="mt-5">
-            <Button variant="secondary" onClick={() => navigate(-1)} className="mb-4">Back to Sales</Button> {/* Back button */}
+            <Button variant="secondary" onClick={() => navigate(-1)} className="mb-4">
+                <FontAwesomeIcon icon={faArrowLeft} />
+                <span> Back</span>
+                </Button> {/* Back button */}
             <h2 className="mb-4 text-center">Sale Details</h2>
             <Row>
                 <Col md={6}>
