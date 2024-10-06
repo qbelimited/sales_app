@@ -1,4 +1,3 @@
-// AuthContext.js
 import React, { createContext, useReducer, useEffect } from 'react';
 import authService from '../services/authService';
 
@@ -61,17 +60,26 @@ export const AuthProvider = ({ children }) => {
         const isLoggedIn = await authService.isLoggedIn();
 
         if (savedRole && isLoggedIn) {
-          dispatch({
-            type: 'LOGIN_SUCCESS',
-            payload: { user: authService.getUser(), role: savedRole },
-          });
+          const user = authService.getUser();
+          if (user) {
+            dispatch({
+              type: 'LOGIN_SUCCESS',
+              payload: { user, role: savedRole },
+            });
+          } else {
+            dispatch({ type: 'LOGOUT' });
+            authService.logout();
+          }
         } else {
           dispatch({ type: 'LOGOUT' });
           authService.logout();
         }
       } catch (error) {
+        console.error('Failed to check authentication status:', error);
         dispatch({ type: 'AUTH_ERROR', payload: 'Failed to check authentication status.' });
         authService.logout();
+      } finally {
+        dispatch({ type: 'SET_LOADING', payload: false });
       }
     };
 
@@ -81,7 +89,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (credentials) => {
     try {
       const response = await authService.login(credentials);
-      if (response && response.user) {
+      if (response?.user) {
         const userRole = response.user.role;
         localStorage.setItem('userRole', JSON.stringify(userRole));
         dispatch({
@@ -90,8 +98,9 @@ export const AuthProvider = ({ children }) => {
         });
       }
     } catch (error) {
+      console.error('Login failed:', error);
       dispatch({ type: 'AUTH_ERROR', payload: 'Login failed. Please try again.' });
-      throw error;
+      throw error; // Optionally rethrow to allow further handling
     }
   };
 

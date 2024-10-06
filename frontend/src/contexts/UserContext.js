@@ -52,7 +52,7 @@ export const UserProvider = ({ children, showToast }) => {
     };
 
     fetchUserAndSessions();
-  }, [showToast]);
+  }, [showToast]); // Dependencies include showToast
 
   const calculateLastLoginAndDuration = (sessions) => {
     if (sessions.length > 0) {
@@ -61,11 +61,7 @@ export const UserProvider = ({ children, showToast }) => {
 
       // Get the most recent session for the last login time
       const lastSession = sortedSessions[0];
-      if (lastSession?.login_time) {
-        setLastLoginTime(new Date(lastSession.login_time));
-      } else {
-        setLastLoginTime(null);
-      }
+      setLastLoginTime(lastSession?.login_time ? new Date(lastSession.login_time) : null);
 
       // Get the second most recent session for the last session duration
       if (sortedSessions.length > 1) {

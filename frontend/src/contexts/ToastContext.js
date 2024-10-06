@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useMemo } from 'react';
-import PropTypes from 'prop-types'; // Import PropTypes for prop validation
+import PropTypes from 'prop-types'; // For prop validation
 import useToasts from '../hooks/useToasts';
 
 // Create the ToastContext
@@ -23,7 +23,13 @@ export const ToastProvider = ({ children }) => {
 };
 
 // Custom hook to use the ToastContext
-export const useToastContext = () => useContext(ToastContext);
+export const useToastContext = () => {
+  const context = useContext(ToastContext);
+  if (!context) {
+    throw new Error('useToastContext must be used within a ToastProvider');
+  }
+  return context;
+};
 
 // Add prop validation for children
 ToastProvider.propTypes = {

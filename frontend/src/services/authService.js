@@ -3,28 +3,34 @@ import { toast } from 'react-toastify';
 import api from './api';
 
 const authService = {
-  login: async (credentials) => {
+  login: async (credentials, navigate) => {
     // Validate credentials
     if (!credentials.email || !credentials.password) {
-      console.error('Invalid login credentials:', credentials);
-      throw new Error('Invalid login credentials. Email and password are required.');
+      const errorMessage = 'Invalid login credentials. Email and password are required.';
+      console.error(errorMessage, credentials);
+      toast.error(errorMessage);
+      throw new Error(errorMessage);
     }
 
     try {
       const response = await api.post('/auth/login', credentials);
-
-      // Check for access and refresh tokens
       const { access_token, refresh_token, user, expiry } = response.data || {};
-      if (access_token && refresh_token) {
-        authService.storeSession(access_token, refresh_token, user, expiry);
-        authService.fetchAndStoreUserDetails();
+
+      // Check if login was successful by validating response
+      if (response.status === 200 && access_token && refresh_token) {
+        await authService.storeSession(access_token, refresh_token, user, expiry);
+        await authService.invalidateExistingSession(user.id); // Invalidate old session
+        await authService.fetchAndStoreUserDetails();
         toast.success('Login successful');
-        return response.data;  // Return user data and tokens
+        return response.data; // Return user data and tokens
       } else {
-        throw new Error('Missing access or refresh token in response.');
+        const errorMessage = 'Invalid email or password. Please try again.';
+        console.error(errorMessage);
+        toast.error(errorMessage);
+        throw new Error(errorMessage);
       }
     } catch (error) {
-      authService.handleAuthError(error);
+      authService.handleLoginError(error, navigate);
       throw error; // Propagate error
     }
   },
@@ -41,10 +47,12 @@ const authService = {
         return;
       }
 
+      // If a session ID is provided, invalidate it
       if (sessionId && user) {
         await api.delete(`/users/${user.id}/sessions/${sessionId}`);
       }
 
+      // Logout from API
       await api.post('/auth/logout', { refresh_token: refreshToken }, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
@@ -60,13 +68,16 @@ const authService = {
   refreshToken: async (navigate) => {
     try {
       const refreshToken = localStorage.getItem('refresh_token');
-      if (!refreshToken) throw new Error('No refresh token available.');
+      if (!refreshToken) {
+        throw new Error('No refresh token available. Please log in again.');
+      }
 
+      // Validate the refresh token by attempting to refresh
       const response = await api.post('/auth/refresh', { refresh_token: refreshToken });
       const { access_token, expiry } = response.data || {};
 
       if (access_token) {
-        authService.storeSession(access_token, refreshToken, JSON.parse(localStorage.getItem('user')), expiry);
+        await authService.storeSession(access_token, refreshToken, JSON.parse(localStorage.getItem('user')), expiry);
         toast.success('Session refreshed successfully');
         return access_token;
       } else {
@@ -74,31 +85,31 @@ const authService = {
       }
     } catch (error) {
       authService.handleSessionExpired(navigate);
-      throw error;
+      throw error; // Propagate error
     }
   },
 
-  isLoggedIn: async (navigate = () => {}) => {
+  isLoggedIn: async (navigate) => {
     const token = authService.getAccessToken();
     const expiry = localStorage.getItem('expiry');
 
     if (token && expiry) {
-        const timeLeft = expiry - Date.now();
-        const bufferTime = 5 * 60 * 1000; // 5 minutes buffer
+      const timeLeft = expiry - Date.now();
+      const bufferTime = 5 * 60 * 1000; // 5 minutes buffer
 
-        if (timeLeft > bufferTime) {
-            return true; // Token is still valid
-        } else {
-            // Token is about to expire, refresh it
-            try {
-                await authService.refreshToken(navigate);
-                return true; // Successfully refreshed token
-            } catch (error) {
-                authService.handleSessionExpired(navigate);
-            }
+      if (timeLeft > bufferTime) {
+        return true; // Token is still valid
+      } else {
+        // Token is about to expire, refresh it
+        try {
+          await authService.refreshToken(navigate);
+          return true; // Successfully refreshed token
+        } catch (error) {
+          authService.handleSessionExpired(navigate);
         }
+      }
     } else {
-        authService.handleSessionExpired(navigate);
+      authService.handleSessionExpired(navigate);
     }
     return false;
   },
@@ -108,22 +119,31 @@ const authService = {
   handleSessionExpired: (navigate) => {
     authService.clearSession();
     toast.error('Your session has expired. Please log in again.');
-    // Use the passed navigate function to redirect to the login page
-    navigate('/login');
+    if (typeof navigate === 'function') {
+      navigate('/login'); // Use navigate only if it's a function
+    }
   },
 
   storeSession: (access_token, refresh_token, user, expiry) => {
-    localStorage.setItem('access_token', access_token);
-    localStorage.setItem('refresh_token', refresh_token);
-    localStorage.setItem('user', JSON.stringify(user));
-    localStorage.setItem('expiry', Date.now() + expiry * 1000);
+    try {
+      localStorage.setItem('access_token', access_token);
+      localStorage.setItem('refresh_token', refresh_token);
+      localStorage.setItem('user', JSON.stringify(user));
+      localStorage.setItem('expiry', Date.now() + expiry * 1000);
+    } catch (error) {
+      console.error('Failed to store session:', error);
+    }
   },
 
   clearSession: () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    localStorage.removeItem('user');
-    localStorage.removeItem('expiry');
+    try {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('expiry');
+    } catch (error) {
+      console.error('Failed to clear session:', error);
+    }
   },
 
   fetchAndStoreUserDetails: async () => {
@@ -161,6 +181,51 @@ const authService = {
       toast.error(`Login failed: ${error.message}`);
     }
   },
+
+  handleLoginError: (error, navigate) => {
+    if (error.response && error.response.status === 401) {
+      toast.error('Invalid email or password. Please try again.');
+    } else {
+      authService.handleAuthError(error);
+    }
+    if (navigate) {
+      authService.handleSessionExpired(navigate);
+    }
+  },
+
+  // Function to invalidate existing sessions
+  invalidateExistingSession: async (userId) => {
+    const accessToken = authService.getAccessToken();
+
+    // Check if the access token is valid before making the request
+    if (!accessToken) {
+      console.error('Cannot invalidate sessions: No valid access token available.');
+      return;
+    }
+
+    try {
+      const existingSessions = await api.get(`/users/${userId}/sessions`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+
+      // Check if the response contains session data
+      if (Array.isArray(existingSessions.data)) {
+        for (const session of existingSessions.data) {
+          if (session.isActive) {
+            await authService.logout(session.id); // Logout from the older session
+          }
+        }
+      } else {
+        console.error('Unexpected session data structure:', existingSessions.data);
+      }
+    } catch (error) {
+      authService.handleSessionExpired();
+      console.error('Failed to invalidate existing session:', error);
+      toast.error('Could not invalidate existing session.');
+    }
+  },
+
+  getUser: () => JSON.parse(localStorage.getItem('user')) || null,
 };
 
 export default authService;

@@ -1,4 +1,3 @@
-// hooks/useServiceWorker.js
 import { useEffect, useRef } from 'react';
 import * as serviceWorkerRegistration from '../services/serviceWorkerRegistration';
 
@@ -7,9 +6,9 @@ export const useServiceWorker = (showToast) => {
 
   // Register service worker and listen for updates
   useEffect(() => {
-    const registerServiceWorker = () => {
+    const registerServiceWorker = async () => {
       try {
-        serviceWorkerRegistration.register({
+        await serviceWorkerRegistration.register({
           onUpdate: (registration) => {
             showToast('update', 'A new version is available. Click here to update.', 'Update Available');
             waitingServiceWorker.current = registration.waiting;
@@ -27,11 +26,13 @@ export const useServiceWorker = (showToast) => {
   const updateServiceWorker = () => {
     if (waitingServiceWorker.current) {
       waitingServiceWorker.current.postMessage({ type: 'SKIP_WAITING' });
-      waitingServiceWorker.current.addEventListener('statechange', (event) => {
-        if (event.target.state === 'activated') {
+
+      // Listen for state change to reload the page when the new service worker is activated
+      waitingServiceWorker.current.addEventListener('statechange', () => {
+        if (waitingServiceWorker.current.state === 'activated') {
           window.location.reload();
         }
-      });
+      }, { once: true }); // Use { once: true } to remove the listener after it's called
     }
   };
 

@@ -1,3 +1,4 @@
+// LoginPage.js
 import React, { useState } from 'react';
 import { Button, Spinner, Card, Form, Container, Row, Col } from 'react-bootstrap';
 import { isValidEmail } from '../utils/validators'; // Utility for email validation
@@ -16,14 +17,16 @@ function LoginPage({ showToast }) {
 
     // Client-side validation
     if (!email || !password) {
-      setError('Please fill in all fields');
-      showToast('warning', 'Please fill in all fields', 'Missing Fields');
+      const message = 'Please fill in all fields';
+      setError(message);
+      showToast('warning', message, 'Missing Fields');
       return;
     }
 
     if (!isValidEmail(email)) {
-      setError('Please enter a valid email address');
-      showToast('warning', 'Please enter a valid email address', 'Invalid Email');
+      const message = 'Please enter a valid email address';
+      setError(message);
+      showToast('warning', message, 'Invalid Email');
       return;
     }
 
@@ -35,8 +38,9 @@ function LoginPage({ showToast }) {
     } catch (error) {
       // Catch network or authentication errors
       console.error('Login error:', error);
-      setError(error?.message || 'Login failed. Please try again.');
-      showToast('danger', error?.message || 'Login failed!', 'Error');
+      const errorMessage = error?.message || 'Login failed. Please try again.';
+      setError(errorMessage);
+      showToast('danger', errorMessage, 'Error');
     } finally {
       setLoading(false); // Stop the loading spinner after the process finishes
     }
@@ -72,11 +76,11 @@ function LoginPage({ showToast }) {
                     placeholder="Password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    isInvalid={!!error && isValidEmail(email)}
+                    isInvalid={!!error && password === ''}
                     required
                   />
                   <Form.Control.Feedback type="invalid">
-                    {error && isValidEmail(email) ? error : 'Incorrect password.'}
+                    {error && password === '' ? error : 'Password is required.'}
                   </Form.Control.Feedback>
                 </Form.Group>
 

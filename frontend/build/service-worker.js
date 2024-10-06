@@ -4,6 +4,7 @@ const CACHE_NAME = 'sales_app_v2';
 const OFFLINE_CACHE = 'offline-cache';
 const CACHE_EXPIRATION_MS = 2 * 60 * 1000; // 2 minutes
 const MAX_CACHE_ITEMS = 30;
+
 const urlsToCache = [
   '/',
   '/index.html',
@@ -29,11 +30,9 @@ const limitCacheSize = async (cache, maxItems) => {
 // Install event - caching essential files
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(urlsToCache).catch((error) => {
-        console.error('Failed to cache essential assets:', error);
-      });
-    })
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(urlsToCache))
+      .catch((error) => console.error('Failed to cache essential assets:', error))
   );
   self.skipWaiting(); // Activate the service worker immediately after installation
 });
@@ -55,15 +54,15 @@ self.addEventListener('activate', (event) => {
   return self.clients.claim(); // Take control of all clients immediately
 });
 
-// Helper function to add response to cache with timestamp and limit cache size
+// Add response to cache with timestamp
 const addToCacheWithExpiration = async (cache, request, response) => {
   if (!response || response.status < 200 || response.status > 599) {
     console.warn(`Invalid response status ${response?.status} for request ${request.url}. Not caching.`);
     return; // Exit if the response is invalid
   }
 
-  const responseClone = response.clone();
   const now = Date.now();
+  const responseClone = response.clone();
   const headers = new Headers(responseClone.headers);
   headers.append('sw-cache-timestamp', now.toString());
 
@@ -85,23 +84,20 @@ const addToCacheWithExpiration = async (cache, request, response) => {
 const isCacheExpired = (cachedResponse) => {
   const timestamp = cachedResponse.headers.get('sw-cache-timestamp');
   if (!timestamp) return true;
-  const age = Date.now() - parseInt(timestamp, 10);
-  return age > CACHE_EXPIRATION_MS;
+  return Date.now() - parseInt(timestamp, 10) > CACHE_EXPIRATION_MS;
 };
 
 // Fetch event - Offline-first for static assets, network-first for dynamic content
 self.addEventListener('fetch', (event) => {
-  // Ignore requests from chrome-extension or non-GET methods
   if (event.request.url.startsWith('chrome-extension:') || event.request.method !== 'GET') {
-    return;
+    return; // Ignore unsupported requests
   }
 
-  // Offline-first strategy for essential static assets
   if (urlsToCache.includes(event.request.url)) {
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
         if (cachedResponse && !isCacheExpired(cachedResponse)) {
-          return cachedResponse;
+          return cachedResponse; // Return cached response if valid
         }
         return fetch(event.request)
           .then((networkResponse) => {
@@ -121,7 +117,6 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first strategy for dynamic content (e.g., API calls)
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
@@ -135,9 +130,9 @@ self.addEventListener('fetch', (event) => {
       })
       .catch(() => caches.match(event.request).then((cachedResponse) => {
         if (cachedResponse && !isCacheExpired(cachedResponse)) {
-          return cachedResponse;
+          return cachedResponse; // Return valid cached response
         }
-        return caches.match('/offline.html');
+        return caches.match('/offline.html'); // Fallback to offline page
       }))
   );
 });
@@ -161,7 +156,7 @@ const cacheDynamicRoute = async (saleId) => {
 
 // Message listener for dynamic caching
 self.addEventListener('message', (event) => {
-  if (event.data && event.data.type === 'CACHE_DYNAMIC_ROUTE') {
+  if (event.data?.type === 'CACHE_DYNAMIC_ROUTE') {
     cacheDynamicRoute(event.data.saleId);
   }
 });

@@ -7,18 +7,14 @@ import moment from 'moment';
 const Toaster = React.memo(({ toasts, removeToast, updateServiceWorker, autohideDelay = 5000 }) => {
   // Helper function to render the appropriate icon based on the toast variant
   const renderIcon = (variant) => {
-    switch (variant) {
-      case 'danger':
-        return <FontAwesomeIcon icon={faTimesCircle} />;
-      case 'success':
-        return <FontAwesomeIcon icon={faCheckCircle} />;
-      case 'warning':
-        return <FontAwesomeIcon icon={faExclamationTriangle} />;
-      case 'update':
-        return <FontAwesomeIcon icon={faCloudDownloadAlt} />;
-      default:
-        return <FontAwesomeIcon icon={faInfoCircle} />;
-    }
+    const iconMap = {
+      danger: faTimesCircle,
+      success: faCheckCircle,
+      warning: faExclamationTriangle,
+      update: faCloudDownloadAlt,
+      default: faInfoCircle,
+    };
+    return <FontAwesomeIcon icon={iconMap[variant] || iconMap.default} />;
   };
 
   // Helper function to render each toast
@@ -26,7 +22,7 @@ const Toaster = React.memo(({ toasts, removeToast, updateServiceWorker, autohide
     return (
       <Toast
         key={toast.id}
-        className={`mb-3 fade`}
+        className="mb-3 fade"
         onClose={() => removeToast(toast.id)}
         autohide={toast.variant !== 'update'}
         delay={autohideDelay}
@@ -55,7 +51,7 @@ const Toaster = React.memo(({ toasts, removeToast, updateServiceWorker, autohide
 
   return (
     <ToastContainer position="top-end" className="p-3" style={{ zIndex: 1050 }}>
-      {toasts.length > 0 && toasts.map((toast) => renderToast(toast))}
+      {toasts.map(renderToast)}
     </ToastContainer>
   );
 });

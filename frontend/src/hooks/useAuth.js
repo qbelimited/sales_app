@@ -13,16 +13,13 @@ const useAuthHook = () => {
     const initializeAuth = async () => {
       try {
         // Check if the user is already logged in
-        const loggedIn = await authService.isLoggedIn();
+        const loggedIn = await authService.isLoggedIn(navigate);
         if (loggedIn) {
           // If logged in, retrieve the user role from localStorage or context
-          let userRole = role;
-          if (!userRole) {
-            userRole = JSON.parse(localStorage.getItem('userRole'));
-          }
+          const userRole = role || JSON.parse(localStorage.getItem('userRole'));
 
           // Determine the redirection path based on user role
-          if (userRole && userRole.id) {
+          if (userRole?.id) {
             const redirectPath = userRole.id === 3 ? '/manage-users' : '/sales';
             navigate(redirectPath);
           }
@@ -30,16 +27,17 @@ const useAuthHook = () => {
           // If not logged in, redirect to login page
           navigate('/login');
         }
-      } catch {
+      } catch (error) {
+        console.error('Initialization error:', error);
         // Handle any error by redirecting to login
         navigate('/login');
       } finally {
-        setIsInitialized(true);
+        setIsInitialized(true); // Set initialization to true regardless of success or failure
       }
     };
 
     initializeAuth();
-  }, [navigate, role]);
+  }, [navigate, role]); // Dependencies include navigate and role
 
   useEffect(() => {
     // After initialization, manage redirection based on authentication and role
