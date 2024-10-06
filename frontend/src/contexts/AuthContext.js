@@ -29,6 +29,7 @@ const authReducer = (state, action) => {
         user: null,
         role: null,
         loading: false,
+        error: null,
       };
     case 'AUTH_ERROR':
       return {
@@ -59,9 +60,9 @@ export const AuthProvider = ({ children }) => {
         const savedRole = JSON.parse(localStorage.getItem('userRole'));
         const isLoggedIn = await authService.isLoggedIn();
 
-        if (savedRole && isLoggedIn) {
+        if (isLoggedIn) {
           const user = authService.getUser();
-          if (user) {
+          if (user && savedRole) {
             dispatch({
               type: 'LOGIN_SUCCESS',
               payload: { user, role: savedRole },
@@ -91,15 +92,22 @@ export const AuthProvider = ({ children }) => {
       const response = await authService.login(credentials);
       if (response?.user) {
         const userRole = response.user.role;
-        localStorage.setItem('userRole', JSON.stringify(userRole));
+        localStorage.setItem('userRole', JSON.stringify(userRole)); // Store user role
         dispatch({
           type: 'LOGIN_SUCCESS',
           payload: { user: response.user, role: userRole },
         });
+      } else {
+        dispatch({ type: 'AUTH_ERROR', payload: 'Invalid user data received.' });
       }
     } catch (error) {
       console.error('Login failed:', error);
-      dispatch({ type: 'AUTH_ERROR', payload: 'Login failed. Please try again.' });
+      if (error.response && error.response.status === 401) {
+        // Specific handling for incorrect password
+        dispatch({ type: 'AUTH_ERROR', payload: 'Invalid email or password. Please try again.' });
+      } else {
+        dispatch({ type: 'AUTH_ERROR', payload: 'Login failed. Please try again.' });
+      }
       throw error; // Optionally rethrow to allow further handling
     }
   };
@@ -108,6 +116,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await authService.logout();
       dispatch({ type: 'LOGOUT' });
+      localStorage.removeItem('userRole'); // Clear stored user role on logout
     } catch (error) {
       console.error('Logout failed:', error);
       dispatch({ type: 'AUTH_ERROR', payload: 'Logout failed. Please try again.' });

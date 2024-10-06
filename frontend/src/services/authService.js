@@ -3,7 +3,10 @@ import { toast } from 'react-toastify';
 import api from './api';
 
 const authService = {
-  login: async (credentials, navigate) => {
+  // Flag to prevent multiple login requests
+  isLoggingIn: false,
+
+  login: async (credentials) => {
     // Validate credentials
     if (!credentials.email || !credentials.password) {
       const errorMessage = 'Invalid login credentials. Email and password are required.';
@@ -11,6 +14,16 @@ const authService = {
       toast.error(errorMessage);
       throw new Error(errorMessage);
     }
+
+    // Prevent multiple simultaneous login requests
+    if (authService.isLoggingIn) {
+      const errorMessage = 'Login request is already in progress. Please wait.';
+      console.warn(errorMessage);
+      toast.warn(errorMessage);
+      return; // Exit if a request is already in progress
+    }
+
+    authService.isLoggingIn = true; // Set the flag to true
 
     try {
       const response = await api.post('/auth/login', credentials);
@@ -30,12 +43,14 @@ const authService = {
         throw new Error(errorMessage);
       }
     } catch (error) {
-      authService.handleLoginError(error, navigate);
+      authService.handleLoginError(error); // Handle login error
       throw error; // Propagate error
+    } finally {
+      authService.isLoggingIn = false; // Reset the flag
     }
   },
 
-  logout: async (sessionId = null, expiredSession = false) => {
+  logout: async () => {
     try {
       const accessToken = authService.getAccessToken();
       const refreshToken = localStorage.getItem('refresh_token');
@@ -47,29 +62,36 @@ const authService = {
         return;
       }
 
-      // If a session ID is provided, invalidate it
-      if (sessionId && user) {
-        await api.delete(`/users/${user.id}/sessions/${sessionId}`);
+      // If user is logged in, perform logout
+      if (user) {
+        const response = await api.post('/auth/logout', { refresh_token: refreshToken }, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+
+        if (response.status === 200) {
+          authService.clearSession();
+          toast.success('Logout successful');
+        } else {
+          toast.error('Logout failed. Please try again.');
+        }
       }
-
-      // Logout from API
-      await api.post('/auth/logout', { refresh_token: refreshToken }, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-
-      authService.clearSession();
-      toast[expiredSession ? 'error' : 'success'](expiredSession ? 'Session expired. You have been logged out.' : 'Logout successful');
     } catch (error) {
       authService.clearSession();
-      toast.error('Logout failed');
+
+      // Handle 404 error gracefully
+      if (error.response && error.response.status === 404) {
+        toast.error('No active session found. You have been logged out.');
+      } else {
+        toast.error('Logout failed');
+      }
     }
   },
 
-  refreshToken: async (navigate) => {
+  refreshToken: async () => {
     try {
       const refreshToken = localStorage.getItem('refresh_token');
       if (!refreshToken) {
-        throw new Error('No refresh token available. Please log in again.');
+        throw new Error('No refresh token available/ Incorrect Credentials.');
       }
 
       // Validate the refresh token by attempting to refresh
@@ -77,19 +99,19 @@ const authService = {
       const { access_token, expiry } = response.data || {};
 
       if (access_token) {
-        await authService.storeSession(access_token, refreshToken, JSON.parse(localStorage.getItem('user')), expiry);
+        await authService.storeSession(access_token, refreshToken, authService.getUser(), expiry);
         toast.success('Session refreshed successfully');
         return access_token;
       } else {
         throw new Error('Missing access token in response.');
       }
     } catch (error) {
-      authService.handleSessionExpired(navigate);
+      authService.handleSessionExpired(); // Handle session expiration
       throw error; // Propagate error
     }
   },
 
-  isLoggedIn: async (navigate) => {
+  isLoggedIn: async () => {
     const token = authService.getAccessToken();
     const expiry = localStorage.getItem('expiry');
 
@@ -102,26 +124,23 @@ const authService = {
       } else {
         // Token is about to expire, refresh it
         try {
-          await authService.refreshToken(navigate);
+          await authService.refreshToken();
           return true; // Successfully refreshed token
         } catch (error) {
-          authService.handleSessionExpired(navigate);
+          authService.handleSessionExpired();
         }
       }
     } else {
-      authService.handleSessionExpired(navigate);
+      authService.handleSessionExpired();
     }
     return false;
   },
 
   getAccessToken: () => localStorage.getItem('access_token') || null,
 
-  handleSessionExpired: (navigate) => {
+  handleSessionExpired: () => {
     authService.clearSession();
     toast.error('Your session has expired. Please log in again.');
-    if (typeof navigate === 'function') {
-      navigate('/login'); // Use navigate only if it's a function
-    }
   },
 
   storeSession: (access_token, refresh_token, user, expiry) => {
@@ -182,14 +201,12 @@ const authService = {
     }
   },
 
-  handleLoginError: (error, navigate) => {
+  handleLoginError: (error) => {
+    // If login fails due to wrong password, do not refresh the session
     if (error.response && error.response.status === 401) {
-      toast.error('Invalid email or password. Please try again.');
+      toast.error('Invalid email or password. Please try again.'); // Show specific error message
     } else {
       authService.handleAuthError(error);
-    }
-    if (navigate) {
-      authService.handleSessionExpired(navigate);
     }
   },
 
@@ -219,7 +236,7 @@ const authService = {
         console.error('Unexpected session data structure:', existingSessions.data);
       }
     } catch (error) {
-      authService.handleSessionExpired();
+      authService.handleSessionExpired(); // Handle session expiration
       console.error('Failed to invalidate existing session:', error);
       toast.error('Could not invalidate existing session.');
     }

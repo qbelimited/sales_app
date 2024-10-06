@@ -93,6 +93,7 @@ self.addEventListener('fetch', (event) => {
     return; // Ignore unsupported requests
   }
 
+  // Serve cached static assets
   if (urlsToCache.includes(event.request.url)) {
     event.respondWith(
       caches.match(event.request).then((cachedResponse) => {
@@ -108,7 +109,7 @@ self.addEventListener('fetch', (event) => {
               });
             } else {
               console.warn(`Failed network request: ${networkResponse.status}`);
-              return networkResponse;
+              return networkResponse; // Return the network response even if it failed
             }
           })
           .catch(() => caches.match('/offline.html')); // Serve offline.html if network fails
@@ -117,6 +118,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Handle dynamic requests
   event.respondWith(
     fetch(event.request)
       .then((networkResponse) => {
@@ -128,12 +130,15 @@ self.addEventListener('fetch', (event) => {
           return networkResponse.clone();
         });
       })
-      .catch(() => caches.match(event.request).then((cachedResponse) => {
-        if (cachedResponse && !isCacheExpired(cachedResponse)) {
-          return cachedResponse; // Return valid cached response
-        }
-        return caches.match('/offline.html'); // Fallback to offline page
-      }))
+      .catch((error) => {
+        console.error('Fetch error:', error);
+        return caches.match(event.request).then((cachedResponse) => {
+          if (cachedResponse && !isCacheExpired(cachedResponse)) {
+            return cachedResponse; // Return valid cached response
+          }
+          return caches.match('/offline.html'); // Fallback to offline page
+        });
+      })
   );
 });
 

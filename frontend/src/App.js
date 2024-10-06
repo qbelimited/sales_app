@@ -1,4 +1,4 @@
-import React, { useEffect, Suspense, useMemo, useCallback } from 'react';
+import React, { useEffect, Suspense, useMemo } from 'react';
 import { Route, Routes, Navigate, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -8,11 +8,11 @@ import HelpTour from './components/HelpTour';
 import Loading from './components/Loading';
 import { useAuth } from './contexts/AuthContext';
 import useToasts from './hooks/useToasts';
-import { useServiceWorker } from './hooks/useServiceWorker'; // Custom hook for service worker registration
-import { useLocalStorage } from './hooks/useLocalStorage'; // Custom hook for localStorage interaction
+import { useServiceWorker } from './hooks/useServiceWorker';
+import { useLocalStorage } from './hooks/useLocalStorage';
 import './App.css';
 import authService from './services/authService';
-import throttle from 'lodash.throttle'; // Import lodash.throttle
+import throttle from 'lodash.throttle';
 
 // Lazy-loaded pages
 const LoginPage = React.lazy(() => import('./pages/LoginPage'));
@@ -67,47 +67,37 @@ const appRoutes = [
   { path: '/manage-users-sessions', component: ManageSessionsPage, allowedRoles: [3] },
 ];
 
-// Custom hook to handle login and redirection logic with throttled navigation
-// Custom hook to handle login and redirection logic with throttled navigation
 function useLoginRedirect(role, navigate, setShowHelpTour) {
-  const throttledNavigate = useCallback(
-    (path) => {
-      const throttledFn = throttle(() => navigate(path), 2000); // Define throttled inside the callback
-      throttledFn(); // Call the throttled function
-    },
-    [navigate] // Properly track navigate as a dependency
-  );
+  const throttledNavigate = useMemo(() => throttle((path) => navigate(path), 2000), [navigate]);
 
   useEffect(() => {
     const checkLogin = async () => {
-      const isLoggedIn = await authService.isLoggedIn();
-
-      if (!isLoggedIn) {
-        throttledNavigate('/login'); // Use throttled navigation
-      } else if (role) {
-        // Set a timeout to auto-hide the help tour after 2 minutes
-        const timer = setTimeout(() => setShowHelpTour(false), 120000);
-
-        // Determine redirection path
-        const redirectPath = role.id === userRoles.ADMIN ? '/manage-users' : '/sales';
-
-        // Only navigate if user is on the login page
-        if (window.location.pathname === '/login') {
-          throttledNavigate(redirectPath); // Use throttled navigation
+      try {
+        const isLoggedIn = await authService.isLoggedIn();
+        if (!isLoggedIn) {
+          throttledNavigate('/login'); // Redirect to login if not logged in
+        } else if (role && role.id) {
+          const redirectPath = role.id === userRoles.ADMIN ? '/manage-users' : '/sales';
+          if (window.location.pathname === '/login') {
+            throttledNavigate(redirectPath); // Redirect to the appropriate path
+          }
         }
-
-        // Cleanup the timer when component unmounts
-        return () => clearTimeout(timer);
+      } catch (error) {
+        console.error('Failed to check login status:', error);
       }
     };
 
     checkLogin();
-  }, [role, throttledNavigate, setShowHelpTour]);
+
+    return () => {
+      // Cleanup logic (optional)
+    };
+  }, [role, throttledNavigate]);
 }
 
 // Memoized Navbar and Sidebar to prevent unnecessary re-renders
-const MemoizedNavbar = React.memo(({ role, logout, showToast }) => (
-  role?.id && <Navbar onLogout={logout} showToast={showToast} />
+const MemoizedNavbar = React.memo(({ role, logout, showToast, setShowHelpTour }) => (
+  role?.id && <Navbar onLogout={logout} showToast={showToast} setShowHelpTour={setShowHelpTour} />
 ));
 
 const MemoizedSidebar = React.memo(({ role }) => (
@@ -118,12 +108,23 @@ function App() {
   const { state, logout } = useAuth();
   const { role } = state;
   const { toasts, showToast, removeToast } = useToasts();
-  const { updateServiceWorker } = useServiceWorker(showToast); // Custom hook for service worker
-  const [showHelpTour, setShowHelpTour] = useLocalStorage('helpTourShown', false); // Custom hook for help tour state
+  const { updateServiceWorker } = useServiceWorker(showToast);
+  const [showHelpTour, setShowHelpTour] = useLocalStorage('helpTourShown', false);
   const navigate = useNavigate();
 
   // Handle login and redirection with throttled navigation
   useLoginRedirect(role, navigate, setShowHelpTour);
+
+  // Auto-hide Help Tour after 2 minutes if not clicked
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!showHelpTour) {
+        setShowHelpTour(true); // Mark the Help Tour as shown
+      }
+    }, 120000); // 2 minutes
+
+    return () => clearTimeout(timer);
+  }, [showHelpTour, setShowHelpTour]);
 
   // Memoized app routes
   const memoizedRoutes = useMemo(() => {
@@ -142,9 +143,9 @@ function App() {
 
   return (
     <div>
-      <MemoizedNavbar role={role} logout={logout} showToast={showToast} />
+      <MemoizedNavbar role={role} logout={logout} showToast={showToast} setShowHelpTour={setShowHelpTour} />
       <MemoizedSidebar role={role} />
-      {showHelpTour && <HelpTour />}
+      {showHelpTour && <HelpTour setShowHelpTour={setShowHelpTour} />}
 
       <div className={`content ${role?.id ? 'withSidebar' : 'noSidebar'}`}>
         <Suspense fallback={<Loading />}>

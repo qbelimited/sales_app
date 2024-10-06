@@ -5,6 +5,7 @@ from .auth_resource import LoginResource, LogoutResource, RefreshToken, RevokeRe
 from .bank_resource import BankResource, BankBranchResource, SingleBankResource, SingleBranchResource
 from .branch_resource import BranchResource, BranchListResource
 from .dropdown_resource import DropdownResource
+from .help_resource import HelpStepResource, SingleHelpStepResource, HelpTourResource, SingleHelpTourResource, HelpTourStepsResource
 from .impact_product_resource import ImpactProductResource, ImpactProductListResource
 from .inception_resource import InceptionResource, InceptionListResource
 from .log_resource import LogResource

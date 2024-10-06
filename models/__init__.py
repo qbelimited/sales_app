@@ -2,6 +2,7 @@ from .access_model import Access
 from .audit_model import AuditTrail
 from .bank_model import Bank, BankBranch
 from .branch_model import Branch
+from .help_model import HelpTour, HelpStep
 from .impact_product_model import ImpactProduct, ProductCategory
 from .inception_model import Inception
 from .paypoint_model import Paypoint
