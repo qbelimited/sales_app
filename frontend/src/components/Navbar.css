@@ -11,25 +11,30 @@
   position: sticky; /* Make the navbar sticky */
   top: 0; /* Stick to the top */
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Add subtle shadow */
+  transition: background-color 0.3s ease; /* Smooth transition for background */
 }
 
 /* Left and right section links */
-.navbar-left a, .navbar-right a {
+.navbar-left a,
+.navbar-right a {
   color: #fff;
   text-decoration: none;
   margin-right: 1rem;
   padding: 0.5rem 0; /* Increase clickable area */
-  transition: color 0.3s ease; /* Smooth color transition */
+  transition: color 0.3s ease, transform 0.2s ease; /* Smooth color transition and scaling */
 }
 
 /* Active link styling */
-.navbar-left a.active, .navbar-right a.active {
+.navbar-left a.active,
+.navbar-right a.active {
   border-bottom: 2px solid #fff;
 }
 
 /* Hover effect for links */
-.navbar-left a:hover, .navbar-right a:hover {
+.navbar-left a:hover,
+.navbar-right a:hover {
   color: #f0f0f0; /* Lighten color on hover */
+  transform: scale(1.05); /* Slight zoom effect on hover */
 }
 
 /* Right section */
@@ -43,15 +48,16 @@
   display: flex;
   align-items: center;
   margin-right: 1rem;
+  transition: color 0.3s ease, transform 0.2s ease; /* Smooth transition */
 }
 
 .navbar-profile span {
   margin-left: 0.3rem;
 }
 
-/* Hover effect for logout button */
+/* Hover effect for profile section */
 .navbar-profile:hover {
-  color: rgb(0, 174, 255);
+  color: rgb(0, 174, 255); /* Change color on hover */
   transform: scale(1.1); /* Slight pop-up effect */
 }
 
@@ -72,7 +78,7 @@
 
 /* Hover effect for logout button */
 .logout-button:hover {
-  color: red;
+  color: red; /* Change color on hover */
   transform: scale(1.1); /* Slight pop-up effect */
 }
 
@@ -86,14 +92,16 @@
     line-height: normal; /* Reset line-height */
   }
 
-  .navbar-left, .navbar-right {
+  .navbar-left,
+  .navbar-right {
     width: 100%; /* Full width for navigation items */
     display: flex;
     justify-content: space-between;
     margin-top: 0.5rem; /* Add spacing between sections */
   }
 
-  .navbar-left a, .navbar-right a {
+  .navbar-left a,
+  .navbar-right a {
     margin-right: 0; /* Remove right margin */
   }
 

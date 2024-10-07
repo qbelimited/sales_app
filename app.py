@@ -72,7 +72,7 @@ from resources.auth_resource import auth_ns
 from resources.sales_resource import sales_ns
 from resources.report_resource import report_ns
 from resources.admin_resource import admin_ns
-from resources.manager_resource import manager_ns
+from resources.help_resource import help_ns
 from resources.dropdown_resource import dropdown_ns
 from resources.log_resource import log_ns
 from resources.branch_resource import branch_ns
@@ -115,6 +115,7 @@ api.add_namespace(sales_target_ns, path=f'/api/{api_version}/sales_target')
 api.add_namespace(bank_ns, path=f'/api/{api_version}/bank')
 api.add_namespace(retention_ns, path=f'/api/{api_version}/retention')
 api.add_namespace(inception_ns, path=f'/api/{api_version}/inceptions')
+api.add_namespace(help_ns, path=f'/api/{api_version}/help')
 
 # Serve the Swagger UI documentation at /api/v1/docs
 swagger_ui_path = f'/api/{api_version}/docs'

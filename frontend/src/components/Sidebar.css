@@ -45,7 +45,7 @@
 .sidebar ul li a,
 .sidebar-dropdown {
   display: flex;
-  align-items: left;
+  align-items: center; /* Center items vertically */
   padding: 8px 12px;
   font-size: 1rem;
   color: #ecf0f1; /* Visible text color */
@@ -134,7 +134,7 @@
 .sidebar-dropdown {
   display: flex;
   align-items: center;
-  cursor: default; /* Remove pointer cursor */
+  cursor: pointer; /* Change cursor to pointer for dropdown */
   padding: 8px 12px;
   font-size: 1rem;
   color: #ecf0f1;
@@ -159,15 +159,15 @@
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
   .sidebar {
-    width: 180px;
+    width: 180px; /* Adjust sidebar width for mobile */
   }
 
   .sidebar ul li a {
-    font-size: 0.9rem;
-    padding: 6px 10px;
+    font-size: 0.9rem; /* Slightly smaller font for mobile */
+    padding: 6px 10px; /* Adjust padding for mobile */
   }
 
   .sidebar ul li a svg {
-    font-size: 1rem;
+    font-size: 1rem; /* Icon size adjustments for mobile */
   }
 }

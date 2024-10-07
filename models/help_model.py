@@ -39,7 +39,7 @@ class HelpTour(db.Model):
     completed_at = db.Column(db.DateTime, nullable=True)  # Timestamp of when the tour was completed
     steps = db.relationship('HelpStep', secondary=help_tour_steps, backref='help_tours')
 
-    user = db.relationship('User', backref='help_tours', cascade='all, delete-orphan')
+    user = db.relationship('User', backref='help_tours')
 
     def serialize(self):
         return {

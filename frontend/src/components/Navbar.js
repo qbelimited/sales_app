@@ -1,18 +1,22 @@
 import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { FaUser, FaSignOutAlt } from 'react-icons/fa';
+import { FaUser, FaSignOutAlt, FaQuestionCircle } from 'react-icons/fa';
 import { Modal, Button, Form, Spinner } from 'react-bootstrap';
 import { useUser } from '../contexts/UserContext';
 import authService from '../services/authService';
 import api from '../services/api';
 import './Navbar.css';
 
-const Navbar = ({ onLogout, showToast }) => {
+const Navbar = ({ onLogout, showToast, setShowHelpTour }) => {
   const { user, loading, error, lastLoginTime, lastSessionDuration } = useUser();
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showUpdatePasswordModal, setShowUpdatePasswordModal] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+
+  const handleHelpTourClick = () => {
+    setShowHelpTour(true); // Trigger the Help Tour
+  };
 
   const handleLogout = async () => {
     try {
@@ -58,6 +62,10 @@ const Navbar = ({ onLogout, showToast }) => {
         </NavLink>
       </div>
       <div className="navbar-right">
+        <div className="navbar-profile" onClick={handleHelpTourClick}>
+          <FaQuestionCircle />
+          <span>Start Help Tour</span>
+        </div>
         <div className="navbar-profile" onClick={() => setShowProfileModal(true)}>
           <FaUser />
           <span>Profile</span>

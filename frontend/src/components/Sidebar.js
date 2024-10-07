@@ -20,24 +20,22 @@ import {
   FaFolder,
   FaUsers,
   FaBullseye,
-  FaFileContract
+  FaFileContract,
+  FaQuestion,
 } from 'react-icons/fa';
 import './Sidebar.css';
 
 function Sidebar() {
-  const [openDropdown, setOpenDropdown] = useState(null); // Track which dropdown is open
-  const location = useLocation(); // Hook to access the current route
+  const [openDropdown, setOpenDropdown] = useState(null);
+  const location = useLocation();
 
-  // Fetch current logged-in user and role, with fallback
   const local_user = JSON.parse(localStorage.getItem('user')) || {};
   const role_id = parseInt(local_user?.role_id) || local_user?.role?.id || 0;
 
-  // Handle dropdown clicks and ensure only one dropdown is open at a time
   const handleDropdownClick = (dropdown) => {
-    setOpenDropdown((prev) => (prev === dropdown ? null : dropdown)); // Close if it's already open, otherwise open it
+    setOpenDropdown((prev) => (prev === dropdown ? null : dropdown));
   };
 
-  // Handle keyboard interactions, including Esc key to close
   const handleKeyDown = (event, dropdown) => {
     if (event.key === 'Enter' || event.key === ' ') {
       handleDropdownClick(dropdown);
@@ -46,7 +44,6 @@ function Sidebar() {
     }
   };
 
-  // Check if the current route is active
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(path);
 
   return (
@@ -56,21 +53,18 @@ function Sidebar() {
       </div>
       <div className="sidebar-menu">
         <ul>
-          {/* Dashboard Link */}
           <li>
             <NavLink to="/dashboard" className={({ isActive }) => (isActive ? 'active' : '')}>
               <FaHome />
               <span>Dashboard</span>
             </NavLink>
           </li>
-
-          {/* Sales Dropdown */}
           <li>
             <button
               aria-expanded={openDropdown === 'sales'}
               onClick={() => handleDropdownClick('sales')}
               onKeyDown={(event) => handleKeyDown(event, 'sales')}
-              className={`sidebar-dropdown ${openDropdown === 'sales' || isActive('/sales') ? 'active' : ''}`} // Ensure it highlights for /sales routes
+              className={`sidebar-dropdown ${openDropdown === 'sales' || isActive('/sales') ? 'active' : ''}`}
             >
               <FaChartBar />
               <span>Manage Sales</span>
@@ -111,8 +105,6 @@ function Sidebar() {
               </ul>
             )}
           </li>
-
-          {/* Manage Items Dropdown */}
           <li>
             <button
               aria-expanded={openDropdown === 'manageItems'}
@@ -159,8 +151,6 @@ function Sidebar() {
               </ul>
             )}
           </li>
-
-          {/* Reports Link */}
           {(role_id === 1 || role_id === 2 || role_id === 3) && (
           <li>
             <NavLink to="/reports" className={({ isActive }) => (isActive ? 'active' : '')}>
@@ -169,8 +159,12 @@ function Sidebar() {
             </NavLink>
           </li>
           )}
-
-          {/* Settings Dropdown */}
+          <li>
+            <NavLink to="/help-center" className={({ isActive }) => (isActive ? 'active' : '')}>
+              <FaQuestion />
+              <span>Help Center</span>
+            </NavLink>
+          </li>
           {(role_id === 1 || role_id === 2 || role_id === 3) && (
             <li>
               <button
@@ -207,8 +201,6 @@ function Sidebar() {
               )}
             </li>
           )}
-
-          {/* System Audits Dropdown */}
           {role_id === 3 && (
             <li>
               <button
