@@ -8,6 +8,7 @@ import { library } from '@fortawesome/fontawesome-svg-core';
 import { fas } from '@fortawesome/free-solid-svg-icons';
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastProvider } from './contexts/ToastContext';
+import { TourProvider } from './contexts/TourContext';
 import Loading from './components/Loading';
 import ErrorBoundary from './components/ErrorBoundary';
 
@@ -61,11 +62,13 @@ root.render(
     <ErrorBoundary>
       <AuthProvider>
         <ToastProvider>
-          <BrowserRouter>
-            <Suspense fallback={<Loading />}>
-              <AppWithServiceWorker />
-            </Suspense>
-          </BrowserRouter>
+          <TourProvider>
+            <BrowserRouter>
+              <Suspense fallback={<Loading />}>
+                <AppWithServiceWorker />
+              </Suspense>
+            </BrowserRouter>
+          </TourProvider>
         </ToastProvider>
       </AuthProvider>
     </ErrorBoundary>

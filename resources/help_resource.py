@@ -186,19 +186,14 @@ class HelpTourResource(Resource):
     @jwt_required()
     @help_ns.expect(help_tour_model, validate=True)
     def post(self):
-        """Create a new Help Tour (Admin only)."""
-        current_user = get_jwt_identity()
-        if current_user['role'].lower() != 'admin':
-            logger.warning(f"Unauthorized attempt by User {current_user['id']} to create a Help Tour.")
-            return {'message': 'Unauthorized'}, 403
-
-        new_tour = HelpTour(user_id=current_user['id'])
+        """Create a new Help Tour."""
+        new_tour = HelpTour(user_id=get_jwt_identity()['id'])
         db.session.add(new_tour)
         db.session.commit()
 
-        logger.info(f"Created new help tour with ID {new_tour.id} for user ID {current_user['id']}.")
+        logger.info(f"Created new help tour with ID {new_tour.id} for user ID {get_jwt_identity()['id']}.")
         audit = AuditTrail(
-            user_id=current_user['id'],
+            user_id=get_jwt_identity()['id'],
             action='CREATE',
             resource_type='help_tour',
             resource_id=new_tour.id,
@@ -225,6 +220,34 @@ class HelpTourResource(Resource):
             resource_type='help_tours',
             resource_id=None,
             details="Accessed all Help Tours",
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get('User-Agent')
+        )
+        db.session.add(audit)
+        db.session.commit()
+
+        return [tour.serialize() for tour in tours], 200
+
+    @help_ns.doc(security='Bearer Auth')
+    @jwt_required()
+    @help_ns.param('page_name', 'Name of the page to fetch the Help Tour')
+    def get(self):
+        """Retrieve Help Tours by Page Name."""
+        page_name = request.args.get('page_name')
+        tours = HelpTour.query.filter(HelpTour.steps.any(HelpStep.page_name == page_name)).all()
+        if not tours:
+            logger.warning(f"No Help Tours found for page name: {page_name}")
+            return {'message': 'No Help Tours found for the specified page name'}, 404
+
+        logger.info(f"Retrieved {len(tours)} help tours for page name: {page_name}.")
+
+        # Log access to the audit trail
+        audit = AuditTrail(
+            user_id=get_jwt_identity()['id'],
+            action='ACCESS',
+            resource_type='help_tours',
+            resource_id=None,
+            details=f"Accessed Help Tours for page name: {page_name}",
             ip_address=request.remote_addr,
             user_agent=request.headers.get('User-Agent')
         )
@@ -263,13 +286,13 @@ class SingleHelpTourResource(Resource):
     @help_ns.doc(security='Bearer Auth')
     @jwt_required()
     def put(self, tour_id):
-        """Update a Help Tour (Everyone can update)."""
+        """Mark Help Tour as completed."""
         tour = HelpTour.query.get(tour_id)
         if not tour:
             logger.error(f"Help Tour with ID {tour_id} not found.")
             return {'message': 'Help Tour not found'}, 404
 
-        # Only update if the user is logged in, regardless of role
+        # Mark the tour as completed
         tour.completed = True
         tour.completed_at = datetime.utcnow()
         db.session.commit()
@@ -325,12 +348,7 @@ class HelpTourStepsResource(Resource):
     @jwt_required()
     @help_ns.expect(help_step_model, validate=True)
     def post(self, tour_id):
-        """Add a step to a Help Tour (Admin only)."""
-        current_user = get_jwt_identity()
-        if current_user['role'].lower() != 'admin':
-            logger.warning(f"Unauthorized attempt by User {current_user['id']} to add a step to Help Tour {tour_id}.")
-            return {'message': 'Unauthorized'}, 403
-
+        """Add a step to a Help Tour."""
         tour = HelpTour.query.get(tour_id)
         if not tour:
             logger.error(f"Help Tour with ID {tour_id} not found.")
@@ -347,7 +365,7 @@ class HelpTourStepsResource(Resource):
 
         logger.info(f"Added Help Step with ID {step.id} to Help Tour with ID {tour_id}.")
         audit = AuditTrail(
-            user_id=current_user['id'],
+            user_id=get_jwt_identity()['id'],
             action='UPDATE',
             resource_type='help_tour',
             resource_id=tour.id,

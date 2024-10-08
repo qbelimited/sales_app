@@ -1,4 +1,4 @@
-import React, { useEffect, Suspense, useMemo } from 'react';
+import React, { useEffect, Suspense, useMemo, useState } from 'react';
 import { Route, Routes, Navigate, useNavigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -12,6 +12,7 @@ import { useServiceWorker } from './hooks/useServiceWorker';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import './App.css';
 import authService from './services/authService';
+import api from './services/api';
 import throttle from 'lodash.throttle';
 
 // Lazy-loaded pages
@@ -35,6 +36,8 @@ const ManageSalesExecutivesPage = React.lazy(() => import('./pages/ManageSalesEx
 const ManageGenBranchesPage = React.lazy(() => import('./pages/ManageGenBranchesPage'));
 const ManageBanksPage = React.lazy(() => import('./pages/ManageBanksPage'));
 const HelpPage = React.lazy(() => import('./pages/HelpPage'));
+const HelpStepsPage = React.lazy(() => import('./pages/HelpStepsPage'));
+const NotFoundPage = React.lazy(() => import('./pages/NotFoundPage'));
 
 // Define user roles
 const userRoles = {
@@ -56,6 +59,7 @@ const appRoutes = [
   { path: '/investigations', component: FlaggedInvestigationsPage, allowedRoles: [1, 2, 3, 4] },
   { path: '/manage-banks', component: ManageBanksPage, allowedRoles: [1, 2, 3, 4] },
   { path: '/help-center', component: HelpPage, allowedRoles: [1, 2, 3, 4] },
+  { path: '/help/steps', component: HelpStepsPage, allowedRoles: [1, 2, 3, 4] },
   { path: '/reports', component: ReportsPage, allowedRoles: [1, 2, 3] },
   { path: '/manage-products', component: ManageProductsPage, allowedRoles: [1, 2, 3] },
   { path: '/manage-branches', component: ManageGenBranchesPage, allowedRoles: [1, 2, 3] },
@@ -65,9 +69,10 @@ const appRoutes = [
   { path: '/logs', component: LogsPage, allowedRoles: [3] },
   { path: '/retention-policy', component: RetentionPolicyPage, allowedRoles: [3] },
   { path: '/manage-users-sessions', component: ManageSessionsPage, allowedRoles: [3] },
+  { path: '/not-found', component: NotFoundPage },
 ];
 
-function useLoginRedirect(role, navigate, setShowHelpTour) {
+function useLoginRedirect(role, navigate, setShowHelpTour, setTourStarted) {
   const throttledNavigate = useMemo(() => throttle((path) => navigate(path), 2000), [navigate]);
 
   useEffect(() => {
@@ -81,9 +86,30 @@ function useLoginRedirect(role, navigate, setShowHelpTour) {
           if (window.location.pathname === '/login') {
             throttledNavigate(redirectPath); // Redirect to the appropriate path
           }
+
+          // Fetch tour status if the user is logged in
+          try {
+            const { data: tour } = await api.get(`/help/tours?userId=${role.id}`);
+            if (tour && !tour.completed) {
+              setTourStarted(true); // Start the Help Tour if not completed
+              setShowHelpTour(true); // Ensure Help Tour is shown
+            } else {
+              setShowHelpTour(false); // Hide Help Tour if completed
+            }
+          } catch (error) {
+            if (error.response && error.response.status === 404) {
+              // If 404, the user has never done the tour before
+              setTourStarted(true); // Start the Help Tour for new users
+              setShowHelpTour(true); // Show the Help Tour
+            } else {
+              console.error('Error fetching tour status:', error);
+              // Optional: Show a toast or alert to the user about the error
+            }
+          }
         }
       } catch (error) {
         console.error('Failed to check login status:', error);
+        // Optional: Show a toast or alert to the user about the error
       }
     };
 
@@ -92,7 +118,7 @@ function useLoginRedirect(role, navigate, setShowHelpTour) {
     return () => {
       // Cleanup logic (optional)
     };
-  }, [role, throttledNavigate]);
+  }, [role, throttledNavigate, setTourStarted, setShowHelpTour]);
 }
 
 // Memoized Navbar and Sidebar to prevent unnecessary re-renders
@@ -110,10 +136,11 @@ function App() {
   const { toasts, showToast, removeToast } = useToasts();
   const { updateServiceWorker } = useServiceWorker(showToast);
   const [showHelpTour, setShowHelpTour] = useLocalStorage('helpTourShown', false);
+  const [tourStarted, setTourStarted] = useState(false); // Track if the tour has started
   const navigate = useNavigate();
 
   // Handle login and redirection with throttled navigation
-  useLoginRedirect(role, navigate, setShowHelpTour);
+  useLoginRedirect(role, navigate, setShowHelpTour, setTourStarted);
 
   // Auto-hide Help Tour after 2 minutes if not clicked
   useEffect(() => {
@@ -145,10 +172,10 @@ function App() {
     <div>
       <MemoizedNavbar role={role} logout={logout} showToast={showToast} setShowHelpTour={setShowHelpTour} />
       <MemoizedSidebar role={role} />
-      {showHelpTour && <HelpTour setShowHelpTour={setShowHelpTour} />}
+      {showHelpTour && tourStarted && <HelpTour setShowHelpTour={setShowHelpTour} />} {/* Start tour only if it's marked to show and has started */}
 
       <div className={`content ${role?.id ? 'withSidebar' : 'noSidebar'}`}>
-        <Suspense fallback={<Loading />}>
+        <Suspense fallback={<Loading message="Loading, please wait..." />}>
           <Routes>
             <Route path="/login" element={<LoginPage showToast={showToast} />} />
             {memoizedRoutes}

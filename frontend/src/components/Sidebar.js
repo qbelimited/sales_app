@@ -21,7 +21,7 @@ import {
   FaUsers,
   FaBullseye,
   FaFileContract,
-  FaQuestion,
+  FaQuestionCircle,
 } from 'react-icons/fa';
 import './Sidebar.css';
 
@@ -161,7 +161,7 @@ function Sidebar() {
           )}
           <li>
             <NavLink to="/help-center" className={({ isActive }) => (isActive ? 'active' : '')}>
-              <FaQuestion />
+              <FaQuestionCircle />
               <span>Help Center</span>
             </NavLink>
           </li>

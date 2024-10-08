@@ -62,7 +62,7 @@ const SaleDetailsPage = () => {
             <Button variant="secondary" onClick={() => navigate(-1)} className="mb-4">
                 <FontAwesomeIcon icon={faArrowLeft} />
                 <span> Back</span>
-                </Button> {/* Back button */}
+            </Button> {/* Back button */}
             <h2 className="mb-4 text-center">Sale Details</h2>
             <Row>
                 <Col md={6}>
