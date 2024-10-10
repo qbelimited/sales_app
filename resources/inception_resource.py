@@ -77,12 +77,15 @@ class InceptionListResource(Resource):
             logger.error(f"Sale with ID {data['sale_id']} not found for user {current_user['id']}")
             return {'message': 'Sale not found'}, 404
 
+        # Convert the received_at string to a datetime object
+        received_at = datetime.fromisoformat(data['received_at'])  # Use fromisoformat for ISO 8601 strings
+
         try:
             new_inception = Inception(
                 sale_id=data['sale_id'],
                 amount_received=data['amount_received'],
                 description=data.get('description', ''),
-                received_at=data.get('received_at', datetime.utcnow())
+                received_at=received_at
             )
             db.session.add(new_inception)
             db.session.commit()
@@ -151,12 +154,15 @@ class InceptionResource(Resource):
             logger.error(f"Inception with ID {inception_id} not found for user {current_user['id']}")
             return {'message': 'Inception not found'}, 404
 
+        # Convert the received_at string to a datetime object
+        received_at = datetime.fromisoformat(data['received_at'])  # Use fromisoformat for ISO 8601 strings
+
         # Update fields with validation
         try:
             validate_inception_data(data)
             inception.amount_received = data.get('amount_received', inception.amount_received)
             inception.description = data.get('description', inception.description)
-            inception.received_at = data.get('received_at', inception.received_at)
+            inception.received_at = received_at
             inception.updated_at = datetime.utcnow()
 
             db.session.commit()

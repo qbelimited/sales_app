@@ -232,11 +232,11 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
 
         // Bank-specific validation
         const lowerCaseBankName = bankName.toLowerCase(); // Convert bank name to lower case for case-insensitive comparison
-        if (lowerCaseBankName.includes('uba') && length !== 14) {
+        if (lowerCaseBankName.includes('UNITED BANK FOR AFRICA') && length !== 14) {
           newErrors.bank_acc_number = 'UBA account number must be 14 digits';
-        } else if ((lowerCaseBankName.includes('zenith') || lowerCaseBankName.includes('absa')) && length !== 10) {
+        } else if ((lowerCaseBankName.includes('ZENITH') || lowerCaseBankName.includes('ABSA')) && length !== 10) {
           newErrors.bank_acc_number = 'Zenith or Absa account number must be 10 digits';
-        } else if (lowerCaseBankName.includes('sg') && length !== 12 && length !== 13) {
+        } else if (lowerCaseBankName.includes('SOCIETE GENERAL') && length !== 12 && length !== 13) {
           newErrors.bank_acc_number = 'SG account number must be 12 or 13 digits';
         } else if (length !== 13 && length !== 16) {
           newErrors.bank_acc_number = 'Account number must be 13 or 16 digits';

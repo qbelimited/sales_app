@@ -33,6 +33,33 @@ def check_role_permission(current_user, required_roles):
     }
     return current_user['role'].lower() in roles.get(required_roles, [])
 
+def get_actual_sales_count(target):
+    # Example query to get actual sales count based on criteria in the target
+    return SalesPerformance.query.filter(
+        SalesPerformance.sales_manager_id == target.sales_manager_id,
+        SalesPerformance.criteria_type == target.target_criteria_type,
+        SalesPerformance.criteria_value == target.target_criteria_value,
+        SalesPerformance.is_deleted == False
+    ).count()
+
+def get_actual_premium_amount(target):
+    # Example query to calculate the actual premium amount based on criteria in the target
+    return db.session.query(db.func.sum(SalesPerformance.actual_premium_amount)).filter(
+        SalesPerformance.sales_manager_id == target.sales_manager_id,
+        SalesPerformance.criteria_type == target.target_criteria_type,
+        SalesPerformance.criteria_value == target.target_criteria_value,
+        SalesPerformance.is_deleted == False
+    ).scalar() or 0.0
+
+def get_criteria_met_count(target):
+    # Count of sales that met the criteria
+    return SalesPerformance.query.filter(
+        SalesPerformance.sales_manager_id == target.sales_manager_id,
+        SalesPerformance.criteria_type == target.target_criteria_type,
+        SalesPerformance.criteria_value == target.target_criteria_value,
+        SalesPerformance.is_deleted == False
+    ).count()
+
 @sales_performance_ns.route('/')
 class SalesPerformanceResource(Resource):
     @sales_performance_ns.doc(security='Bearer Auth')
@@ -107,6 +134,9 @@ class SalesPerformanceResource(Resource):
             logger.error(f"Sales Target ID {data['target_id']} not found.")
             return {'message': 'Sales Target not found'}, 404
 
+        # Calculate criteria met count
+        criteria_met_count = get_criteria_met_count(target)
+
         # Create new sales performance with dynamic criteria
         new_sales_performance = SalesPerformance(
             sales_manager_id=data.get('sales_manager_id', current_user['id']),
@@ -115,7 +145,7 @@ class SalesPerformanceResource(Resource):
             target_id=data['target_id'],
             criteria_type=data.get('criteria_type'),
             criteria_value=data.get('criteria_value'),
-            criteria_met_count=data.get('criteria_met_count', 0),
+            criteria_met_count=criteria_met_count,
             performance_date=data.get('performance_date', datetime.utcnow())
         )
         db.session.add(new_sales_performance)
@@ -185,7 +215,10 @@ class SingleSalesPerformanceResource(Resource):
         sales_performance.actual_premium_amount = data.get('actual_premium_amount', sales_performance.actual_premium_amount)
         sales_performance.criteria_type = data.get('criteria_type', sales_performance.criteria_type)
         sales_performance.criteria_value = data.get('criteria_value', sales_performance.criteria_value)
-        sales_performance.criteria_met_count = data.get('criteria_met_count', sales_performance.criteria_met_count)
+
+        # Recalculate criteria met count
+        sales_performance.criteria_met_count = get_criteria_met_count(sales_performance)
+
         sales_performance.performance_date = data.get('performance_date', sales_performance.performance_date)
         sales_performance.updated_at = datetime.utcnow()
 
@@ -239,3 +272,108 @@ class SingleSalesPerformanceResource(Resource):
 
         logger.info(f"Sales Performance ID {sales_performance.id} soft-deleted by User ID {current_user['id']}.")
         return {'message': 'Sales Performance deleted successfully'}, 200
+
+@sales_performance_ns.route('/auto-generate')
+class AutoGeneratePerformanceResource(Resource):
+    @sales_performance_ns.doc(security='Bearer Auth')
+    @jwt_required()
+    def post(self):
+        """Automatically generate sales performance records for all sales managers based on targets."""
+        try:
+            # Fetch all active sales targets
+            sales_targets = SalesTarget.query.filter_by(is_active=True, is_deleted=False).all()
+            sales_performance_records = []
+
+            for target in sales_targets:
+                # Logic to calculate actual sales count and premium amount based on the target
+                actual_sales_count = get_actual_sales_count(target)
+                actual_premium_amount = get_actual_premium_amount(target)
+                criteria_met_count = get_criteria_met_count(target)  # Calculate criteria met count
+
+                # Create new sales performance record
+                performance_record = SalesPerformance(
+                    sales_manager_id=target.sales_manager_id,
+                    actual_sales_count=actual_sales_count,
+                    actual_premium_amount=actual_premium_amount,
+                    target_id=target.id,
+                    criteria_type=target.target_criteria_type,
+                    criteria_value=target.target_criteria_value,
+                    criteria_met_count=criteria_met_count,  # Include criteria met count
+                    performance_date=datetime.utcnow().date()
+                )
+                db.session.add(performance_record)
+                sales_performance_records.append(performance_record)
+
+            db.session.commit()
+
+            # Log the auto-generation to audit trail
+            audit = AuditTrail(
+                user_id=get_jwt_identity()['id'],
+                action='ACCESS',
+                resource_type='sales_performance',
+                details=f"User auto-generated sales performance records for {len(sales_performance_records)} managers.",
+                ip_address=get_client_ip(),
+                user_agent=request.headers.get('User-Agent')
+            )
+            db.session.add(audit)
+            db.session.commit()
+
+            return {'message': 'Sales performance records auto-generated successfully', 'records_count': len(sales_performance_records)}, 201
+
+        except Exception as e:
+            logger.error(f"Error during auto generation of sales performance: {e}")
+            return {'message': 'Error during auto generation'}, 500
+
+
+@sales_performance_ns.route('/auto-update')
+class AutoUpdatePerformanceResource(Resource):
+    @sales_performance_ns.doc(security='Bearer Auth')
+    @jwt_required()
+    def post(self):
+        """Automatically update sales performance records for all sales managers based on targets."""
+        try:
+            # Fetch all active sales targets
+            sales_targets = SalesTarget.query.filter_by(is_active=True, is_deleted=False).all()
+            updated_records_count = 0
+
+            for target in sales_targets:
+                # Logic to calculate actual sales count and premium amount based on the target
+                actual_sales_count = get_actual_sales_count(target)
+                actual_premium_amount = get_actual_premium_amount(target)
+
+                # Check for existing performance record
+                performance_record = SalesPerformance.query.filter_by(
+                    sales_manager_id=target.sales_manager_id,
+                    target_id=target.id,
+                    criteria_type=target.target_criteria_type,
+                    criteria_value=target.target_criteria_value,
+                    performance_date=datetime.utcnow().date()  # Use today's date for the performance date
+                ).first()
+
+                if performance_record:
+                    # Update existing record
+                    performance_record.actual_sales_count = actual_sales_count
+                    performance_record.actual_premium_amount = actual_premium_amount
+                    performance_record.criteria_met_count = get_criteria_met_count(target)  # Update criteria met count
+                    performance_record.updated_at = datetime.utcnow()
+                    updated_records_count += 1
+
+            db.session.commit()
+
+            # Log the auto-update to audit trail
+            audit = AuditTrail(
+                user_id=get_jwt_identity()['id'],
+                action='UPDATE',
+                resource_type='sales_performance',
+                details=f"User auto-updated sales performance records for {updated_records_count} managers.",
+                ip_address=get_client_ip(),
+                user_agent=request.headers.get('User-Agent')
+            )
+            db.session.add(audit)
+            db.session.commit()
+
+            return {'message': 'Sales performance records auto-updated successfully', 'updated_count': updated_records_count}, 200
+
+        except Exception as e:
+            logger.error(f"Error during auto update of sales performance: {e}")
+            return {'message': 'Error during auto update'}, 500

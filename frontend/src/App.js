@@ -21,6 +21,7 @@ const SalesPage = React.lazy(() => import('./pages/SalesPage'));
 const SaleDetailsPage = React.lazy(() => import('./pages/SaleDetailsPage'));
 const AuditTrailPage = React.lazy(() => import('./pages/AuditTrailPage'));
 const SalesPerformancePage = React.lazy(() => import('./pages/SalesPerformancePage'));
+const InceptionsPage = React.lazy(() => import('./pages/InceptedSalesPage'));
 const SalesTargetPage = React.lazy(() => import('./pages/SalesTargetPage'));
 const QueriesPage = React.lazy(() => import('./pages/QueriesPage'));
 const ReportsPage = React.lazy(() => import('./pages/ReportsPage'));
@@ -53,6 +54,7 @@ const appRoutes = [
   { path: '/sales/:saleId', component: SaleDetailsPage, allowedRoles: [1, 2, 3, 4] },
   { path: '/sales-targets', component: SalesTargetPage, allowedRoles: [1, 2, 3, 4] },
   { path: '/sales-performance', component: SalesPerformancePage, allowedRoles: [1, 2, 3, 4] },
+  { path: '/inceptions', component: InceptionsPage, allowedRoles: [1, 2, 3, 4] },
   { path: '/queries', component: QueriesPage, allowedRoles: [1, 2, 3, 4] },
   { path: '/manage-sales-executives', component: ManageSalesExecutivesPage, allowedRoles: [1, 2, 3, 4] },
   { path: '/manage-paypoints', component: ManagePaypointsPage, allowedRoles: [1, 2, 3, 4] },

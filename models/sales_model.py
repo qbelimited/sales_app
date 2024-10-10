@@ -67,10 +67,10 @@ class Sale(db.Model):
 
             # Define account number length requirements based on bank names
             account_length_requirements = {
-                'UBA': 14,
-                'Zenith': 10,
-                'Absa': 10,
-                'SG': [12, 13]
+                'UNITED BANK FOR AFRICA': 14,
+                'ZENITH': 10,
+                'ABSA': 10,
+                'SOCIETE GENERAL': [12, 13]
             }
 
             # Check account number requirements based on the bank name

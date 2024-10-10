@@ -79,7 +79,7 @@ function Sidebar() {
                   </NavLink>
                 </li>
                 <li>
-                  <NavLink to="/incepted-sales" className={({ isActive }) => (isActive ? 'active' : '')}>
+                  <NavLink to="/inceptions" className={({ isActive }) => (isActive ? 'active' : '')}>
                     <FaClipboardList />
                     <span>Incepted Sales</span>
                   </NavLink>

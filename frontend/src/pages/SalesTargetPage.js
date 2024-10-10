@@ -58,7 +58,9 @@ const SalesTargetPage = ({ showToast }) => {
       const total_item = parseInt(res_tot.data.total) || res_tot.data.total;
       const response = await api.get(`/sales_target/?sort_by=created_at&per_page=${total_item}&page=1`);
       const targets = Array.isArray(response.data.sales_targets) ? response.data.sales_targets : [];
+      const runningtargets = targets.filter(target => target.is_active).length;
 
+      // Filter targets based on user role
       const filteredTargets = role_id === 4
         ? targets.filter(target => target.sales_manager_id === userId)
         : targets;
@@ -69,7 +71,7 @@ const SalesTargetPage = ({ showToast }) => {
       setCriteriaValues(values);
 
       const additionalFilteredTargets = filteredTargets.filter(target => {
-        const matchesManager = selectedManager ? target.sales_manager_id === parseInt(selectedManager, 10) : true; // Ensure type match
+        const matchesManager = selectedManager ? target.sales_manager_id === parseInt(selectedManager, 10) : true;
         const matchesCriteriaType = selectedCriteriaType ? target.target_criteria_type === selectedCriteriaType : true;
         const matchesCriteriaValue = selectedCriteriaValue ? target.target_criteria_value === selectedCriteriaValue : true;
         const matchesDate = (startDate && endDate) ?
@@ -81,7 +83,7 @@ const SalesTargetPage = ({ showToast }) => {
 
       setSalesTargets(additionalFilteredTargets);
       setTotalPages(Math.ceil(additionalFilteredTargets.length / itemsPerPage));
-      setTotalRunningTargets(additionalFilteredTargets.length);
+      setTotalRunningTargets(runningtargets);
     } catch (err) {
       console.error('Error fetching sales targets:', err);
       setError('Failed to load sales targets.');
@@ -111,8 +113,8 @@ const SalesTargetPage = ({ showToast }) => {
   const handleShowEditModal = (target) => {
     setCurrentTarget(target);
     setShowEditModal(true);
-    setCustomCriteriaType('');
-    setCustomCriteriaValue('');
+    setCustomCriteriaType(target.target_criteria_type === 'custom' ? target.target_criteria_type : ''); // Set custom field based on current target
+    setCustomCriteriaValue(target.target_criteria_value === 'custom' ? target.target_criteria_value : '');
   };
 
   const handleCloseEditModal = () => {
@@ -175,8 +177,8 @@ const SalesTargetPage = ({ showToast }) => {
       target_premium_amount: parseFloat(formData.get('target_premium_amount')),
       target_criteria_type: customCriteriaType || formData.get('target_criteria_type'),
       target_criteria_value: customCriteriaValue || formData.get('target_criteria_value'),
-      period_start: periodStartDate.toISOString(), // Converts to ISO string with 12:00 AM
-      period_end: periodEndDate.toISOString(), // Converts to ISO string with 12:00 AM
+      period_start: periodStartDate.toISOString(),
+      period_end: periodEndDate.toISOString(),
       is_active: true
     };
 
@@ -271,21 +273,29 @@ const SalesTargetPage = ({ showToast }) => {
         </thead>
         <tbody>
           {paginatedTargets.map(target => (
-            <tr key={target.id}>
+            <tr key={target.id} className={target.is_active ? '' : 'table-secondary'}>
               <td>{salesManagers.find(manager => manager.id === target.sales_manager_id)?.name || target.sales_manager_id}</td>
               <td>{Math.round(target.target_sales_count)}</td>
               <td>{parseFloat(target.target_premium_amount).toFixed(2)}</td>
               <td>{target.target_criteria_type}</td>
               <td>{target.target_criteria_value}</td>
-              <td>{new Date(target.period_start).toISOString().slice(0, 10)}</td> {/* Display only the date */}
-              <td>{new Date(target.period_end).toISOString().slice(0, 10)}</td> {/* Display only the date */}
+              <td>{new Date(target.period_start).toISOString().slice(0, 10)}</td>
+              <td>{new Date(target.period_end).toISOString().slice(0, 10)}</td>
               <td>
                 {(role_id === 3 || role_id === 2) && (
                   <>
-                    <Button variant="warning" onClick={() => handleShowEditModal(target)}>
+                    <Button
+                      variant="warning"
+                      onClick={() => handleShowEditModal(target)}
+                      disabled={!target.is_active}
+                    >
                       <FontAwesomeIcon icon={faEdit} /> Edit
                     </Button>
-                    <Button variant="danger" onClick={() => handleShowDeleteModal(target)}>
+                    <Button
+                      variant="danger"
+                      onClick={() => handleShowDeleteModal(target)}
+                      disabled={!target.is_active}
+                    >
                       <FontAwesomeIcon icon={faTrashAlt} /> Delete
                     </Button>
                   </>
@@ -300,15 +310,23 @@ const SalesTargetPage = ({ showToast }) => {
               <td>{parseFloat(target.target_premium_amount).toFixed(2)}</td>
               <td>{target.target_criteria_type}</td>
               <td>{target.target_criteria_value}</td>
-              <td>{new Date(target.period_start).toISOString().slice(0, 10)}</td> {/* Display only the date */}
-              <td>{new Date(target.period_end).toISOString().slice(0, 10)}</td> {/* Display only the date */}
+              <td>{new Date(target.period_start).toISOString().slice(0, 10)}</td>
+              <td>{new Date(target.period_end).toISOString().slice(0, 10)}</td>
               <td>
                 {(role_id === 3 || role_id === 2) && (
                   <>
-                    <Button variant="warning" onClick={() => handleShowEditModal(target)}>
+                    <Button
+                      variant="warning"
+                      onClick={() => handleShowEditModal(target)}
+                      disabled
+                    >
                       <FontAwesomeIcon icon={faEdit} /> Edit
                     </Button>
-                    <Button variant="danger" onClick={() => handleShowDeleteModal(target)}>
+                    <Button
+                      variant="danger"
+                      onClick={() => handleShowDeleteModal(target)}
+                      disabled
+                    >
                       <FontAwesomeIcon icon={faTrashAlt} /> Delete
                     </Button>
                   </>
@@ -364,34 +382,59 @@ const SalesTargetPage = ({ showToast }) => {
             </div>
             <div className="mb-3">
               <label htmlFor="target_criteria_type" className="form-label">Target Criteria Type</label>
-              <select name="target_criteria_type" className="form-control" required onChange={(e) => {
-                const value = e.target.value;
-                setCustomCriteriaType(value === 'custom' ? '' : customCriteriaType);
-              }}>
+              <select
+                name="target_criteria_type"
+                className="form-control"
+                required
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setCustomCriteriaType(value === 'custom' ? 'custom' : value);
+                  if (value !== 'custom') {
+                    setCustomCriteriaValue(''); // Reset custom criteria value if other option is selected
+                  }
+                }}
+              >
                 <option value="">Select Criteria Type</option>
                 {criteriaTypes.map(type => (
                   <option key={type} value={type}>{type}</option>
                 ))}
                 <option value="custom">Other (Input below)</option>
               </select>
-              {customCriteriaType === '' && (
-                <input type="text" className="form-control mt-2" placeholder="Enter custom criteria type" onChange={(e) => setCustomCriteriaType(e.target.value)} />
+              {customCriteriaType === 'custom' && (
+                <input
+                  type="text"
+                  className="form-control mt-2"
+                  placeholder="Enter custom criteria type"
+                  value={customCriteriaType}
+                  onChange={(e) => setCustomCriteriaType(e.target.value)}
+                />
               )}
             </div>
             <div className="mb-3">
               <label htmlFor="target_criteria_value" className="form-label">Target Criteria Value</label>
-              <select name="target_criteria_value" className="form-control" required onChange={(e) => {
-                const value = e.target.value;
-                setCustomCriteriaValue(value === 'custom' ? '' : customCriteriaValue);
-              }}>
+              <select
+                name="target_criteria_value"
+                className="form-control"
+                required
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setCustomCriteriaValue(value === 'custom' ? 'custom' : value);
+                }}
+              >
                 <option value="">Select Criteria Value</option>
                 {criteriaValues.map(value => (
                   <option key={value} value={value}>{value}</option>
                 ))}
                 <option value="custom">Other (Input below)</option>
               </select>
-              {customCriteriaValue === '' && (
-                <input type="text" className="form-control mt-2" placeholder="Enter custom criteria value" onChange={(e) => setCustomCriteriaValue(e.target.value)} />
+              {customCriteriaValue === 'custom' && (
+                <input
+                  type="text"
+                  className="form-control mt-2"
+                  placeholder="Enter custom criteria value"
+                  value={customCriteriaValue}
+                  onChange={(e) => setCustomCriteriaValue(e.target.value)}
+                />
               )}
             </div>
             <div className="mb-3">
@@ -456,11 +499,11 @@ const SalesTargetPage = ({ showToast }) => {
             </div>
             <div className="mb-3">
               <label htmlFor="period_start" className="form-label">Period Start</label>
-              <input type="date" name="period_start" className="form-control" defaultValue={currentTarget ? currentTarget.period_start.slice(0, 10) : ''} required /> {/* Only show date */}
+              <input type="date" name="period_start" className="form-control" defaultValue={currentTarget ? currentTarget.period_start.slice(0, 10) : ''} required />
             </div>
             <div className="mb-3">
               <label htmlFor="period_end" className="form-label">Period End</label>
-              <input type="date" name="period_end" className="form-control" defaultValue={currentTarget ? currentTarget.period_end.slice(0, 10) : ''} required /> {/* Only show date */}
+              <input type="date" name="period_end" className="form-control" defaultValue={currentTarget ? currentTarget.period_end.slice(0, 10) : ''} required />
             </div>
             <Button variant="primary" type="submit">
               Update Target
