@@ -1,17 +1,20 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Modal, Button, Table, Spinner, Form, Row, Col } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEdit, faTrashAlt, faPlus } from '@fortawesome/free-solid-svg-icons';
+import { faEdit, faTrashAlt, faPlus, faInfoCircle } from '@fortawesome/free-solid-svg-icons';
 import api from '../services/api';
 
 const SalesPerformancePage = ({ showToast }) => {
   const [performanceData, setPerformanceData] = useState([]);
+  const [salesManagers, setSalesManagers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentPerformance, setCurrentPerformance] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showTargetDetailsModal, setShowTargetDetailsModal] = useState(false);
+  const [targetDetails, setTargetDetails] = useState(null); // State to hold target details
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -22,6 +25,17 @@ const SalesPerformancePage = ({ showToast }) => {
   const [criteriaType, setCriteriaType] = useState('');
   const [criteriaValue, setCriteriaValue] = useState('');
   const [targetId, setTargetId] = useState('');
+
+  const fetchSalesManagers = useCallback(async () => {
+    try {
+      const response = await api.get('/dropdown/', {
+        params: { type: 'users_with_roles', role_id: 4 }, // Fetch users with role_id 4 (sales managers)
+      });
+      setSalesManagers(response.data);
+    } catch (error) {
+      console.error('Failed to fetch sales managers:', error);
+    }
+  }, []);
 
   const fetchPerformanceData = useCallback(async () => {
     setLoading(true);
@@ -36,8 +50,33 @@ const SalesPerformancePage = ({ showToast }) => {
           target_id: targetId,
         },
       });
-      setPerformanceData(response.data.sales_performances);
+      const performances = response.data.sales_performances;
+
+      // Fetch target details for each unique target_id in performances
+      const uniqueTargetIds = [...new Set(performances.map(performance => performance.target_id))];
+      const targetDetailsPromises = uniqueTargetIds.map(async (id) => {
+        try {
+          const response = await api.get(`/sales_target/${id}`); // Fetch target details
+          return response.data; // Return target details
+        } catch (error) {
+          console.error('Failed to fetch target details:', error);
+          showToast('danger', 'Failed to fetch target details.', 'Error');
+          return null; // Return null if error occurs
+        }
+      });
+      const targetDetailsArray = await Promise.all(targetDetailsPromises);
+
+      // Map target details to target IDs
+      const targetDetailsMap = targetDetailsArray.reduce((acc, target) => {
+        if (target) {
+          acc[target.id] = target;
+        }
+        return acc;
+      }, {});
+
+      setPerformanceData(performances);
       setTotalPages(Math.ceil(response.data.total / itemsPerPage));
+      return targetDetailsMap; // Return target details map for later use
     } catch (err) {
       console.error('Error fetching sales performance:', err);
       const errorMessage = err.response?.data?.message || 'Failed to load sales performance data.';
@@ -49,8 +88,13 @@ const SalesPerformancePage = ({ showToast }) => {
   }, [showToast, currentPage, itemsPerPage, criteriaType, criteriaValue, targetId]);
 
   useEffect(() => {
-    fetchPerformanceData();
-  }, [fetchPerformanceData]);
+    fetchSalesManagers();
+    const loadData = async () => {
+      const targetDetailsMap = await fetchPerformanceData();
+      setTargetDetails(targetDetailsMap);
+    };
+    loadData();
+  }, [fetchSalesManagers, fetchPerformanceData]);
 
   const handleShowAddModal = () => {
     setCurrentPerformance(null);
@@ -79,6 +123,22 @@ const SalesPerformancePage = ({ showToast }) => {
   const handleCloseDeleteModal = () => {
     setCurrentPerformance(null);
     setShowDeleteModal(false);
+  };
+
+  const handleShowTargetDetailsModal = (targetId) => {
+    const target = targetDetails?.[targetId]; // Get specific target details
+    if (target) {
+      setTargetDetails(target); // Set target details for the modal
+      setShowTargetDetailsModal(true);
+    } else {
+      console.error('Target not found for ID:', targetId);
+      showToast('danger', 'Target details not found.', 'Error');
+    }
+  };
+
+  const handleCloseTargetDetailsModal = () => {
+    setShowTargetDetailsModal(false);
+    setTargetDetails(null); // Clear target details when closing
   };
 
   const addPerformance = async (data) => {
@@ -121,7 +181,7 @@ const SalesPerformancePage = ({ showToast }) => {
     e.preventDefault();
     const formData = new FormData(e.target);
     const data = {
-      sales_manager_id: 0, // Replace with actual sales manager ID
+      sales_manager_id: formData.get('sales_manager_id'),
       actual_sales_count: 0, // Adjust this value accordingly
       actual_premium_amount: 0, // Adjust this value accordingly
       target_id: formData.get('target_id'),
@@ -160,6 +220,37 @@ const SalesPerformancePage = ({ showToast }) => {
     }
   };
 
+  // Calculate the number of working days between two dates
+  const calculateWorkingDays = (startDate, endDate) => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    let count = 0;
+
+    while (start <= end) {
+      const day = start.getDay();
+      if (day !== 0 && day !== 6) { // Exclude Sundays (0) and Saturdays (6)
+        count++;
+      }
+      start.setDate(start.getDate() + 1);
+    }
+
+    return count;
+  };
+
+  const enhancedPerformanceData = performanceData.map(performance => {
+    const target = targetDetails?.[performance.target_id]; // Get target details for calculations
+    const targetSalesCount = target?.target_sales_count || 1; // Avoid division by zero
+    const targetPremiumAmount = target?.target_premium_amount || 1; // Avoid division by zero
+    const workingDays = target ? calculateWorkingDays(target.period_start, target.period_end) : 1; // Avoid division by zero
+
+    return {
+      ...performance,
+      salesCountPercentage: ((performance.actual_sales_count / targetSalesCount) * 100).toFixed(2),
+      premiumAmountPercentage: ((performance.actual_premium_amount / targetPremiumAmount) * 100).toFixed(2),
+      criteriaMetCountPercentage: ((performance.criteria_met_count / workingDays) * 100).toFixed(2),
+    };
+  });
+
   // Pagination handlers
   const handleNextPage = () => {
     if (currentPage < totalPages) {
@@ -176,7 +267,7 @@ const SalesPerformancePage = ({ showToast }) => {
   const handleFilter = (e) => {
     e.preventDefault();
     setCurrentPage(1); // Reset to first page on filter
-    fetchPerformanceData();
+    fetchPerformanceData(); // Fetch data with current filters
   };
 
   return (
@@ -231,28 +322,38 @@ const SalesPerformancePage = ({ showToast }) => {
         <thead>
           <tr>
             <th>ID</th>
-            <th>Sales Manager ID</th>
+            <th>Sales Manager</th>
             <th>Actual Sales Count</th>
+            <th>% Sales Count</th>
             <th>Actual Premium Amount</th>
-            <th>Target ID</th>
+            <th>% Premium Amount</th>
+            <th>Target</th>
             <th>Criteria Type</th>
             <th>Criteria Value</th>
             <th>Criteria Met Count</th>
+            <th>% Criteria Met Count</th>
             <th>Performance Date</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {performanceData.map(performance => (
+          {enhancedPerformanceData.map(performance => (
             <tr key={performance.id}>
               <td>{performance.id}</td>
-              <td>{performance.sales_manager_id}</td>
+              <td>{salesManagers.find(manager => manager.id === performance.sales_manager_id)?.name}</td>
               <td>{performance.actual_sales_count}</td>
+              <td>{performance.salesCountPercentage}%</td>
               <td>{performance.actual_premium_amount}</td>
-              <td>{performance.target_id}</td>
+              <td>{performance.premiumAmountPercentage}%</td>
+              <td>
+                <Button variant="link" onClick={() => handleShowTargetDetailsModal(performance.target_id)}>
+                  {performance.target_id} <FontAwesomeIcon icon={faInfoCircle} />
+                </Button>
+              </td>
               <td>{performance.criteria_type}</td>
               <td>{performance.criteria_value}</td>
               <td>{performance.criteria_met_count}</td>
+              <td>{performance.criteriaMetCountPercentage}%</td>
               <td>{new Date(performance.performance_date).toLocaleDateString()}</td>
               <td>
                 <Button variant="warning" onClick={() => handleShowEditModal(performance)}>
@@ -285,6 +386,15 @@ const SalesPerformancePage = ({ showToast }) => {
         </Modal.Header>
         <Modal.Body>
           <Form onSubmit={handleSubmit}>
+            <Form.Group controlId="formSalesManager">
+              <Form.Label>Sales Manager</Form.Label>
+              <Form.Control as="select" name="sales_manager_id" required>
+                <option value="">Select Sales Manager</option>
+                {salesManagers.map(manager => (
+                  <option key={manager.id} value={manager.id}>{manager.name}</option>
+                ))}
+              </Form.Control>
+            </Form.Group>
             <Form.Group controlId="formTargetId">
               <Form.Label>Target ID</Form.Label>
               <Form.Control type="text" name="target_id" required />
@@ -314,6 +424,15 @@ const SalesPerformancePage = ({ showToast }) => {
         <Modal.Body>
           {currentPerformance && (
             <Form onSubmit={handleSubmit}>
+              <Form.Group controlId="formSalesManager">
+                <Form.Label>Sales Manager</Form.Label>
+                <Form.Control as="select" name="sales_manager_id" defaultValue={currentPerformance.sales_manager_id} required>
+                  <option value="">Select Sales Manager</option>
+                  {salesManagers.map(manager => (
+                    <option key={manager.id} value={manager.id}>{manager.name}</option>
+                  ))}
+                </Form.Control>
+              </Form.Group>
               <Form.Group controlId="formTargetId">
                 <Form.Label>Target ID</Form.Label>
                 <Form.Control type="text" name="target_id" defaultValue={currentPerformance.target_id} required />
@@ -347,6 +466,29 @@ const SalesPerformancePage = ({ showToast }) => {
         <Modal.Footer>
           <Button variant="secondary" onClick={handleCloseDeleteModal}>Cancel</Button>
           <Button variant="danger" onClick={deletePerformance}>Delete</Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Target Details Modal */}
+      <Modal show={showTargetDetailsModal} onHide={handleCloseTargetDetailsModal}>
+        <Modal.Header closeButton>
+          <Modal.Title>Target Details</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {targetDetails && (
+            <div>
+              <p><strong>ID:</strong> {targetDetails.id}</p>
+              <p><strong>Target Sales Count:</strong> {targetDetails.target_sales_count}</p>
+              <p><strong>Target Premium Amount:</strong> {targetDetails.target_premium_amount}</p>
+              <p><strong>Criteria Type:</strong> {targetDetails.target_criteria_type}</p>
+              <p><strong>Criteria Value:</strong> {targetDetails.target_criteria_value}</p>
+              <p><strong>Period Start:</strong> {new Date(targetDetails.period_start).toLocaleDateString()}</p>
+              <p><strong>Period End:</strong> {new Date(targetDetails.period_end).toLocaleDateString()}</p>
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={handleCloseTargetDetailsModal}>Close</Button>
         </Modal.Footer>
       </Modal>
     </div>
