@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, Button, Table, Spinner, Form } from 'react-bootstrap';
+import { Modal, Button, Table, Spinner, Form, Row, Col } from 'react-bootstrap';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faEdit, faTrashAlt, faPlus } from '@fortawesome/free-solid-svg-icons';
 import api from '../services/api';
@@ -13,20 +13,40 @@ const SalesPerformancePage = ({ showToast }) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [itemsPerPage] = useState(10);
+
+  // Filter state
+  const [criteriaType, setCriteriaType] = useState('');
+  const [criteriaValue, setCriteriaValue] = useState('');
+  const [targetId, setTargetId] = useState('');
+
   const fetchPerformanceData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await api.get('/sales_performance/');
+      const response = await api.get('/sales_performance/', {
+        params: {
+          per_page: itemsPerPage,
+          page: currentPage,
+          criteria_type: criteriaType,
+          criteria_value: criteriaValue,
+          target_id: targetId,
+        },
+      });
       setPerformanceData(response.data.sales_performances);
+      setTotalPages(Math.ceil(response.data.total / itemsPerPage));
     } catch (err) {
       console.error('Error fetching sales performance:', err);
-      setError('Failed to load sales performance data.');
-      showToast('danger', 'Failed to load sales performance data.', 'Error');
+      const errorMessage = err.response?.data?.message || 'Failed to load sales performance data.';
+      setError(errorMessage);
+      showToast('danger', errorMessage, 'Error');
     } finally {
       setLoading(false);
     }
-  }, [showToast]);
+  }, [showToast, currentPage, itemsPerPage, criteriaType, criteriaValue, targetId]);
 
   useEffect(() => {
     fetchPerformanceData();
@@ -104,7 +124,7 @@ const SalesPerformancePage = ({ showToast }) => {
       sales_manager_id: 0, // Replace with actual sales manager ID
       actual_sales_count: 0, // Adjust this value accordingly
       actual_premium_amount: 0, // Adjust this value accordingly
-      target_id: 0, // Replace with actual target ID
+      target_id: formData.get('target_id'),
       criteria_type: formData.get('criteria_type'),
       criteria_value: formData.get('criteria_value'),
       criteria_met_count: 0, // Adjust this value accordingly
@@ -140,11 +160,62 @@ const SalesPerformancePage = ({ showToast }) => {
     }
   };
 
+  // Pagination handlers
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(prevPage => prevPage + 1);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(prevPage => prevPage - 1);
+    }
+  };
+
+  const handleFilter = (e) => {
+    e.preventDefault();
+    setCurrentPage(1); // Reset to first page on filter
+    fetchPerformanceData();
+  };
+
   return (
     <div className="container mt-5">
       <h1 className="text-center mb-4">Sales Performance</h1>
       {loading && <Spinner animation="border" variant="primary" />}
       {error && <p className="text-danger">{error}</p>}
+
+      <Row className="mb-3">
+        <Col xs={12} md={3}>
+          <Form.Control
+            type="text"
+            placeholder="Criteria Type"
+            value={criteriaType}
+            onChange={(e) => setCriteriaType(e.target.value)}
+          />
+        </Col>
+        <Col xs={12} md={3}>
+          <Form.Control
+            type="text"
+            placeholder="Criteria Value"
+            value={criteriaValue}
+            onChange={(e) => setCriteriaValue(e.target.value)}
+          />
+        </Col>
+        <Col xs={12} md={3}>
+          <Form.Control
+            type="text"
+            placeholder="Target ID"
+            value={targetId}
+            onChange={(e) => setTargetId(e.target.value)}
+          />
+        </Col>
+        <Col xs={12} md={3}>
+          <Button variant="primary" onClick={handleFilter}>
+            Filter
+          </Button>
+        </Col>
+      </Row>
 
       <Button variant="primary" onClick={handleShowAddModal} className="mb-3">
         <FontAwesomeIcon icon={faPlus} /> Add Performance
@@ -196,6 +267,17 @@ const SalesPerformancePage = ({ showToast }) => {
         </tbody>
       </Table>
 
+      {/* Pagination Controls */}
+      <div className="d-flex justify-content-center mt-4">
+        <Button variant="secondary" onClick={handlePreviousPage} disabled={currentPage === 1}>
+          Previous
+        </Button>
+        <span className="mx-2">{`Page ${currentPage} of ${totalPages}`}</span>
+        <Button variant="secondary" onClick={handleNextPage} disabled={currentPage === totalPages}>
+          Next
+        </Button>
+      </div>
+
       {/* Add Performance Modal */}
       <Modal show={showAddModal} onHide={handleCloseAddModal}>
         <Modal.Header closeButton>
@@ -203,6 +285,10 @@ const SalesPerformancePage = ({ showToast }) => {
         </Modal.Header>
         <Modal.Body>
           <Form onSubmit={handleSubmit}>
+            <Form.Group controlId="formTargetId">
+              <Form.Label>Target ID</Form.Label>
+              <Form.Control type="text" name="target_id" required />
+            </Form.Group>
             <Form.Group controlId="formCriteriaType">
               <Form.Label>Criteria Type</Form.Label>
               <Form.Control type="text" name="criteria_type" required />
@@ -228,6 +314,10 @@ const SalesPerformancePage = ({ showToast }) => {
         <Modal.Body>
           {currentPerformance && (
             <Form onSubmit={handleSubmit}>
+              <Form.Group controlId="formTargetId">
+                <Form.Label>Target ID</Form.Label>
+                <Form.Control type="text" name="target_id" defaultValue={currentPerformance.target_id} required />
+              </Form.Group>
               <Form.Group controlId="formCriteriaType">
                 <Form.Label>Criteria Type</Form.Label>
                 <Form.Control type="text" name="criteria_type" defaultValue={currentPerformance.criteria_type} required />

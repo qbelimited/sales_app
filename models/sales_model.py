@@ -73,9 +73,12 @@ class Sale(db.Model):
                 'SOCIETE GENERAL': [12, 13]
             }
 
+            # Convert the bank name to lowercase for case-insensitive comparison
+            bank_name_lower = bank.name.lower()
+
             # Check account number requirements based on the bank name
             for keyword, required_length in account_length_requirements.items():
-                if keyword in bank.name:
+                if keyword.lower() in bank_name_lower:  # Compare in lowercase
                     if isinstance(required_length, list):  # Handle cases with multiple valid lengths
                         if length not in required_length:
                             raise ValueError(f"{keyword} account number must be {required_length} digits")
@@ -84,9 +87,9 @@ class Sale(db.Model):
                             raise ValueError(f"{keyword} account number must be {required_length} digits")
                     break  # Exit loop once the matching bank is found
 
-            # Handle generic case if no specific bank requirements were met
-            if length not in [13, 16]:
-                raise ValueError("Account number must be 13 or 16 digits")
+            # Check for other banks and generic length requirements
+            if length not in [10, 12, 13, 14, 16]:
+                raise ValueError("Account number must be 10, 12, 13, 14, or 16 digits")
         return value
 
     @validates('collection_platform')

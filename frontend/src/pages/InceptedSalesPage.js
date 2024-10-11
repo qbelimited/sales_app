@@ -16,7 +16,8 @@ const InceptionsPage = ({ showToast }) => {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [sales, setSales] = useState([]);
   const [loadingSubmit, setLoadingSubmit] = useState(false);
-  const [file, setFile] = useState(null); // State to hold the uploaded file
+  const [file, setFile] = useState(null);
+  const [uploadLoading, setUploadLoading] = useState(false);
 
   // Fetch sales for the dropdown
   const fetchSales = useCallback(async () => {
@@ -83,11 +84,29 @@ const InceptionsPage = ({ showToast }) => {
   };
 
   const handleCloseUploadModal = () => {
-    setFile(null); // Clear the file on modal close
+    setFile(null);
     setShowUploadModal(false);
   };
 
+  const validateData = (data) => {
+    if (data.amount_received <= 0) {
+      showToast('danger', 'Amount Received must be a positive number.', 'Error');
+      return false;
+    }
+    return true;
+  };
+
+  const isDuplicateSaleId = (saleId) => {
+    return inceptions.some(inception => inception.sale_id === saleId);
+  };
+
   const addInception = async (data) => {
+    if (!validateData(data) || isDuplicateSaleId(data.sale_id)) {
+      if (isDuplicateSaleId(data.sale_id)) {
+        showToast('danger', 'Sale ID already exists.', 'Error');
+      }
+      return;
+    }
     setLoadingSubmit(true);
     try {
       await api.post('/inceptions/', data);
@@ -103,6 +122,7 @@ const InceptionsPage = ({ showToast }) => {
   };
 
   const editInception = async (data) => {
+    if (!validateData(data)) return;
     setLoadingSubmit(true);
     try {
       await api.put(`/inceptions/${currentInception.id}`, data);
@@ -166,6 +186,7 @@ const InceptionsPage = ({ showToast }) => {
       return;
     }
 
+    setUploadLoading(true);
     const reader = new FileReader();
     reader.onload = async (event) => {
       const csvData = event.target.result;
@@ -173,37 +194,55 @@ const InceptionsPage = ({ showToast }) => {
 
       const inceptionsToAdd = [];
       for (const row of rows) {
-        const trimmedRow = row.trim(); // Trim whitespace
-        if (!trimmedRow) continue; // Skip empty rows
+        const trimmedRow = row.trim();
+        if (!trimmedRow) continue;
 
         const columns = trimmedRow.split(',');
         if (columns.length < 4) {
           console.error(`Row does not contain enough columns: ${trimmedRow}`);
           showToast('danger', 'Row does not contain enough columns.', 'Error');
-          continue; // Skip this row
+          continue;
         }
 
         const [sale_id, amount_received, received_at, description] = columns;
-        const dateParts = received_at.split('/'); // Assuming dd/mm/yyyy format
+
+        // Date parsing logic
+        const dateParts = received_at.split('/');
         if (dateParts.length !== 3) {
           console.error(`Received At date is not valid: ${received_at}`);
           showToast('danger', 'Received At date is not valid.', 'Error');
-          continue; // Skip this row
+          continue;
         }
 
-        // Convert to the Python-friendly format YYYY-MM-DD HH:MM:SS
-        const formattedDate = new Date(`${dateParts[2]}-${dateParts[1]}-${dateParts[0]}T00:00:00`);
+        // Construct the date in the format YYYY-MM-DD
+        const day = dateParts[0].padStart(2, '0'); // Pad day with leading zero if needed
+        const month = dateParts[1].padStart(2, '0'); // Pad month with leading zero if needed
+        const year = dateParts[2];
+        const formattedDateString = `${year}-${month}-${day}T00:00:00`; // Use T00:00:00 for a full date-time string
+        const formattedDate = new Date(formattedDateString);
+        if (isNaN(formattedDate.getTime())) {
+          console.error(`Invalid date format: ${received_at}`);
+          showToast('danger', 'Invalid date format in Received At.', 'Error');
+          continue;
+        }
+
+        const saleId = parseInt(sale_id, 10);
+        // Check for duplicates
+        if (isDuplicateSaleId(saleId)) {
+          console.error(`Duplicate Sale ID: ${saleId}`);
+          showToast('danger', `Duplicate Sale ID: ${saleId}`, 'Error');
+          continue;
+        }
+
         inceptionsToAdd.push({
-          sale_id: parseInt(sale_id, 10),
+          sale_id: saleId,
           amount_received: parseFloat(amount_received),
-          received_at: formattedDate, // Updated date format
+          received_at: formattedDate.toISOString(),
           description: description.trim(),
         });
       }
 
-      // Send bulk update requests
       for (const inception of inceptionsToAdd) {
-        console.log('Adding inception:', inception); // Log each inception being added
         await addInception(inception);
       }
       showToast('success', 'Inceptions uploaded successfully.', 'Success');
@@ -228,13 +267,13 @@ const InceptionsPage = ({ showToast }) => {
       {error && <Alert variant="danger">{error}</Alert>}
 
       <Button variant="primary" onClick={handleShowAddModal} className="mb-3">
-        <FontAwesomeIcon icon={faPlus} /> Add Inception
+        <FontAwesomeIcon icon={faPlus} aria-hidden="true" /> Add Inception
       </Button>
-      <Button variant="info" onClick={downloadTemplate} className="mb-3 mx-2">
-        <FontAwesomeIcon icon={faFileDownload} /> Download Template
+      <Button variant="info" onClick={downloadTemplate} className="mb-3 mx-2" aria-label="Download Template">
+        <FontAwesomeIcon icon={faFileDownload} aria-hidden="true" /> Download Template
       </Button>
-      <Button variant="secondary" onClick={handleShowUploadModal} className="mb-3 mx-2">
-        <FontAwesomeIcon icon={faFileUpload} /> Upload CSV
+      <Button variant="secondary" onClick={handleShowUploadModal} className="mb-3 mx-2" aria-label="Upload CSV">
+        <FontAwesomeIcon icon={faFileUpload} aria-hidden="true" /> Upload CSV
       </Button>
 
       <Table striped bordered hover responsive className="mt-3">
@@ -257,11 +296,11 @@ const InceptionsPage = ({ showToast }) => {
               <td>{new Date(inception.received_at).toLocaleString()}</td>
               <td>{inception.description}</td>
               <td>
-                <Button variant="warning" onClick={() => handleShowEditModal(inception)}>
-                  <FontAwesomeIcon icon={faEdit} /> Edit
+                <Button variant="warning" onClick={() => handleShowEditModal(inception)} aria-label={`Edit inception ${inception.id}`}>
+                  <FontAwesomeIcon icon={faEdit} aria-hidden="true" /> Edit
                 </Button>
-                <Button variant="danger" onClick={() => handleShowDeleteModal(inception)}>
-                  <FontAwesomeIcon icon={faTrashAlt} /> Delete
+                <Button variant="danger" onClick={() => handleShowDeleteModal(inception)} aria-label={`Delete inception ${inception.id}`}>
+                  <FontAwesomeIcon icon={faTrashAlt} aria-hidden="true" /> Delete
                 </Button>
               </td>
             </tr>
@@ -289,7 +328,7 @@ const InceptionsPage = ({ showToast }) => {
             </Form.Group>
             <Form.Group controlId="formAmountReceived">
               <Form.Label>Amount Received</Form.Label>
-              <Form.Control type="number" name="amount_received" required />
+              <Form.Control type="number" name="amount_received" required min="0" step="0.01" />
             </Form.Group>
             <Form.Group controlId="formReceivedAt">
               <Form.Label>Received At</Form.Label>
@@ -326,7 +365,7 @@ const InceptionsPage = ({ showToast }) => {
               </Form.Group>
               <Form.Group controlId="formAmountReceived">
                 <Form.Label>Amount Received</Form.Label>
-                <Form.Control type="number" name="amount_received" defaultValue={currentInception.amount_received} required />
+                <Form.Control type="number" name="amount_received" defaultValue={currentInception.amount_received} required min="0" step="0.01" />
               </Form.Group>
               <Form.Group controlId="formReceivedAt">
                 <Form.Label>Received At</Form.Label>
@@ -369,9 +408,17 @@ const InceptionsPage = ({ showToast }) => {
           <Form>
             <Form.Group controlId="formFile">
               <Form.Label>Choose CSV File</Form.Label>
-              <Form.Control type="file" accept=".csv" onChange={(e) => setFile(e.target.files[0])} required />
+              <Form.Control
+                type="file"
+                accept=".csv"
+                onChange={(e) => setFile(e.target.files[0])}
+                required
+                aria-label="Choose CSV file"
+              />
             </Form.Group>
-            <Button variant="primary" onClick={uploadCSV}>Upload</Button>
+            <Button variant="primary" onClick={uploadCSV} disabled={uploadLoading}>
+              {uploadLoading ? <Spinner as="span" animation="border" size="sm" /> : 'Upload'}
+            </Button>
           </Form>
         </Modal.Body>
       </Modal>

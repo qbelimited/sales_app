@@ -1,7 +1,9 @@
 from flask_restx import Namespace, Resource, fields
 from flask import request
 from models.performance_model import SalesPerformance, SalesTarget
+from models.sales_model import Sale
 from models.audit_model import AuditTrail
+from models.impact_product_model import ImpactProduct  # Assuming you have a Product model defined
 from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
@@ -33,32 +35,79 @@ def check_role_permission(current_user, required_roles):
     }
     return current_user['role'].lower() in roles.get(required_roles, [])
 
+def get_product_criteria_value(product_id):
+    """Retrieve product details based on product ID."""
+    product = ImpactProduct.query.filter_by(id=product_id).first()
+    if product:
+        return {
+            'name': product.name,
+            'group': product.group,
+            'category': product.category,
+        }
+    return None
+
 def get_actual_sales_count(target):
-    # Example query to get actual sales count based on criteria in the target
-    return SalesPerformance.query.filter(
-        SalesPerformance.sales_manager_id == target.sales_manager_id,
-        SalesPerformance.criteria_type == target.target_criteria_type,
-        SalesPerformance.criteria_value == target.target_criteria_value,
-        SalesPerformance.is_deleted == False
-    ).count()
+    """Count actual sales based on target criteria and date range."""
+    query = Sale.query.filter(
+        Sale.sale_manager_id == target.sales_manager_id,
+        Sale.is_deleted == False,
+        Sale.created_at.between(target.period_start, target.period_end)  # Ensure it's within the target date range
+    )
+
+    # Dynamic criteria handling
+    if target.target_criteria_type in ['source_type', 'subsequent_pay_source_type']:
+        query = query.filter(
+            (Sale.source_type == target.target_criteria_value) |
+            (Sale.subsequent_pay_source_type == target.target_criteria_value)
+        )
+    elif target.target_criteria_type == 'product_group':
+        query = query.join(ImpactProduct).filter(ImpactProduct.id == target.target_criteria_value)
+    elif target.target_criteria_type == 'overall':
+        pass  # All sales are included
+
+    return query.count()
 
 def get_actual_premium_amount(target):
-    # Example query to calculate the actual premium amount based on criteria in the target
-    return db.session.query(db.func.sum(SalesPerformance.actual_premium_amount)).filter(
-        SalesPerformance.sales_manager_id == target.sales_manager_id,
-        SalesPerformance.criteria_type == target.target_criteria_type,
-        SalesPerformance.criteria_value == target.target_criteria_value,
-        SalesPerformance.is_deleted == False
-    ).scalar() or 0.0
+    """Calculate total premium amount based on target criteria and date range."""
+    query = db.session.query(db.func.sum(Sale.amount)).filter(
+        Sale.sale_manager_id == target.sales_manager_id,
+        Sale.is_deleted == False,
+        Sale.created_at.between(target.period_start, target.period_end)  # Ensure it's within the target date range
+    )
+
+    # Dynamic criteria handling
+    if target.target_criteria_type in ['source_type', 'subsequent_pay_source_type']:
+        query = query.filter(
+            (Sale.source_type == target.target_criteria_value) |
+            (Sale.subsequent_pay_source_type == target.target_criteria_value)
+        )
+    elif target.target_criteria_type == 'product_group':
+        query = query.join(ImpactProduct).filter(ImpactProduct.id == target.target_criteria_value)
+    elif target.target_criteria_type == 'overall':
+        pass  # All premium amounts are included
+
+    return query.scalar() or 0.0
 
 def get_criteria_met_count(target):
-    # Count of sales that met the criteria
-    return SalesPerformance.query.filter(
-        SalesPerformance.sales_manager_id == target.sales_manager_id,
-        SalesPerformance.criteria_type == target.target_criteria_type,
-        SalesPerformance.criteria_value == target.target_criteria_value,
-        SalesPerformance.is_deleted == False
-    ).count()
+    """Count of sales that met the criteria within the target date range."""
+    query = Sale.query.filter(
+        Sale.sale_manager_id == target.sales_manager_id,
+        Sale.is_deleted == False,
+        Sale.created_at.between(target.period_start, target.period_end)  # Ensure it's within the target date range
+    )
+
+    # Dynamic criteria handling
+    if target.target_criteria_type in ['source_type', 'subsequent_pay_source_type']:
+        query = query.filter(
+            (Sale.source_type == target.target_criteria_value) |
+            (Sale.subsequent_pay_source_type == target.target_criteria_value)
+        )
+    elif target.target_criteria_type == 'product_group':
+        query = query.join(ImpactProduct).filter(ImpactProduct.id == target.target_criteria_value)
+    elif target.target_criteria_type == 'overall':
+        pass  # All sales that meet overall criteria
+
+    return query.count()
 
 @sales_performance_ns.route('/')
 class SalesPerformanceResource(Resource):
@@ -285,7 +334,7 @@ class AutoGeneratePerformanceResource(Resource):
             sales_performance_records = []
 
             for target in sales_targets:
-                # Logic to calculate actual sales count and premium amount based on the target
+                # Logic to calculate actual sales count and premium amount based on the target within the target date range
                 actual_sales_count = get_actual_sales_count(target)
                 actual_premium_amount = get_actual_premium_amount(target)
                 criteria_met_count = get_criteria_met_count(target)  # Calculate criteria met count
@@ -299,7 +348,7 @@ class AutoGeneratePerformanceResource(Resource):
                     criteria_type=target.target_criteria_type,
                     criteria_value=target.target_criteria_value,
                     criteria_met_count=criteria_met_count,  # Include criteria met count
-                    performance_date=datetime.utcnow().date()
+                    performance_date=datetime.utcnow().date()  # Use today's date for the performance date
                 )
                 db.session.add(performance_record)
                 sales_performance_records.append(performance_record)
@@ -337,7 +386,7 @@ class AutoUpdatePerformanceResource(Resource):
             updated_records_count = 0
 
             for target in sales_targets:
-                # Logic to calculate actual sales count and premium amount based on the target
+                # Logic to calculate actual sales count and premium amount based on the target within the target date range
                 actual_sales_count = get_actual_sales_count(target)
                 actual_premium_amount = get_actual_premium_amount(target)
 

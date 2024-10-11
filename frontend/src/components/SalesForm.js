@@ -28,7 +28,7 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
     geolocation_latitude: '',
     geolocation_longitude: '',
     momo_first_premium: false,
-    is_deleted: false,  // Soft delete support
+    is_deleted: false, // Soft delete support
     status: 'submitted',
   });
 
@@ -120,6 +120,7 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
   const fetchBanks = async () => {
     try {
       const response = await api.get('/bank/');
+      console.log('Fetched Banks:', response.data); // Log the fetched data
       setBanks(response.data);
     } catch (error) {
       toast.error('Failed to fetch banks');
@@ -224,22 +225,27 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
     if (formData.source_type === 'bank' || formData.subsequent_pay_source_type === 'bank') {
       if (!formData.bank_id) newErrors.bank_id = 'Bank is required';
       if (!formData.bank_branch_id) newErrors.bank_branch_id = 'Bank branch is required';
-      if (!formData.bank_acc_number) {
+
+      const trimmedBankAccNumber = formData.bank_acc_number.trim();
+      if (!trimmedBankAccNumber) {
         newErrors.bank_acc_number = 'Bank account number is required';
       } else {
-        const length = formData.bank_acc_number.length;
-        const bankName = formData.bank_id || '';
+        const length = trimmedBankAccNumber.length;
+        console.log('Account Number:', trimmedBankAccNumber);
+        console.log('Account Number Length:', length);
 
-        // Bank-specific validation
-        const lowerCaseBankName = bankName.toLowerCase(); // Convert bank name to lower case for case-insensitive comparison
-        if (lowerCaseBankName.includes('UNITED BANK FOR AFRICA') && length !== 14) {
+        const selectedBank = banks.find(bank => bank.id === parseInt(formData.bank_id, 10));
+        const bankName = selectedBank ? selectedBank.name : '';
+        const lowerCaseBankName = bankName.toLowerCase();
+
+        if (lowerCaseBankName.includes('uba') && length !== 14) {
           newErrors.bank_acc_number = 'UBA account number must be 14 digits';
-        } else if ((lowerCaseBankName.includes('ZENITH') || lowerCaseBankName.includes('ABSA')) && length !== 10) {
+        } else if ((lowerCaseBankName.includes('zenith') || lowerCaseBankName.includes('absa')) && length !== 10) {
           newErrors.bank_acc_number = 'Zenith or Absa account number must be 10 digits';
-        } else if (lowerCaseBankName.includes('SOCIETE GENERAL') && length !== 12 && length !== 13) {
+        } else if (lowerCaseBankName.includes('sg') && length !== 12 && length !== 13) {
           newErrors.bank_acc_number = 'SG account number must be 12 or 13 digits';
-        } else if (length !== 13 && length !== 16) {
-          newErrors.bank_acc_number = 'Account number must be 13 or 16 digits';
+        } else if (length !== 10 && length !== 12 && length !== 13 && length !== 14 && length !== 16) {
+          newErrors.bank_acc_number = 'Account number must be 10, 12, 13, 14 or 16 digits';
         }
       }
     }
@@ -258,10 +264,10 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
       // Sanitize and prepare data
       const sanitizedData = {
         ...formData,
-        sale_manager_id: parseInt(formData.sale_manager_id, 10),  // Convert to integer
-        sales_executive_id: parseInt(formData.sales_executive_id, 10),  // Convert to integer
-        policy_type_id: parseInt(formData.policy_type_id, 10),  // Convert to integer
-        amount: parseFloat(formData.amount),  // Convert amount to float
+        sale_manager_id: parseInt(formData.sale_manager_id, 10), // Convert to integer
+        sales_executive_id: parseInt(formData.sales_executive_id, 10), // Convert to integer
+        policy_type_id: parseInt(formData.policy_type_id, 10), // Convert to integer
+        amount: parseFloat(formData.amount), // Convert amount to float
 
         // Conditionally convert to integer if value exists, otherwise omit
         bank_id: formData.bank_id ? parseInt(formData.bank_id, 10) : undefined,
@@ -278,7 +284,7 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
       // Remove any undefined fields from sanitizedData
       Object.keys(sanitizedData).forEach(key => {
         if (sanitizedData[key] === undefined) {
-            delete sanitizedData[key];
+          delete sanitizedData[key];
         }
       });
 
@@ -292,7 +298,7 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
       // Check if response is successful
       if (response.status === 201 || response.status === 200 || response.status === 415 || response.status === 204) {
         toast.success('Sale submitted successfully!');
-        onSubmit();  // Optionally handle success callback or redirect
+        onSubmit(); // Optionally handle success callback or redirect
       } else {
         toast.error('Failed to submit the sale. Please try again.');
       }
@@ -758,7 +764,7 @@ const SalesForm = ({ saleData, onSubmit, onCancel }) => {
         {errors.amount && <div className="text-danger">{errors.amount}</div>}
       </div>
 
-      <div style={{ color: 'red', fontSize: '11px'}}>
+      <div style={{ color: 'red', fontSize: '11px' }}>
         <em>Premium amounts are strictly in Ghana Cedis (GHS)</em>
       </div>
 
