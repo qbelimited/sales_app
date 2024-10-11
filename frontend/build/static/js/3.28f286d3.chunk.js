@@ -1,0 +1,2 @@
+"use strict";(self.webpackChunkSales_tracking_app=self.webpackChunkSales_tracking_app||[]).push([[3],{1003:(e,a,n)=>{n.r(a),n.d(a,{default:()=>c});n(5043);var s=n(579);const c=function(){return(0,s.jsx)("div",{children:(0,s.jsx)("h1",{children:"404 - Page Not Found"})})}}}]);
+//# sourceMappingURL=3.28f286d3.chunk.js.map

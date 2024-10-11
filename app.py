@@ -10,7 +10,7 @@ from logger import setup_logger
 
 # Disable OneDNN for TensorFlow optimizations (if applicable)
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-os.environ['FLASK_ENV'] = 'development'
+os.environ['FLASK_ENV'] = 'production'
 
 # Load environment variables from .env file
 load_dotenv()
