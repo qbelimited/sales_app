@@ -77,12 +77,9 @@ const SalesPage = ({ showToast }) => {
   const fetchSalesRecords = useCallback(async (currentPage, sortKey, sortDirection, filterParams) => {
     setLoading(true);
     try {
-      const res1tot = await api.get('/sales/', { params: { sort_by: 'created_at', per_page: 10, page: 1 } });
-      const total1 = parseInt(res1tot.data.total);
-
       const params = {
         page: currentPage,
-        per_page: total1,
+        per_page: 10,
         ...filterParams,
       };
 
