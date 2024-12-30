@@ -113,7 +113,7 @@ class DevelopmentConfig(Config):
 # Production Configuration
 class ProductionConfig(Config):
     SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'postgresql://root:Sales_Password1@localhost/sales_app_db')
-    CORS_ORIGINS = ["https://salesapp.impactlife.com.gh", "https://api.salesapp.impactlife.com.gh"]
+    CORS_ORIGINS = ["https://salesapp.impactlife.com.gh", "https://api.salesapp.impactlife.com.gh", "http://localhost:3000", "http://127.0.0.1:3000"]
     DEBUG = False
     TESTING = False
 
