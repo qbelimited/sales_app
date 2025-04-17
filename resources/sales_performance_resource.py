@@ -8,22 +8,61 @@ from app import db, logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from utils import get_client_ip
+from functools import lru_cache
+from sqlalchemy import and_, or_
 
 # Define a namespace for sales performance-related operations
-sales_performance_ns = Namespace('sales_performance', description='Sales Performance operations')
+sales_performance_ns = Namespace(
+    'sales_performance',
+    description='Sales Performance operations'
+)
 
 # Define models for Swagger documentation
 sales_performance_model = sales_performance_ns.model('SalesPerformance', {
     'id': fields.Integer(description='Sales Performance ID'),
-    'sales_manager_id': fields.Integer(required=True, description='Sales Manager ID'),
-    'actual_sales_count': fields.Integer(required=True, description='Actual number of sales made'),
-    'actual_premium_amount': fields.Float(required=True, description='Actual premium amount sold'),
+    'sales_manager_id': fields.Integer(
+        required=True,
+        description='Sales Manager ID'
+    ),
+    'actual_sales_count': fields.Integer(
+        required=True,
+        description='Actual number of sales made'
+    ),
+    'actual_premium_amount': fields.Float(
+        required=True,
+        description='Actual premium amount sold'
+    ),
     'target_id': fields.Integer(description='Sales Target ID'),
-    'criteria_type': fields.String(description='Criteria Type (e.g., source_type, product_group)'),
-    'criteria_value': fields.String(description='Criteria Value (e.g., paypoint, risk)'),
-    'criteria_met_count': fields.Integer(description='Count of sales that met the criteria'),
-    'performance_date': fields.DateTime(description='Performance date'),
+    'criteria_type': fields.String(
+        description='Criteria Type (e.g., source_type, product_group)'
+    ),
+    'criteria_value': fields.String(
+        description='Criteria Value (e.g., paypoint, risk)'
+    ),
+    'criteria_met_count': fields.Integer(
+        description='Count of sales that met the criteria'
+    ),
+    'performance_date': fields.DateTime(
+        description='Performance date'
+    ),
+    'achievement_rate': fields.Raw(
+        description='Achievement rate details'
+    )
 })
+
+performance_comparison_model = sales_performance_ns.model('PerformanceComparison', {
+    'current_period': fields.Raw(description='Current period performance'),
+    'previous_period': fields.Raw(description='Previous period performance'),
+    'comparison': fields.Raw(description='Performance comparison metrics')
+})
+
+team_performance_model = sales_performance_ns.model('TeamPerformance', {
+    'sales_manager_id': fields.Integer(description='Sales Manager ID'),
+    'total_sales': fields.Integer(description='Total sales count'),
+    'total_premium': fields.Float(description='Total premium amount'),
+    'performance_count': fields.Integer(description='Number of performance records')
+})
+
 
 # Helper function to check role permissions
 def check_role_permission(current_user, required_roles):
@@ -35,8 +74,10 @@ def check_role_permission(current_user, required_roles):
     }
     return current_user['role'].lower() in roles.get(required_roles, [])
 
+
+@lru_cache(maxsize=100)
 def get_product_criteria_value(product_id):
-    """Retrieve product details based on product ID."""
+    """Retrieve product details based on product ID with caching."""
     product = ImpactProduct.query.filter_by(id=product_id).first()
     if product:
         return {
@@ -46,47 +87,90 @@ def get_product_criteria_value(product_id):
         }
     return None
 
+
+def validate_performance_data(data):
+    """Validate sales performance data before creation or update."""
+    required_fields = [
+        'sales_manager_id', 'actual_sales_count', 'actual_premium_amount'
+    ]
+
+    # Check required fields
+    missing_fields = [field for field in required_fields if field not in data]
+    if missing_fields:
+        raise ValueError(f'Missing required fields: {", ".join(missing_fields)}')
+
+    # Validate numeric fields
+    if not isinstance(data['actual_sales_count'], int) or data['actual_sales_count'] < 0:
+        raise ValueError('Actual sales count must be a non-negative integer')
+
+    if not isinstance(data['actual_premium_amount'], (int, float)) or data['actual_premium_amount'] < 0:
+        raise ValueError('Actual premium amount must be a non-negative number')
+
+    # Validate date if provided
+    if 'performance_date' in data:
+        try:
+            datetime.strptime(data['performance_date'], '%Y-%m-%d')
+        except ValueError:
+            raise ValueError('Invalid performance date format. Use YYYY-MM-DD')
+
+    # Validate achievement rate if provided
+    if 'achievement_rate' in data:
+        if not isinstance(data['achievement_rate'], dict):
+            raise ValueError('Achievement rate must be a dictionary')
+        if 'percentage' in data['achievement_rate']:
+            percentage = data['achievement_rate']['percentage']
+            if not isinstance(percentage, (int, float)) or percentage < 0 or percentage > 100:
+                raise ValueError('Achievement rate percentage must be between 0 and 100')
+
+
+@lru_cache(maxsize=100)
 def get_actual_sales_count(target):
-    """Count actual sales based on target criteria and date range."""
-    query = Sale.query.filter(
+    """Count actual sales based on target criteria and date range with caching."""
+    base_query = Sale.query.filter(
         Sale.sale_manager_id == target.sales_manager_id,
         Sale.is_deleted == False,
-        Sale.created_at.between(target.period_start, target.period_end)  # Ensure it's within the target date range
+        Sale.created_at.between(target.period_start, target.period_end)
     )
 
-    # Dynamic criteria handling
     if target.target_criteria_type in ['source_type', 'subsequent_pay_source_type']:
-        query = query.filter(
-            (Sale.source_type == target.target_criteria_value) |
-            (Sale.subsequent_pay_source_type == target.target_criteria_value)
+        base_query = base_query.filter(
+            or_(
+                Sale.source_type == target.target_criteria_value,
+                Sale.subsequent_pay_source_type == target.target_criteria_value
+            )
         )
     elif target.target_criteria_type == 'product_group':
-        query = query.join(ImpactProduct).filter(ImpactProduct.id == target.target_criteria_value)
-    elif target.target_criteria_type == 'overall':
-        pass  # All sales are included
+        base_query = base_query.join(ImpactProduct).filter(
+            ImpactProduct.id == target.target_criteria_value
+        )
 
-    return query.count()
+    return base_query.count()
 
+
+@lru_cache(maxsize=100)
 def get_actual_premium_amount(target):
-    """Calculate total premium amount based on target criteria and date range."""
-    query = db.session.query(db.func.sum(Sale.amount)).filter(
+    """Calculate total premium amount based on target criteria and date range with caching."""
+    base_query = db.session.query(db.func.sum(Sale.amount)).filter(
         Sale.sale_manager_id == target.sales_manager_id,
         Sale.is_deleted == False,
-        Sale.created_at.between(target.period_start, target.period_end)  # Ensure it's within the target date range
+        Sale.created_at.between(target.period_start, target.period_end)
     )
 
-    # Dynamic criteria handling
     if target.target_criteria_type in ['source_type', 'subsequent_pay_source_type']:
-        query = query.filter(
-            (Sale.source_type == target.target_criteria_value) |
-            (Sale.subsequent_pay_source_type == target.target_criteria_value)
+        base_query = base_query.filter(
+            or_(
+                Sale.source_type == target.target_criteria_value,
+                Sale.subsequent_pay_source_type == target.target_criteria_value
+            )
         )
     elif target.target_criteria_type == 'product_group':
-        query = query.join(ImpactProduct).filter(ImpactProduct.id == target.target_criteria_value)
-    elif target.target_criteria_type == 'overall':
-        pass  # All premium amounts are included
+        base_query = base_query.join(ImpactProduct).filter(
+            ImpactProduct.id == target.target_criteria_value
+        )
 
-    return query.scalar() or 0.0
+    result = base_query.scalar()
+    return result or 0.0
+
 
 def get_criteria_met_count(target):
     """Count of sales that met the criteria within the target date range."""
@@ -108,6 +192,7 @@ def get_criteria_met_count(target):
         pass  # All sales that meet overall criteria
 
     return query.count()
+
 
 @sales_performance_ns.route('/')
 class SalesPerformanceResource(Resource):
@@ -216,6 +301,7 @@ class SalesPerformanceResource(Resource):
         logger.info(f"Sales Performance created by User ID {current_user['id']} with Performance ID {new_sales_performance.id}.")
         return new_sales_performance.serialize(), 201
 
+
 @sales_performance_ns.route('/<int:performance_id>')
 class SingleSalesPerformanceResource(Resource):
     @sales_performance_ns.doc(security='Bearer Auth', responses={200: 'Success', 404: 'Sales Performance not found', 403: 'Unauthorized'})
@@ -228,6 +314,11 @@ class SingleSalesPerformanceResource(Resource):
         if not sales_performance:
             logger.error(f"Sales Performance ID {performance_id} not found.")
             return {'message': 'Sales Performance not found'}, 404
+
+        # Calculate achievement rate
+        achievement_rate = sales_performance.calculate_achievement_rate()
+        performance_data = sales_performance.serialize()
+        performance_data['achievement_rate'] = achievement_rate
 
         # Log the access to audit trail
         audit = AuditTrail(
@@ -242,7 +333,7 @@ class SingleSalesPerformanceResource(Resource):
         db.session.add(audit)
         db.session.commit()
 
-        return sales_performance.serialize(), 200
+        return performance_data, 200
 
     @sales_performance_ns.doc(security='Bearer Auth', responses={200: 'Updated', 404: 'Sales Performance not found', 403: 'Unauthorized'})
     @jwt_required()
@@ -322,6 +413,7 @@ class SingleSalesPerformanceResource(Resource):
         logger.info(f"Sales Performance ID {sales_performance.id} soft-deleted by User ID {current_user['id']}.")
         return {'message': 'Sales Performance deleted successfully'}, 200
 
+
 @sales_performance_ns.route('/auto-generate')
 class AutoGeneratePerformanceResource(Resource):
     @sales_performance_ns.doc(security='Bearer Auth')
@@ -372,6 +464,7 @@ class AutoGeneratePerformanceResource(Resource):
         except Exception as e:
             logger.error(f"Error during auto generation of sales performance: {e}")
             return {'message': 'Error during auto generation'}, 500
+
 
 
 @sales_performance_ns.route('/auto-update')
@@ -426,3 +519,161 @@ class AutoUpdatePerformanceResource(Resource):
         except Exception as e:
             logger.error(f"Error during auto update of sales performance: {e}")
             return {'message': 'Error during auto update'}, 500
+
+
+@sales_performance_ns.route('/comparison/<int:sales_manager_id>')
+class PerformanceComparisonResource(Resource):
+    @sales_performance_ns.doc(security='Bearer Auth')
+    @jwt_required()
+    @sales_performance_ns.param('period', 'Comparison period (month/quarter/year)', type='string', default='month')
+    def get(self, sales_manager_id):
+        """Get performance comparison for a sales manager."""
+        current_user = get_jwt_identity()
+        if not check_role_permission(current_user, 'sales_manager'):
+            logger.warning(f"Unauthorized comparison access attempt by User ID {current_user['id']}.")
+            return {'message': 'Unauthorized'}, 403
+
+        period = request.args.get('period', 'month')
+        try:
+            comparison = SalesPerformance.get_performance_comparison(sales_manager_id, period)
+
+            # Log the access to audit trail
+            audit = AuditTrail(
+                user_id=current_user['id'],
+                action='ACCESS',
+                resource_type='performance_comparison',
+                resource_id=sales_manager_id,
+                details=f"User accessed performance comparison for Sales Manager {sales_manager_id}",
+                ip_address=get_client_ip(),
+                user_agent=request.headers.get('User-Agent')
+            )
+            db.session.add(audit)
+            db.session.commit()
+
+            return comparison, 200
+        except Exception as e:
+            logger.error(f"Error getting performance comparison: {str(e)}")
+            return {'message': str(e)}, 500
+
+
+@sales_performance_ns.route('/team')
+class TeamPerformanceResource(Resource):
+    @sales_performance_ns.doc(security='Bearer Auth')
+    @jwt_required()
+    @sales_performance_ns.param('start_date', 'Start date for performance period', type='string')
+    @sales_performance_ns.param('end_date', 'End date for performance period', type='string')
+    def get(self):
+        """Get team performance metrics."""
+        current_user = get_jwt_identity()
+        if not check_role_permission(current_user, 'manager'):
+            logger.warning(f"Unauthorized team performance access attempt by User ID {current_user['id']}.")
+            return {'message': 'Unauthorized'}, 403
+
+        start_date = request.args.get('start_date')
+        end_date = request.args.get('end_date')
+
+        try:
+            team_performance = SalesPerformance.get_team_performance(start_date, end_date)
+
+            # Log the access to audit trail
+            audit = AuditTrail(
+                user_id=current_user['id'],
+                action='ACCESS',
+                resource_type='team_performance',
+                details="User accessed team performance metrics",
+                ip_address=get_client_ip(),
+                user_agent=request.headers.get('User-Agent')
+            )
+            db.session.add(audit)
+            db.session.commit()
+
+            return {'team_performance': team_performance}, 200
+        except Exception as e:
+            logger.error(f"Error getting team performance: {str(e)}")
+            return {'message': str(e)}, 500
+
+@sales_performance_ns.route('/trends/<int:sales_manager_id>')
+class PerformanceTrendsResource(Resource):
+    """Resource for getting performance trends over time."""
+
+    @sales_performance_ns.doc(security='Bearer Auth')
+    @jwt_required()
+    @sales_performance_ns.param(
+        'period',
+        'Trend period (week/month/quarter/year)',
+        type='string',
+        default='month'
+    )
+    @sales_performance_ns.param(
+        'start_date',
+        'Start date for trend analysis',
+        type='string'
+    )
+    @sales_performance_ns.param(
+        'end_date',
+        'End date for trend analysis',
+        type='string'
+    )
+    def get(self, sales_manager_id):
+        """Get performance trends for a sales manager."""
+        try:
+            current_user = get_jwt_identity()
+            if not check_role_permission(current_user, 'sales_manager'):
+                return {'message': 'Unauthorized'}, 403
+
+            period = request.args.get('period', 'month')
+            start_date = request.args.get('start_date')
+            end_date = request.args.get('end_date')
+
+            if not start_date or not end_date:
+                return {
+                    'message': 'Start date and end date are required'
+                }, 400
+
+            try:
+                start_date = datetime.strptime(start_date, '%Y-%m-%d')
+                end_date = datetime.strptime(end_date, '%Y-%m-%d')
+            except ValueError:
+                return {
+                    'message': 'Invalid date format. Use YYYY-MM-DD'
+                }, 400
+
+            # Get performance records for the period
+            performances = SalesPerformance.query.filter(
+                SalesPerformance.sales_manager_id == sales_manager_id,
+                SalesPerformance.performance_date.between(start_date, end_date)
+            ).order_by(SalesPerformance.performance_date).all()
+
+            # Calculate trends
+            trends = {
+                'sales_count': [],
+                'premium_amount': [],
+                'achievement_rate': []
+            }
+
+            for performance in performances:
+                trends['sales_count'].append({
+                    'date': performance.performance_date.strftime('%Y-%m-%d'),
+                    'value': performance.actual_sales_count
+                })
+                trends['premium_amount'].append({
+                    'date': performance.performance_date.strftime('%Y-%m-%d'),
+                    'value': performance.actual_premium_amount
+                })
+                if performance.achievement_rate:
+                    trends['achievement_rate'].append({
+                        'date': performance.performance_date.strftime('%Y-%m-%d'),
+                        'value': performance.achievement_rate.get('percentage', 0)
+                    })
+
+            return {
+                'sales_manager_id': sales_manager_id,
+                'period': period,
+                'start_date': start_date.strftime('%Y-%m-%d'),
+                'end_date': end_date.strftime('%Y-%m-%d'),
+                'trends': trends
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting performance trends: {str(e)}")
+            return {'message': 'An error occurred while fetching trends'}, 500

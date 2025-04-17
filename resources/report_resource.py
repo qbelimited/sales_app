@@ -7,79 +7,410 @@ from models.sales_model import Sale
 from models.user_model import User, Role
 from models.sales_executive_model import SalesExecutive
 from models.audit_model import AuditTrail
+from models.report_model import (
+    Report, ReportType, ReportSchedule, ReportAccessLevel, CustomReport
+)
 from flask_restx import Namespace, Resource, fields
 from sqlalchemy.orm import aliased
 from sqlalchemy import func
 from datetime import datetime
-
-# Utility function to get client IP
-def get_client_ip():
-    """Retrieve the client's IP address."""
-    return request.environ.get('HTTP_X_REAL_IP', request.remote_addr)
+from utils import get_client_ip
 
 # Define namespace for report-related operations
-report_ns = Namespace('reports', description='Comprehensive Sales and Performance Report Generation')
+report_ns = Namespace(
+    'reports',
+    description='Comprehensive Sales and Performance Report Generation'
+)
 
-# Define the model for Swagger documentation
+# Define models for Swagger documentation
 report_model = report_ns.model('Report', {
+    'report_type': fields.String(
+        required=True,
+        description='Type of report to generate',
+        enum=[rt.value for rt in ReportType]
+    ),
     'filters': fields.Raw(description="Filters for the report"),
-    'aggregate_by': fields.String(description="Field to aggregate by (e.g., bank_id, product_type, branch)"),
+    'aggregate_by': fields.String(description="Field to aggregate by"),
+    'format': fields.String(
+        description="Output format (csv, pdf, excel)",
+        default='csv'
+    ),
+    'schedule': fields.String(
+        description="Schedule for report generation",
+        enum=[s.value for s in ReportSchedule]
+    ),
+    'access_level': fields.String(
+        description="Access level for the report",
+        enum=[al.value for al in ReportAccessLevel]
+    ),
+    'allowed_roles': fields.List(
+        fields.Integer,
+        description="List of role IDs with access"
+    ),
+    'name': fields.String(description="Name of the report"),
+    'description': fields.String(description="Description of the report")
 })
 
-@report_ns.route('/sales')
-@report_ns.doc(security='Bearer Auth')
-@report_ns.expect(report_model, validate=True)
-@report_ns.param('page', 'Page number for pagination', type='integer', default=1)
-@report_ns.param('per_page', 'Number of items per page', type='integer', default=10)
-@report_ns.param('sort_by', 'Sort by field (e.g., created_at, name)', type='string', default='created_at')
-@report_ns.param('sort_order', 'Sort order (asc or desc)', type='string', default='desc')
-class SalesReportResource(Resource):
+@report_ns.route('/')
+class ReportListResource(Resource):
     @jwt_required()
-    def post(self):
-        """Generate a sales report based on specified filters and pagination."""
+    def get(self):
+        """Get a list of available reports."""
+        current_user = get_jwt_identity()
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        sort_by = request.args.get('sort_by', 'created_at')
+        sort_order = request.args.get('sort_order', 'desc')
+
         try:
-            current_user = get_jwt_identity()
-            data = request.get_json()
-            filters = data.get('filters', {})
-            aggregate_by = data.get('aggregate_by', None)
-            sort_by = data.get('sort_by', 'created_at')
-            sort_order = data.get('sort_order', 'asc')
-            page = request.args.get('page', type=int, default=1)
-            per_page = request.args.get('per_page', type=int, default=10)
+            reports = Report.get_user_reports(
+                current_user['id'],
+                current_user.get('role_id'),
+                page,
+                per_page,
+                sort_by,
+                sort_order
+            )
+            return {
+                'reports': [report.serialize() for report in reports.items],
+                'total': reports.total,
+                'pages': reports.pages,
+                'current_page': reports.page
+            }, 200
+        except Exception as e:
+            logger.error(f"Error fetching reports: {str(e)}")
+            return {'message': 'Error fetching reports'}, 500
 
-            # Validate input parameters
-            validation_error = self.validate_parameters(sort_order, filters)
-            if validation_error:
-                return validation_error  # Should return a JSON response
+    @jwt_required()
+    @report_ns.expect(report_model)
+    def post(self):
+        """Create a new report configuration."""
+        current_user = get_jwt_identity()
+        data = request.json
 
+        try:
+            # Validate report type
+            if 'report_type' not in data:
+                return {'message': 'Report type is required'}, 400
+            try:
+                ReportType(data['report_type'])
+            except ValueError:
+                return {'message': 'Invalid report type'}, 400
+
+            # Create new report
+            report_name = f"{data['report_type']} Report"
+            new_report = Report(
+                user_id=current_user['id'],
+                report_type=data['report_type'],
+                name=data.get('name', report_name),
+                description=data.get('description'),
+                parameters=data.get('filters', {}),
+                schedule=data.get('schedule', ReportSchedule.MANUAL.value),
+                access_level=data.get(
+                    'access_level',
+                    ReportAccessLevel.PRIVATE.value
+                ),
+                allowed_roles=data.get('allowed_roles'),
+                next_run_at=(
+                    datetime.utcnow()
+                    if data.get('schedule') != ReportSchedule.MANUAL.value
+                    else None
+                )
+            )
+            db.session.add(new_report)
+            db.session.commit()
+
+            # Log the creation to audit trail
+            audit = AuditTrail(
+                user_id=current_user['id'],
+                action='CREATE',
+                resource_type='report',
+                resource_id=new_report.id,
+                details=f"Created new report: {new_report.name}",
+                ip_address=get_client_ip(),
+                user_agent=request.headers.get('User-Agent')
+            )
+            db.session.add(audit)
+            db.session.commit()
+
+            return new_report.serialize(), 201
+        except Exception as e:
+            logger.error(f"Error creating report: {str(e)}")
+            return {'message': 'Error creating report'}, 500
+
+@report_ns.route('/<int:report_id>')
+class ReportResource(Resource):
+    @jwt_required()
+    def get(self, report_id):
+        """Get a specific report configuration."""
+        current_user = get_jwt_identity()
+
+        try:
+            report = Report.query.filter_by(
+                id=report_id,
+                is_deleted=False
+            ).first()
+            if not report:
+                return {'message': 'Report not found'}, 404
+
+            has_access = report.has_access(
+                current_user['id'],
+                current_user.get('role_id')
+            )
+            if not has_access:
+                return {'message': 'Unauthorized access'}, 403
+
+            return report.serialize(), 200
+        except Exception as e:
+            logger.error(f"Error fetching report: {str(e)}")
+            return {'message': 'Error fetching report'}, 500
+
+    @jwt_required()
+    @report_ns.expect(report_model)
+    def put(self, report_id):
+        """Update a report configuration."""
+        current_user = get_jwt_identity()
+        data = request.json
+
+        try:
+            report = Report.query.filter_by(
+                id=report_id,
+                is_deleted=False
+            ).first()
+            if not report:
+                return {'message': 'Report not found'}, 404
+
+            has_access = report.has_access(
+                current_user['id'],
+                current_user.get('role_id')
+            )
+            if not has_access:
+                return {'message': 'Unauthorized access'}, 403
+
+            # Update report fields
+            if 'report_type' in data:
+                try:
+                    ReportType(data['report_type'])
+                    report.report_type = data['report_type']
+                except ValueError:
+                    return {'message': 'Invalid report type'}, 400
+
+            if 'name' in data:
+                report.name = data['name']
+            if 'description' in data:
+                report.description = data['description']
+            if 'parameters' in data:
+                report.parameters = data['parameters']
+            if 'schedule' in data:
+                try:
+                    ReportSchedule(data['schedule'])
+                    report.schedule = data['schedule']
+                    report.next_run_at = (
+                        datetime.utcnow()
+                        if data['schedule'] != ReportSchedule.MANUAL.value
+                        else None
+                    )
+                except ValueError:
+                    return {'message': 'Invalid schedule'}, 400
+            if 'access_level' in data:
+                try:
+                    ReportAccessLevel(data['access_level'])
+                    report.access_level = data['access_level']
+                except ValueError:
+                    return {'message': 'Invalid access level'}, 400
+            if 'allowed_roles' in data:
+                report.allowed_roles = data['allowed_roles']
+
+            report.updated_at = datetime.utcnow()
+            db.session.commit()
+
+            # Log the update to audit trail
+            audit = AuditTrail(
+                user_id=current_user['id'],
+                action='UPDATE',
+                resource_type='report',
+                resource_id=report.id,
+                details=f"Updated report: {report.name}",
+                ip_address=get_client_ip(),
+                user_agent=request.headers.get('User-Agent')
+            )
+            db.session.add(audit)
+            db.session.commit()
+
+            return report.serialize(), 200
+        except Exception as e:
+            logger.error(f"Error updating report: {str(e)}")
+            return {'message': 'Error updating report'}, 500
+
+    @jwt_required()
+    def delete(self, report_id):
+        """Soft delete a report configuration."""
+        current_user = get_jwt_identity()
+
+        try:
+            report = Report.query.filter_by(
+                id=report_id,
+                is_deleted=False
+            ).first()
+            if not report:
+                return {'message': 'Report not found'}, 404
+
+            has_access = report.has_access(
+                current_user['id'],
+                current_user.get('role_id')
+            )
+            if not has_access:
+                return {'message': 'Unauthorized access'}, 403
+
+            Report.soft_delete(report_id)
+
+            # Log the deletion to audit trail
+            audit = AuditTrail(
+                user_id=current_user['id'],
+                action='DELETE',
+                resource_type='report',
+                resource_id=report.id,
+                details=f"Deleted report: {report.name}",
+                ip_address=get_client_ip(),
+                user_agent=request.headers.get('User-Agent')
+            )
+            db.session.add(audit)
+            db.session.commit()
+
+            return {'message': 'Report deleted successfully'}, 200
+        except Exception as e:
+            logger.error(f"Error deleting report: {str(e)}")
+            return {'message': 'Error deleting report'}, 500
+
+@report_ns.route('/<int:report_id>/generate')
+class ReportGenerationResource(Resource):
+    @jwt_required()
+    def post(self, report_id):
+        """Generate a report based on its configuration."""
+        current_user = get_jwt_identity()
+        data = request.json
+
+        try:
+            report = Report.query.filter_by(
+                id=report_id,
+                is_deleted=False
+            ).first()
+            if not report:
+                return {'message': 'Report not found'}, 404
+
+            has_access = report.has_access(
+                current_user['id'],
+                current_user.get('role_id')
+            )
+            if not has_access:
+                return {'message': 'Unauthorized access'}, 403
+
+            # Get report parameters
+            filters = data.get('filters', report.parameters or {})
+            aggregate_by = data.get('aggregate_by')
+            output_format = data.get('format', 'csv')
+
+            # Generate report based on type
+            report_type = report.report_type
+            if report_type == ReportType.SALES_PERFORMANCE.value:
+                return self.generate_sales_report(
+                    filters,
+                    aggregate_by,
+                    output_format
+                )
+            elif report_type == ReportType.PAYPOINT_PERFORMANCE.value:
+                return self.generate_paypoint_report(
+                    filters,
+                    aggregate_by,
+                    output_format
+                )
+            elif report_type == ReportType.PRODUCT_PERFORMANCE.value:
+                return self.generate_product_report(
+                    filters,
+                    aggregate_by,
+                    output_format
+                )
+            elif report_type == ReportType.CUSTOM.value:
+                return self.generate_custom_report(
+                    report,
+                    filters,
+                    output_format
+                )
+            else:
+                return {'message': 'Unsupported report type'}, 400
+
+        except Exception as e:
+            logger.error(f"Error generating report: {str(e)}")
+            return {'message': 'Error generating report'}, 500
+
+    def generate_sales_report(self, filters, aggregate_by, output_format):
+        """Generate a sales performance report."""
+        try:
             # Build and execute the query
             query = self.build_sales_query(filters)
             query = self.apply_filters(query, filters)
-            query = self.apply_sorting(query, sort_by, sort_order)
-
-            # Execute the query to get sales data
-            paginated_query = query.paginate(page=page, per_page=per_page, error_out=False)
 
             # Get aggregation results if needed
             aggregation_results = {}
             if aggregate_by:
-                aggregation_results = self.calculate_aggregates(query, aggregate_by)
+                aggregation_results = self.calculate_aggregates(
+                    query,
+                    aggregate_by
+                )
 
-            # Log the action to the audit trail
-            self.log_audit(current_user['id'], filters)
-
-            # Stream the CSV response
-            response = self.stream_csv_response(paginated_query.items, aggregation_results)
-
-            # Include pagination metadata in the response
-            response.headers['X-Total-Pages'] = paginated_query.pages
-            response.headers['X-Total-Records'] = paginated_query.total
-
-            return response  # This should return a Response object for CSV
+            # Generate report in specified format
+            if output_format == 'csv':
+                return self.stream_csv_response(
+                    query.all(),
+                    aggregation_results
+                )
+            else:
+                return {'message': 'Unsupported format'}, 400
 
         except Exception as e:
-            logger.error(f"An error occurred: {e}")
-            return self.create_error_response('Error fetching sales report', str(e))
+            error_msg = f"Error generating sales report: {str(e)}"
+            logger.error(error_msg)
+            return {'message': error_msg}, 500
+
+    def generate_paypoint_report(self, filters, aggregate_by, output_format):
+        """Generate a paypoint performance report."""
+        try:
+            # Similar implementation to sales report but focused on paypoint metrics
+            pass
+        except Exception as e:
+            error_msg = f"Error generating paypoint report: {str(e)}"
+            logger.error(error_msg)
+            return {'message': error_msg}, 500
+
+    def generate_product_report(self, filters, aggregate_by, output_format):
+        """Generate a product performance report."""
+        try:
+            # Similar implementation to sales report but focused on product metrics
+            pass
+        except Exception as e:
+            error_msg = f"Error generating product report: {str(e)}"
+            logger.error(error_msg)
+            return {'message': error_msg}, 500
+
+    def generate_custom_report(self, report, filters, output_format):
+        """Generate a custom report based on user-defined configuration."""
+        try:
+            # Get custom report configuration
+            custom_report_id = report.parameters.get('custom_report_id')
+            custom_report = CustomReport.query.filter_by(
+                id=custom_report_id
+            ).first()
+            if not custom_report:
+                return {
+                    'message': 'Custom report configuration not found'
+                }, 404
+
+            # Generate report based on custom configuration
+            pass
+        except Exception as e:
+            error_msg = f"Error generating custom report: {str(e)}"
+            logger.error(error_msg)
+            return {'message': error_msg}, 500
 
     def validate_parameters(self, sort_order, filters):
         """Validate input parameters for the report generation."""

@@ -1,6 +1,7 @@
 from app import db, logger
 from datetime import datetime, timedelta
 from sqlalchemy import and_, func
+from models.retention_model import RetentionPolicy, DataType
 
 # TokenBlacklist model for managing blacklisted (revoked) JWT tokens
 class TokenBlacklist(db.Model):
@@ -16,6 +17,7 @@ class TokenBlacklist(db.Model):
     last_used = db.Column(db.DateTime, nullable=True)  # Track last usage
     usage_count = db.Column(db.Integer, default=0)  # Track number of times token was used
     security_level = db.Column(db.String(20), default='standard')  # Track security level
+    is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete flag
 
     # Relationship with User
     user = db.relationship('User', backref='blacklisted_tokens')
@@ -34,7 +36,8 @@ class TokenBlacklist(db.Model):
             'ip_address': self.ip_address,
             'last_used': self.last_used.isoformat() if self.last_used else None,
             'usage_count': self.usage_count,
-            'security_level': self.security_level
+            'security_level': self.security_level,
+            'is_deleted': self.is_deleted
         }
 
     def revoke(self):
@@ -65,20 +68,57 @@ class TokenBlacklist(db.Model):
 
     @staticmethod
     def cleanup_expired_tokens():
-        """Remove expired tokens from the blacklist."""
+        """Clean up expired tokens based on retention policy."""
         try:
-            expired_tokens = TokenBlacklist.query.filter(
-                TokenBlacklist.expire_at < datetime.utcnow()
+            # Get retention policy for tokens
+            policy = RetentionPolicy.get_policy(DataType.USER_SESSIONS.value)
+            cutoff_date = datetime.utcnow() - timedelta(days=policy.retention_days)
+
+            # Get tokens to delete
+            tokens_to_delete = TokenBlacklist.query.filter(
+                and_(
+                    TokenBlacklist.expire_at < cutoff_date,
+                    TokenBlacklist.is_deleted == False
+                )
             ).all()
 
-            for token in expired_tokens:
-                db.session.delete(token)
+            # Archive tokens if required by policy
+            if policy.archive_before_delete:
+                for token in tokens_to_delete:
+                    # Archive token data
+                    archived_data = ArchivedData(
+                        data_type=DataType.USER_SESSIONS.value,
+                        original_id=token.id,
+                        retention_policy_id=policy.id
+                    )
+                    archived_data.compress_data(token.serialize())
+                    db.session.add(archived_data)
+
+            # Mark tokens as deleted
+            for token in tokens_to_delete:
+                token.is_deleted = True
 
             db.session.commit()
-            logger.info(f"Cleaned up {len(expired_tokens)} expired tokens")
+            return len(tokens_to_delete)
         except Exception as e:
             db.session.rollback()
-            logger.error(f"Failed to cleanup expired tokens: {e}")
+            logger.error(f"Error cleaning up expired tokens: {e}")
+            raise ValueError(f"Error cleaning up expired tokens: {e}")
+
+    @staticmethod
+    def get_active_tokens():
+        """Get all non-deleted tokens."""
+        return TokenBlacklist.query.filter_by(is_deleted=False).all()
+
+    @staticmethod
+    def get_expired_tokens():
+        """Get all expired but not deleted tokens."""
+        return TokenBlacklist.query.filter(
+            and_(
+                TokenBlacklist.expire_at < datetime.utcnow(),
+                TokenBlacklist.is_deleted == False
+            )
+        ).all()
 
     @staticmethod
     def is_token_valid(jti):

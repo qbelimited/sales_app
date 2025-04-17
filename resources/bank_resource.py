@@ -13,13 +13,28 @@ bank_ns = Namespace('banks', description='Operations related to banks and their 
 bank_branch_model = bank_ns.model('BankBranch', {
     'id': fields.Integer(description='Branch ID'),
     'name': fields.String(required=True, description='Branch Name'),
+    'code': fields.String(description='Branch Code/Identifier'),
     'sort_code': fields.String(description='Branch Sort Code'),
+    'address': fields.String(description='Branch Address'),
+    'city': fields.String(description='Branch City'),
+    'region': fields.String(description='Branch Region'),
+    'country': fields.String(description='Branch Country'),
+    'latitude': fields.Float(description='Branch Latitude'),
+    'longitude': fields.Float(description='Branch Longitude'),
+    'contact_phone': fields.String(description='Branch Contact Phone'),
+    'contact_email': fields.String(description='Branch Contact Email'),
     'is_deleted': fields.Boolean(description='Soft delete flag')
 })
 
 bank_model = bank_ns.model('Bank', {
     'id': fields.Integer(description='Bank ID'),
     'name': fields.String(required=True, description='Bank Name'),
+    'code': fields.String(description='Bank Code (SWIFT/BIC)'),
+    'website': fields.String(description='Bank Website'),
+    'contact_email': fields.String(description='Bank Contact Email'),
+    'contact_phone': fields.String(description='Bank Contact Phone'),
+    'logo_url': fields.String(description='Bank Logo URL'),
+    'bank_type': fields.String(description='Bank Type (Commercial, Development, etc.)'),
     'is_deleted': fields.Boolean(description='Soft delete flag'),
     'created_at': fields.DateTime(description='Creation date'),
     'updated_at': fields.DateTime(description='Last update date'),
@@ -30,12 +45,28 @@ bank_model = bank_ns.model('Bank', {
 class BankResource(Resource):
     @bank_ns.doc(security='Bearer Auth')
     @bank_ns.response(200, 'Success', [bank_model])
+    @bank_ns.param('page', 'Page number for pagination', type='integer', default=1)
+    @bank_ns.param('per_page', 'Number of items per page', type='integer', default=10)
+    @bank_ns.param('bank_type', 'Filter by bank type', type='string')
+    @bank_ns.param('search', 'Search query for bank name', type='string')
     @jwt_required()
     def get(self):
         """Get all active banks along with their active branches."""
-        banks = Bank.get_active_banks()
-        logger.info(f"Banks retrieved successfully by user ID {get_jwt_identity()}")
-        return [bank.serialize() for bank in banks], 200
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        bank_type = request.args.get('bank_type')
+        search_query = request.args.get('search')
+
+        try:
+            if search_query:
+                banks = Bank.search_banks(search_query, bank_type)
+            else:
+                banks = Bank.get_active_banks(page, per_page)
+            logger.info(f"Banks retrieved successfully by user ID {get_jwt_identity()}")
+            return [bank.serialize() for bank in banks], 200
+        except Exception as e:
+            logger.error(f"Error retrieving banks: {e}")
+            return {'message': 'Error retrieving banks'}, 500
 
     @bank_ns.doc(security='Bearer Auth')
     @bank_ns.expect(bank_model, validate=True)
@@ -48,7 +79,15 @@ class BankResource(Resource):
             return {'message': 'Unauthorized'}, 403
 
         data = request.json
-        new_bank = Bank(name=data['name'])
+        new_bank = Bank(
+            name=data['name'],
+            code=data.get('code'),
+            website=data.get('website'),
+            contact_email=data.get('contact_email'),
+            contact_phone=data.get('contact_phone'),
+            logo_url=data.get('logo_url'),
+            bank_type=data.get('bank_type')
+        )
         db.session.add(new_bank)
         db.session.commit()
 
@@ -103,6 +142,12 @@ class SingleBankResource(Resource):
 
         data = request.json
         bank.name = data['name']
+        bank.code = data.get('code', bank.code)
+        bank.website = data.get('website', bank.website)
+        bank.contact_email = data.get('contact_email', bank.contact_email)
+        bank.contact_phone = data.get('contact_phone', bank.contact_phone)
+        bank.logo_url = data.get('logo_url', bank.logo_url)
+        bank.bank_type = data.get('bank_type', bank.bank_type)
         db.session.commit()
 
         # Log the update in the audit trail
@@ -159,12 +204,30 @@ class SingleBankResource(Resource):
 @bank_ns.route('/bank-branches')
 class BankBranchResource(Resource):
     @bank_ns.doc(security='Bearer Auth')
+    @bank_ns.param('page', 'Page number for pagination', type='integer', default=1)
+    @bank_ns.param('per_page', 'Number of items per page', type='integer', default=10)
+    @bank_ns.param('bank_id', 'Filter by bank ID', type='integer')
+    @bank_ns.param('city', 'Filter by city', type='string')
+    @bank_ns.param('search', 'Search query for branch name', type='string')
     @jwt_required()
     def get(self):
-        """Get all active bank branches."""
-        branches = BankBranch.get_active_branches()
-        logger.info(f"Branches retrieved successfully by user ID {get_jwt_identity()}")
-        return [branch.serialize() for branch in branches], 200
+        """Get all active bank branches with optional filters."""
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 10, type=int)
+        bank_id = request.args.get('bank_id', type=int)
+        city = request.args.get('city')
+        search_query = request.args.get('search')
+
+        try:
+            if search_query:
+                branches = BankBranch.search_branches(search_query, bank_id, city)
+            else:
+                branches = BankBranch.get_active_branches(page, per_page)
+            logger.info(f"Branches retrieved successfully by user ID {get_jwt_identity()}")
+            return [branch.serialize() for branch in branches], 200
+        except Exception as e:
+            logger.error(f"Error retrieving branches: {e}")
+            return {'message': 'Error retrieving branches'}, 500
 
     @bank_ns.doc(security='Bearer Auth')
     @bank_ns.expect(bank_branch_model, validate=True)
@@ -179,8 +242,17 @@ class BankBranchResource(Resource):
         data = request.json
         new_branch = BankBranch(
             name=data['name'],
+            code=data.get('code'),
             bank_id=data['bank_id'],
-            sort_code=data.get('sort_code')
+            sort_code=data.get('sort_code'),
+            address=data.get('address'),
+            city=data.get('city'),
+            region=data.get('region'),
+            country=data.get('country'),
+            latitude=data.get('latitude'),
+            longitude=data.get('longitude'),
+            contact_phone=data.get('contact_phone'),
+            contact_email=data.get('contact_email')
         )
         db.session.add(new_branch)
         db.session.commit()
@@ -236,7 +308,16 @@ class SingleBranchResource(Resource):
 
         data = request.json
         branch.name = data['name']
+        branch.code = data.get('code', branch.code)
         branch.sort_code = data.get('sort_code', branch.sort_code)
+        branch.address = data.get('address', branch.address)
+        branch.city = data.get('city', branch.city)
+        branch.region = data.get('region', branch.region)
+        branch.country = data.get('country', branch.country)
+        branch.latitude = data.get('latitude', branch.latitude)
+        branch.longitude = data.get('longitude', branch.longitude)
+        branch.contact_phone = data.get('contact_phone', branch.contact_phone)
+        branch.contact_email = data.get('contact_email', branch.contact_email)
         db.session.commit()
 
         # Log the update in the audit trail

@@ -2,7 +2,7 @@ from app import db
 from datetime import datetime
 from flask_restx import Namespace, Resource, fields
 from flask import request
-from models.branch_model import Branch
+from models.branch_model import Branch, BranchStatus
 from models.audit_model import AuditTrail
 from app import logger
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -18,7 +18,12 @@ branch_model = branch_ns.model('Branch', {
     'ghpost_gps': fields.String(description='GhPost GPS Address'),
     'address': fields.String(description='Branch Address'),
     'city': fields.String(description='Branch City'),
-    'region': fields.String(description='Branch Region')
+    'region': fields.String(description='Branch Region'),
+    'status': fields.String(description='Branch Status', enum=[status.value for status in BranchStatus]),
+    'last_maintenance_date': fields.DateTime(description='Last Maintenance Date'),
+    'total_sales': fields.Float(description='Total Sales'),
+    'total_customers': fields.Integer(description='Total Customers'),
+    'average_rating': fields.Float(description='Average Rating')
 })
 
 # Helper function to check role permissions
@@ -38,6 +43,7 @@ class BranchListResource(Resource):
     @branch_ns.param('page', 'Page number for pagination', type='integer', default=1)
     @branch_ns.param('per_page', 'Number of items per page', type='integer', default=10)
     @branch_ns.param('filter_by', 'Filter by branch name', type='string')
+    @branch_ns.param('status', 'Filter by branch status', type='string')
     @branch_ns.param('sort_by', 'Sort by field (e.g., created_at, name)', type='string', default='created_at')
     def get(self):
         """Retrieve a paginated list of branches."""
@@ -52,12 +58,16 @@ class BranchListResource(Resource):
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 10, type=int)
         filter_by = request.args.get('filter_by', None)
+        status = request.args.get('status', None)
         sort_by = request.args.get('sort_by', 'created_at')
 
         branch_query = Branch.query.filter_by(is_deleted=False)
 
         if filter_by:
             branch_query = branch_query.filter(Branch.name.ilike(f'%{filter_by}%'))
+
+        if status:
+            branch_query = branch_query.filter(Branch.status == status)
 
         try:
             branches = branch_query.order_by(getattr(Branch, sort_by).desc()).paginate(page=page, per_page=per_page, error_out=False)
@@ -97,7 +107,12 @@ class BranchListResource(Resource):
             ghpost_gps=data.get('ghpost_gps'),
             address=data.get('address'),
             city=data.get('city'),
-            region=data.get('region')
+            region=data.get('region'),
+            status=data.get('status', BranchStatus.ACTIVE.value),
+            last_maintenance_date=data.get('last_maintenance_date'),
+            total_sales=data.get('total_sales', 0.0),
+            total_customers=data.get('total_customers', 0),
+            average_rating=data.get('average_rating', 0.0)
         )
         db.session.add(new_branch)
         db.session.commit()
@@ -162,6 +177,11 @@ class BranchResource(Resource):
         branch.address = data.get('address', branch.address)
         branch.city = data.get('city', branch.city)
         branch.region = data.get('region', branch.region)
+        branch.status = data.get('status', branch.status)
+        branch.last_maintenance_date = data.get('last_maintenance_date', branch.last_maintenance_date)
+        branch.total_sales = data.get('total_sales', branch.total_sales)
+        branch.total_customers = data.get('total_customers', branch.total_customers)
+        branch.average_rating = data.get('average_rating', branch.average_rating)
         branch.updated_at = datetime.utcnow()
 
         db.session.commit()
@@ -216,3 +236,20 @@ class BranchResource(Resource):
 
         logger.info(f"Branch {branch_id} deleted successfully by user {current_user['id']}")
         return {'message': 'Branch deleted successfully'}, 200
+
+@branch_ns.route('/summary')
+class BranchSummaryResource(Resource):
+    @branch_ns.doc(security='Bearer Auth', responses={200: 'Success', 403: 'Unauthorized'})
+    @jwt_required()
+    def get(self):
+        """Get branch summary statistics."""
+        current_user = get_jwt_identity()
+
+        # Check role permissions
+        if not check_role_permission(current_user, 'manager'):
+            logger.warning(f"Unauthorized attempt to view branch summary by user {current_user['id']}")
+            return {'message': 'Unauthorized'}, 403
+
+        summary = Branch.get_branch_summary()
+        logger.info(f"Branch summary retrieved successfully by user {current_user['id']}")
+        return summary, 200

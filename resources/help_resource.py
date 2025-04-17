@@ -1,10 +1,13 @@
 from flask_restx import Namespace, Resource, fields
 from flask import request
 from app import db, logger
-from models.help_model import HelpStep, HelpTour
+from models.help_model import HelpStep, HelpTour, HelpStepCategory, HelpStepLanguage
 from models.audit_model import AuditTrail
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
+from flask_restful import Resource, reqparse
+from resources.auth_resource import token_required, admin_required
+from typing import Dict, Any, List, Optional
 
 # Define a namespace for HelpTour and HelpStep related operations
 help_ns = Namespace('help', description='Help Tour and Help Step operations')
@@ -28,379 +31,397 @@ help_tour_model = help_ns.model('HelpTour', {
 
 @help_ns.route('/steps')
 class HelpStepResource(Resource):
-    @help_ns.doc(security='Bearer Auth')
-    @jwt_required()
-    @help_ns.expect(help_step_model, validate=True)
-    def post(self):
-        """Create a new Help Step (Admin only)."""
-        current_user = get_jwt_identity()
-        if current_user['role'].lower() != 'admin':
-            logger.warning(f"Unauthorized attempt by User {current_user['id']} to create a Help Step.")
-            return {'message': 'Unauthorized'}, 403
+    """
+    Resource for managing individual help steps.
+    """
+    @token_required
+    @admin_required
+    def get(self, step_id: int) -> Dict[str, Any]:
+        """
+        Get a specific help step by ID.
 
-        data = request.json
-        new_step = HelpStep(
-            page_name=data['page_name'],
-            target=data['target'],
-            content=data['content'],
-            order=data['order']
-        )
-        db.session.add(new_step)
-        db.session.commit()
+        Args:
+            step_id: ID of the help step to retrieve
 
-        logger.info(f"Created new help step with ID {new_step.id}.")
-        audit = AuditTrail(
-            user_id=current_user['id'],
-            action='CREATE',
-            resource_type='help_step',
-            resource_id=new_step.id,
-            details=f"Created Help Step with ID {new_step.id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
-        )
-        db.session.add(audit)
-        db.session.commit()
+        Returns:
+            Dictionary containing help step data
+        """
+        help_step = HelpStep.query.get(step_id)
+        if not help_step or help_step.is_deleted:
+            return {'message': 'Help step not found'}, 404
+        return help_step.serialize()
 
-        return new_step.serialize(), 201
+    @token_required
+    @admin_required
+    def put(self, step_id: int) -> Dict[str, Any]:
+        """
+        Update a specific help step.
 
-    @help_ns.doc(security='Bearer Auth')
-    @jwt_required()
-    def get(self):
-        """Retrieve all Help Steps."""
-        steps = HelpStep.query.order_by(HelpStep.order).all()
-        logger.info("Retrieved all help steps.")
+        Args:
+            step_id: ID of the help step to update
 
-        # Log access to the audit trail
-        audit = AuditTrail(
-            user_id=get_jwt_identity()['id'],
-            action='ACCESS',
-            resource_type='help_steps',
-            resource_id=None,
-            details="Accessed all Help Steps",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
-        )
-        db.session.add(audit)
-        db.session.commit()
+        Returns:
+            Dictionary containing updated help step data
+        """
+        help_step = HelpStep.query.get(step_id)
+        if not help_step or help_step.is_deleted:
+            return {'message': 'Help step not found'}, 404
 
-        return [step.serialize() for step in steps], 200
+        parser = reqparse.RequestParser()
+        parser.add_argument('page_name', type=str)
+        parser.add_argument('target', type=str)
+        parser.add_argument('content', type=str)
+        parser.add_argument('order', type=int)
+        parser.add_argument('category', type=str)
+        args = parser.parse_args()
 
-@help_ns.route('/steps/<int:step_id>')
-class SingleHelpStepResource(Resource):
-    @help_ns.doc(security='Bearer Auth')
-    @jwt_required()
-    def get(self, step_id):
-        """Retrieve a specific Help Step by ID."""
-        step = HelpStep.query.get(step_id)
-        if not step:
-            logger.error(f"Help Step with ID {step_id} not found.")
-            return {'message': 'Help Step not found'}, 404
+        for key, value in args.items():
+            if value is not None:
+                setattr(help_step, key, value)
 
-        # Log access to the audit trail
-        audit = AuditTrail(
-            user_id=get_jwt_identity()['id'],
-            action='ACCESS',
-            resource_type='help_step',
-            resource_id=step.id,
-            details=f"Accessed Help Step with ID {step_id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
-        )
-        db.session.add(audit)
-        db.session.commit()
+        try:
+            db.session.commit()
+            logger.info(f"Updated help step: {step_id}")
+            return help_step.serialize()
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error updating help step {step_id}: {e}")
+            return {'message': 'Error updating help step'}, 500
 
-        return step.serialize(), 200
+    @token_required
+    @admin_required
+    def delete(self, step_id: int) -> Dict[str, Any]:
+        """
+        Soft delete a help step.
 
-    @help_ns.doc(security='Bearer Auth')
-    @jwt_required()
-    @help_ns.expect(help_step_model, validate=True)
-    def put(self, step_id):
-        """Update a specific Help Step (Admin only)."""
-        current_user = get_jwt_identity()
-        if current_user['role'].lower() != 'admin':
-            logger.warning(f"Unauthorized attempt by User {current_user['id']} to update Help Step {step_id}.")
-            return {'message': 'Unauthorized'}, 403
+        Args:
+            step_id: ID of the help step to delete
 
-        step = HelpStep.query.get(step_id)
-        if not step:
-            logger.error(f"Help Step with ID {step_id} not found.")
-            return {'message': 'Help Step not found'}, 404
+        Returns:
+            Dictionary containing success message
+        """
+        help_step = HelpStep.query.get(step_id)
+        if not help_step or help_step.is_deleted:
+            return {'message': 'Help step not found'}, 404
 
-        data = request.json
-        step.page_name = data.get('page_name', step.page_name)
-        step.target = data.get('target', step.target)
-        step.content = data.get('content', step.content)
-        step.order = data.get('order', step.order)
+        help_step.is_deleted = True
+        try:
+            db.session.commit()
+            logger.info(f"Deleted help step: {step_id}")
+            return {'message': 'Help step deleted successfully'}
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error deleting help step {step_id}: {e}")
+            return {'message': 'Error deleting help step'}, 500
 
-        db.session.commit()
-        logger.info(f"Updated Help Step with ID {step_id}.")
-        audit = AuditTrail(
-            user_id=current_user['id'],
-            action='UPDATE',
-            resource_type='help_step',
-            resource_id=step.id,
-            details=f"Updated Help Step with ID {step_id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
-        )
-        db.session.add(audit)
-        db.session.commit()
 
-        return step.serialize(), 200
+class HelpStepListResource(Resource):
+    """
+    Resource for managing lists of help steps.
+    """
+    @token_required
+    @admin_required
+    def get(self) -> Dict[str, Any]:
+        """
+        Get all help steps with optional filtering.
 
-    @help_ns.doc(security='Bearer Auth')
-    @jwt_required()
-    def delete(self, step_id):
-        """Delete a Help Step (Admin only)."""
-        current_user = get_jwt_identity()
-        if current_user['role'].lower() != 'admin':
-            logger.warning(f"Unauthorized attempt by User {current_user['id']} to delete Help Step {step_id}.")
-            return {'message': 'Unauthorized'}, 403
+        Returns:
+            Dictionary containing list of help steps
+        """
+        parser = reqparse.RequestParser()
+        parser.add_argument('page_name', type=str)
+        parser.add_argument('category', type=str)
+        parser.add_argument('include_deleted', type=bool, default=False)
+        args = parser.parse_args()
 
-        step = HelpStep.query.get(step_id)
-        if not step:
-            logger.error(f"Help Step with ID {step_id} not found.")
-            return {'message': 'Help Step not found'}, 404
+        query = HelpStep.query
+        if not args.get('include_deleted'):
+            query = query.filter_by(is_deleted=False)
+        if args.get('page_name'):
+            query = query.filter_by(page_name=args['page_name'])
+        if args.get('category'):
+            query = query.filter_by(category=args['category'])
 
-        db.session.delete(step)
-        db.session.commit()
-        logger.info(f"Deleted Help Step with ID {step_id}.")
-        audit = AuditTrail(
-            user_id=current_user['id'],
-            action='DELETE',
-            resource_type='help_step',
-            resource_id=step.id,
-            details=f"Deleted Help Step with ID {step_id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
-        )
-        db.session.add(audit)
-        db.session.commit()
+        help_steps = query.order_by(HelpStep.order).all()
+        return {'help_steps': [step.serialize() for step in help_steps]}
 
-        return {'message': 'Help Step deleted successfully'}, 200
+    @token_required
+    @admin_required
+    def post(self) -> Dict[str, Any]:
+        """
+        Create a new help step.
+
+        Returns:
+            Dictionary containing created help step data
+        """
+        parser = reqparse.RequestParser()
+        parser.add_argument('page_name', type=str, required=True)
+        parser.add_argument('target', type=str, required=True)
+        parser.add_argument('content', type=str, required=True)
+        parser.add_argument('order', type=int, required=True)
+        parser.add_argument('category', type=str,
+                          default=HelpStepCategory.FEATURE.value)
+        args = parser.parse_args()
+
+        help_step = HelpStep(**args)
+        try:
+            db.session.add(help_step)
+            db.session.commit()
+            logger.info(f"Created new help step: {help_step.id}")
+            return help_step.serialize()
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error creating help step: {e}")
+            return {'message': 'Error creating help step'}, 500
 
 
 @help_ns.route('/tours')
 class HelpTourResource(Resource):
-    @help_ns.doc(security='Bearer Auth')
-    @jwt_required()
-    @help_ns.expect(help_tour_model, validate=True)
-    def post(self):
-        """Create a new Help Tour."""
-        new_tour = HelpTour(user_id=get_jwt_identity()['id'])
-        db.session.add(new_tour)
-        db.session.commit()
+    """
+    Resource for managing individual help tours.
+    """
+    @token_required
+    def get(self, tour_id: int) -> Dict[str, Any]:
+        """
+        Get a specific help tour by ID.
 
-        logger.info(f"Created new help tour with ID {new_tour.id} for user ID {get_jwt_identity()['id']}.")
-        audit = AuditTrail(
-            user_id=get_jwt_identity()['id'],
-            action='CREATE',
-            resource_type='help_tour',
-            resource_id=new_tour.id,
-            details=f"Created Help Tour with ID {new_tour.id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
+        Args:
+            tour_id: ID of the help tour to retrieve
+
+        Returns:
+            Dictionary containing help tour data
+        """
+        help_tour = HelpTour.query.get(tour_id)
+        if not help_tour or help_tour.is_deleted:
+            return {'message': 'Help tour not found'}, 404
+        return help_tour.serialize()
+
+    @token_required
+    @admin_required
+    def put(self, tour_id: int) -> Dict[str, Any]:
+        """
+        Update a specific help tour.
+
+        Args:
+            tour_id: ID of the help tour to update
+
+        Returns:
+            Dictionary containing updated help tour data
+        """
+        help_tour = HelpTour.query.get(tour_id)
+        if not help_tour or help_tour.is_deleted:
+            return {'message': 'Help tour not found'}, 404
+
+        parser = reqparse.RequestParser()
+        parser.add_argument('name', type=str)
+        parser.add_argument('description', type=str)
+        parser.add_argument('is_template', type=bool)
+        args = parser.parse_args()
+
+        for key, value in args.items():
+            if value is not None:
+                setattr(help_tour, key, value)
+
+        try:
+            db.session.commit()
+            logger.info(f"Updated help tour: {tour_id}")
+            return help_tour.serialize()
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error updating help tour {tour_id}: {e}")
+            return {'message': 'Error updating help tour'}, 500
+
+    @token_required
+    @admin_required
+    def delete(self, tour_id: int) -> Dict[str, Any]:
+        """
+        Soft delete a help tour.
+
+        Args:
+            tour_id: ID of the help tour to delete
+
+        Returns:
+            Dictionary containing success message
+        """
+        help_tour = HelpTour.query.get(tour_id)
+        if not help_tour or help_tour.is_deleted:
+            return {'message': 'Help tour not found'}, 404
+
+        help_tour.is_deleted = True
+        try:
+            db.session.commit()
+            logger.info(f"Deleted help tour: {tour_id}")
+            return {'message': 'Help tour deleted successfully'}
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error deleting help tour {tour_id}: {e}")
+            return {'message': 'Error deleting help tour'}, 500
+
+
+class HelpTourListResource(Resource):
+    """
+    Resource for managing lists of help tours.
+    """
+    @token_required
+    @admin_required
+    def get(self) -> Dict[str, Any]:
+        """
+        Get all help tours with optional filtering.
+
+        Returns:
+            Dictionary containing list of help tours
+        """
+        parser = reqparse.RequestParser()
+        parser.add_argument('user_id', type=int)
+        parser.add_argument('is_template', type=bool)
+        parser.add_argument('include_deleted', type=bool, default=False)
+        args = parser.parse_args()
+
+        query = HelpTour.query
+        if not args.get('include_deleted'):
+            query = query.filter_by(is_deleted=False)
+        if args.get('user_id'):
+            query = query.filter_by(user_id=args['user_id'])
+        if args.get('is_template') is not None:
+            query = query.filter_by(is_template=args['is_template'])
+
+        help_tours = query.all()
+        return {'help_tours': [tour.serialize() for tour in help_tours]}
+
+    @token_required
+    @admin_required
+    def post(self) -> Dict[str, Any]:
+        """
+        Create a new help tour.
+
+        Returns:
+            Dictionary containing created help tour data
+        """
+        parser = reqparse.RequestParser()
+        parser.add_argument('user_id', type=int, required=True)
+        parser.add_argument('name', type=str, required=True)
+        parser.add_argument('description', type=str)
+        parser.add_argument('is_template', type=bool, default=False)
+        parser.add_argument('step_ids', type=list, location='json',
+                          required=True)
+        args = parser.parse_args()
+
+        help_tour = HelpTour(
+            user_id=args['user_id'],
+            name=args['name'],
+            description=args.get('description'),
+            is_template=args['is_template']
         )
-        db.session.add(audit)
-        db.session.commit()
 
-        return new_tour.serialize(), 201
+        steps = HelpStep.query.filter(HelpStep.id.in_(args['step_ids'])).all()
+        help_tour.steps = steps
 
-    @help_ns.doc(security='Bearer Auth')
-    @jwt_required()
-    def get(self):
-        """Retrieve all Help Tours."""
-        tours = HelpTour.query.all()
-        logger.info("Retrieved all help tours.")
-
-        # Log access to the audit trail
-        audit = AuditTrail(
-            user_id=get_jwt_identity()['id'],
-            action='ACCESS',
-            resource_type='help_tours',
-            resource_id=None,
-            details="Accessed all Help Tours",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
-        )
-        db.session.add(audit)
-        db.session.commit()
-
-        return [tour.serialize() for tour in tours], 200
-
-    @help_ns.doc(security='Bearer Auth')
-    @jwt_required()
-    @help_ns.param('page_name', 'Name of the page to fetch the Help Tour')
-    def get(self):
-        """Retrieve Help Tours by Page Name."""
-        page_name = request.args.get('page_name')
-        tours = HelpTour.query.filter(HelpTour.steps.any(HelpStep.page_name == page_name)).all()
-        if not tours:
-            logger.warning(f"No Help Tours found for page name: {page_name}")
-            return {'message': 'No Help Tours found for the specified page name'}, 404
-
-        logger.info(f"Retrieved {len(tours)} help tours for page name: {page_name}.")
-
-        # Log access to the audit trail
-        audit = AuditTrail(
-            user_id=get_jwt_identity()['id'],
-            action='ACCESS',
-            resource_type='help_tours',
-            resource_id=None,
-            details=f"Accessed Help Tours for page name: {page_name}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
-        )
-        db.session.add(audit)
-        db.session.commit()
-
-        return [tour.serialize() for tour in tours], 200
+        try:
+            db.session.add(help_tour)
+            db.session.commit()
+            logger.info(f"Created new help tour: {help_tour.id}")
+            return help_tour.serialize()
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error creating help tour: {e}")
+            return {'message': 'Error creating help tour'}, 500
 
 
-@help_ns.route('/tours/<int:tour_id>')
-class SingleHelpTourResource(Resource):
-    @help_ns.doc(security='Bearer Auth')
-    @jwt_required()
-    def get(self, tour_id):
-        """Retrieve a specific Help Tour by ID."""
-        tour = HelpTour.query.get(tour_id)
-        if not tour:
-            logger.error(f"Help Tour with ID {tour_id} not found.")
-            return {'message': 'Help Tour not found'}, 404
+class HelpTourTemplateResource(Resource):
+    """
+    Resource for managing help tour templates.
+    """
+    @token_required
+    @admin_required
+    def get(self) -> Dict[str, Any]:
+        """
+        Get all help tour templates.
 
-        # Log access to the audit trail
-        audit = AuditTrail(
-            user_id=get_jwt_identity()['id'],
-            action='ACCESS',
-            resource_type='help_tour',
-            resource_id=tour.id,
-            details=f"Accessed Help Tour with ID {tour_id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
-        )
-        db.session.add(audit)
-        db.session.commit()
+        Returns:
+            Dictionary containing list of help tour templates
+        """
+        templates = HelpTour.get_templates()
+        return {'templates': [template.serialize() for template in templates]}
 
-        return tour.serialize(), 200
+    @token_required
+    def post(self) -> Dict[str, Any]:
+        """
+        Create a new help tour from a template.
 
-    @help_ns.doc(security='Bearer Auth')
-    @jwt_required()
-    def put(self, tour_id):
-        """Mark Help Tour as completed."""
-        tour = HelpTour.query.get(tour_id)
-        if not tour:
-            logger.error(f"Help Tour with ID {tour_id} not found.")
-            return {'message': 'Help Tour not found'}, 404
+        Returns:
+            Dictionary containing created help tour data
+        """
+        parser = reqparse.RequestParser()
+        parser.add_argument('template_id', type=int, required=True)
+        parser.add_argument('user_id', type=int, required=True)
+        args = parser.parse_args()
 
-        # Mark the tour as completed
-        tour.completed = True
-        tour.completed_at = datetime.utcnow()
-        db.session.commit()
-        logger.info(f"Marked Help Tour with ID {tour_id} as completed.")
-        audit = AuditTrail(
-            user_id=get_jwt_identity()['id'],
-            action='UPDATE',
-            resource_type='help_tour',
-            resource_id=tour.id,
-            details=f"Marked Help Tour with ID {tour_id} as completed",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
-        )
-        db.session.add(audit)
-        db.session.commit()
+        help_tour = HelpTour.create_from_template(args['template_id'],
+                                                args['user_id'])
+        if not help_tour:
+            return {'message': 'Template not found'}, 404
 
-        return tour.serialize(), 200
+        return help_tour.serialize()
 
-    @help_ns.doc(security='Bearer Auth')
-    @jwt_required()
-    def delete(self, tour_id):
-        """Delete a Help Tour (Admin only)."""
-        current_user = get_jwt_identity()
-        if current_user['role'].lower() != 'admin':
-            logger.warning(f"Unauthorized attempt by User {current_user['id']} to delete Help Tour {tour_id}.")
-            return {'message': 'Unauthorized'}, 403
 
-        tour = HelpTour.query.get(tour_id)
-        if not tour:
-            logger.error(f"Help Tour with ID {tour_id} not found.")
-            return {'message': 'Help Tour not found'}, 404
+class HelpTourProgressResource(Resource):
+    """
+    Resource for managing help tour progress.
+    """
+    @token_required
+    def get(self, user_id: int) -> Dict[str, Any]:
+        """
+        Get help tour progress for a specific user.
 
-        db.session.delete(tour)
-        db.session.commit()
-        logger.info(f"Deleted Help Tour with ID {tour_id}.")
-        audit = AuditTrail(
-            user_id=current_user['id'],
-            action='DELETE',
-            resource_type='help_tour',
-            resource_id=tour.id,
-            details=f"Deleted Help Tour with ID {tour_id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
-        )
-        db.session.add(audit)
-        db.session.commit()
+        Args:
+            user_id: ID of the user to get progress for
 
-        return {'message': 'Help Tour deleted successfully'}, 200
+        Returns:
+            Dictionary containing help tour progress data
+        """
+        progress = HelpTour.get_help_tour_progress(user_id)
+        return progress
 
-@help_ns.route('/tours/<int:tour_id>/steps')
-class HelpTourStepsResource(Resource):
-    @help_ns.doc(security='Bearer Auth')
-    @jwt_required()
-    @help_ns.expect(help_step_model, validate=True)
-    def post(self, tour_id):
-        """Add a step to a Help Tour."""
-        tour = HelpTour.query.get(tour_id)
-        if not tour:
-            logger.error(f"Help Tour with ID {tour_id} not found.")
-            return {'message': 'Help Tour not found'}, 404
+    @token_required
+    def post(self, user_id: int) -> Dict[str, Any]:
+        """
+        Mark a help tour as completed for a specific user.
 
-        data = request.json
-        step = HelpStep.query.get(data['id'])
-        if not step:
-            logger.error(f"Help Step with ID {data['id']} not found.")
-            return {'message': 'Help Step not found'}, 404
+        Args:
+            user_id: ID of the user to mark as completed
 
-        tour.steps.append(step)
-        db.session.commit()
+        Returns:
+            Dictionary containing updated help tour data
+        """
+        help_tour = HelpTour.get_user_help_tour_status(user_id)
+        if not help_tour:
+            return {'message': 'Help tour not found'}, 404
 
-        logger.info(f"Added Help Step with ID {step.id} to Help Tour with ID {tour_id}.")
-        audit = AuditTrail(
-            user_id=get_jwt_identity()['id'],
-            action='UPDATE',
-            resource_type='help_tour',
-            resource_id=tour.id,
-            details=f"Added Help Step with ID {step.id} to Help Tour with ID {tour_id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
-        )
-        db.session.add(audit)
-        db.session.commit()
+        help_tour.completed = True
+        help_tour.completed_at = datetime.utcnow()
 
-        return tour.serialize(), 200
+        try:
+            db.session.commit()
+            logger.info(f"Marked help tour as completed for user: {user_id}")
+            return help_tour.serialize()
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error marking help tour as completed for user {user_id}: {e}")
+            return {'message': 'Error marking help tour as completed'}, 500
 
-    @help_ns.doc(security='Bearer Auth')
-    @jwt_required()
-    def get(self, tour_id):
-        """Retrieve all steps for a Help Tour."""
-        tour = HelpTour.query.get(tour_id)
-        if not tour:
-            logger.error(f"Help Tour with ID {tour_id} not found.")
-            return {'message': 'Help Tour not found'}, 404
+    @token_required
+    def delete(self, user_id: int) -> Dict[str, Any]:
+        """
+        Reset help tour progress for a specific user.
 
-        # Log access to the audit trail
-        audit = AuditTrail(
-            user_id=get_jwt_identity()['id'],
-            action='ACCESS',
-            resource_type='help_tour_steps',
-            resource_id=tour.id,
-            details=f"Accessed steps for Help Tour with ID {tour_id}",
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get('User-Agent')
-        )
-        db.session.add(audit)
-        db.session.commit()
+        Args:
+            user_id: ID of the user to reset progress for
 
-        return {
-            'tour_id': tour.id,
-            'steps': [step.serialize() for step in tour.steps]
-        }, 200
+        Returns:
+            Dictionary containing success message
+        """
+        help_tour = HelpTour.reset_user_help_tour(user_id)
+        if not help_tour:
+            return {'message': 'Help tour not found'}, 404
+
+        return {'message': 'Help tour progress reset successfully'}

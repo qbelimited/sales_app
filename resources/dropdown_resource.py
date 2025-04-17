@@ -6,6 +6,7 @@ from models.impact_product_model import ImpactProduct
 from models.user_model import User
 from models.audit_model import AuditTrail
 from models.paypoint_model import Paypoint
+from models.branch_model import Branch, BranchStatus
 from app import db, logger
 from flask_jwt_extended import jwt_required
 from utils import get_client_ip
@@ -29,10 +30,19 @@ bank_model = dropdown_ns.model('Bank', {
     'name': fields.String(required=True, description='Bank Name'),
 })
 
-branch_model = dropdown_ns.model('BankBranch', {
+bank_branch_model = dropdown_ns.model('BankBranch', {
+    'id': fields.Integer(description='Bank Branch ID'),
+    'name': fields.String(required=True, description='Bank Branch Name'),
+    'bank_id': fields.Integer(description='Bank ID'),
+    'code': fields.String(description='Branch Code'),
+    'sort_code': fields.String(description='Sort Code')
+})
+
+sales_branch_model = dropdown_ns.model('SalesBranch', {
     'id': fields.Integer(description='Branch ID'),
     'name': fields.String(required=True, description='Branch Name'),
-    'bank_id': fields.Integer(description='Bank ID'),
+    'status': fields.String(description='Branch Status', enum=[status.value for status in BranchStatus]),
+    'region': fields.String(description='Branch Region')
 })
 
 sales_executive_model = dropdown_ns.model('SalesExecutive', {
@@ -63,15 +73,15 @@ paypoint_model = dropdown_ns.model('Paypoint', {
 class DropdownResource(Resource):
     @dropdown_ns.doc(security='Bearer Auth')
     @jwt_required()
-    @dropdown_ns.param('type', 'The type of dropdown to retrieve (bank, branch, sales_executive, impact_product, users_with_roles)', required=True)
-    @dropdown_ns.param('bank_id', 'The bank ID for branch filtering (required for branch dropdown)', type='integer')
+    @dropdown_ns.param('type', 'The type of dropdown to retrieve (bank, bank_branch, sales_branch, sales_executive, impact_product, users_with_roles)', required=True)
+    @dropdown_ns.param('bank_id', 'The bank ID for bank branch filtering (required for bank_branch dropdown)', type='integer')
     @dropdown_ns.param('manager_id', 'The manager ID for sales executive filtering (required for sales executive dropdown)', type='integer')
     @dropdown_ns.param('branch_id', 'The branch ID for sales executive filtering (optional for sales executive dropdown)', type='integer')
     @dropdown_ns.param('page', 'Page number for pagination', type='integer', default=1)
     @dropdown_ns.param('per_page', 'Number of items per page', type='integer', default=10)
     def get(self):
         """Retrieve dropdown values based on the type."""
-        dropdown_type = request.args.get('type')  # Fetch dropdown type from query parameter
+        dropdown_type = request.args.get('type')
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 1000, type=int)
 
@@ -82,16 +92,18 @@ class DropdownResource(Resource):
         try:
             if dropdown_type == 'bank':
                 return self.get_banks(page, per_page)
-            elif dropdown_type == 'branch':
+            elif dropdown_type == 'bank_branch':
                 bank_id = request.args.get('bank_id')
                 if not bank_id:
-                    return {"message": "Bank ID is required for branch dropdown"}, 400
-                return self.get_branches(bank_id, page, per_page)
+                    return {"message": "Bank ID is required for bank branch dropdown"}, 400
+                return self.get_bank_branches(bank_id, page, per_page)
+            elif dropdown_type == 'sales_branch':
+                return self.get_sales_branches(page, per_page)
             elif dropdown_type == 'sales_executive':
                 manager_id = request.args.get('manager_id')
                 if not manager_id:
                     return {"message": "Manager ID is required for sales executive dropdown"}, 400
-                branch_id = request.args.get('branch_id')  # Optional filter
+                branch_id = request.args.get('branch_id')
                 return self.get_sales_executives(manager_id, branch_id, page, per_page)
             elif dropdown_type == 'impact_product':
                 return self.get_impact_products(page, per_page)
@@ -112,10 +124,16 @@ class DropdownResource(Resource):
         logger.info(f"Banks retrieved for dropdown, total: {banks.total}")
         return jsonify([bank.serialize() for bank in banks.items])
 
-    def get_branches(self, bank_id, page, per_page):
-        """Retrieve branches for dropdown."""
+    def get_bank_branches(self, bank_id, page, per_page):
+        """Retrieve bank branches for dropdown."""
         branches = BankBranch.query.filter_by(bank_id=bank_id, is_deleted=False).paginate(page=page, per_page=per_page, error_out=False)
-        logger.info(f"Branches retrieved for bank ID {bank_id}, total: {branches.total}")
+        logger.info(f"Bank branches retrieved for bank ID {bank_id}, total: {branches.total}")
+        return jsonify([branch.serialize() for branch in branches.items])
+
+    def get_sales_branches(self, page, per_page):
+        """Retrieve sales branches for dropdown."""
+        branches = Branch.query.filter_by(is_deleted=False).paginate(page=page, per_page=per_page, error_out=False)
+        logger.info(f"Sales branches retrieved for dropdown, total: {branches.total}")
         return jsonify([branch.serialize() for branch in branches.items])
 
     def get_sales_executives(self, manager_id, branch_id, page, per_page):

@@ -1,13 +1,13 @@
-from app import db
+from app import db, logger
 from datetime import datetime, timedelta
 import ipaddress
 from sqlalchemy.orm import validates
 from utils import get_client_ip
 import secrets
 import os
-import logging
 from typing import Optional, List
-from sqlalchemy import Index
+from sqlalchemy import Index, and_, func
+from models.retention_model import RetentionPolicy, DataType
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -45,6 +45,10 @@ class UserSession(db.Model):
     device_fingerprint = db.Column(db.String(64), nullable=True)
     activity_count = db.Column(db.Integer, default=0)
     suspicious_activity = db.Column(db.Boolean, default=False)
+    session_id = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    device_info = db.Column(db.String(255), nullable=True)
+    is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete flag
 
     # Add indexes for performance
     __table_args__ = (
@@ -55,17 +59,18 @@ class UserSession(db.Model):
     user = db.relationship('User', backref='sessions')
 
     def serialize(self):
+        """Serialize the session to JSON-friendly format."""
         return {
             'id': self.id,
             'user_id': self.user_id,
-            'login_time': self.login_time.isoformat(),
-            'logout_time': self.logout_time.isoformat() if self.logout_time else None,
+            'session_id': self.session_id,
+            'created_at': self.created_at.isoformat(),
+            'last_activity': self.last_activity.isoformat(),
             'expires_at': self.expires_at.isoformat(),
+            'device_info': self.device_info,
             'ip_address': self.ip_address,
             'is_active': self.is_active,
-            'last_activity': self.last_activity.isoformat() if self.last_activity else None,
-            'activity_count': self.activity_count,
-            'suspicious_activity': self.suspicious_activity
+            'is_deleted': self.is_deleted
         }
 
     @staticmethod
@@ -161,25 +166,63 @@ class UserSession(db.Model):
         return None
 
     @staticmethod
-    def cleanup_expired_sessions() -> int:
-        """Clean up all expired sessions."""
+    def cleanup_expired_sessions():
+        """Clean up expired sessions based on retention policy."""
         try:
-            now = datetime.utcnow()
-            expired_sessions = UserSession.query.filter(
-                UserSession.is_active,
-                UserSession.expires_at <= now
+            # Get retention policy for sessions
+            policy = RetentionPolicy.get_policy(DataType.USER_SESSIONS.value)
+            cutoff_date = datetime.utcnow() - timedelta(days=policy.retention_days)
+
+            # Get sessions to delete
+            sessions_to_delete = UserSession.query.filter(
+                and_(
+                    UserSession.expires_at < cutoff_date,
+                    UserSession.is_deleted == False
+                )
             ).all()
 
-            for session in expired_sessions:
-                session.end_session()
+            # Archive sessions if required by policy
+            if policy.archive_before_delete:
+                for session in sessions_to_delete:
+                    # Archive session data
+                    archived_data = ArchivedData(
+                        data_type=DataType.USER_SESSIONS.value,
+                        original_id=session.id,
+                        retention_policy_id=policy.id
+                    )
+                    archived_data.compress_data(session.serialize())
+                    db.session.add(archived_data)
+
+            # Mark sessions as deleted
+            for session in sessions_to_delete:
+                session.is_deleted = True
 
             db.session.commit()
-            logger.info(f"Cleaned up {len(expired_sessions)} expired sessions")
-            return len(expired_sessions)
+            return len(sessions_to_delete)
         except Exception as e:
             db.session.rollback()
-            logger.error(f"Error cleaning up expired sessions: {str(e)}")
+            logger.error(f"Error cleaning up expired sessions: {e}")
             raise ValueError(f"Error cleaning up expired sessions: {e}")
+
+    @staticmethod
+    def get_active_sessions():
+        """Get all non-deleted active sessions."""
+        return UserSession.query.filter(
+            and_(
+                UserSession.is_active == True,
+                UserSession.is_deleted == False
+            )
+        ).all()
+
+    @staticmethod
+    def get_expired_sessions():
+        """Get all expired but not deleted sessions."""
+        return UserSession.query.filter(
+            and_(
+                UserSession.expires_at < datetime.utcnow(),
+                UserSession.is_deleted == False
+            )
+        ).all()
 
     def is_valid(self) -> bool:
         """Check if the session is still valid."""

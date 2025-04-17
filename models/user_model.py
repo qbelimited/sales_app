@@ -6,6 +6,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from enum import Enum
 import json
 from flask import request
+from models.access_model import Access  # Add missing import
 
 
 class UserStatus(Enum):
@@ -34,6 +35,19 @@ class Role(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
+    # New fields for role hierarchy and tracking
+    parent_id = db.Column(db.Integer, db.ForeignKey('role.id'), nullable=True)
+    status = db.Column(db.String(20), default='active', nullable=False)  # active, inactive, deprecated
+    usage_count = db.Column(db.Integer, default=0)  # Track how many users have this role
+    last_assigned_at = db.Column(db.DateTime, nullable=True)
+    validation_rules = db.Column(db.Text, nullable=True)  # JSON string of validation rules
+
+    # Relationship for role hierarchy
+    parent = db.relationship('Role', remote_side=[id], backref='children')
+
+    # Relationship with users
+    users = db.relationship('User', backref='role_ref', lazy='dynamic')
+
     def serialize(self):
         return {
             'id': self.id,
@@ -42,8 +56,93 @@ class Role(db.Model):
             'is_deleted': self.is_deleted,
             'permissions': json.loads(self.permissions) if self.permissions else {},
             'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'parent_id': self.parent_id,
+            'status': self.status,
+            'usage_count': self.usage_count,
+            'last_assigned_at': self.last_assigned_at.isoformat() if self.last_assigned_at else None,
+            'validation_rules': json.loads(self.validation_rules) if self.validation_rules else {}
         }
+
+    def increment_usage(self):
+        """Increment the usage count and update last assigned timestamp."""
+        self.usage_count += 1
+        self.last_assigned_at = datetime.utcnow()
+        db.session.commit()
+
+    def decrement_usage(self):
+        """Decrement the usage count."""
+        if self.usage_count > 0:
+            self.usage_count -= 1
+            db.session.commit()
+
+    def get_hierarchy(self):
+        """Get the complete role hierarchy including parent and children."""
+        hierarchy = {
+            'role': self.serialize(),
+            'parent': self.parent.serialize() if self.parent else None,
+            'children': [child.serialize() for child in self.children]
+        }
+        return hierarchy
+
+    def validate_rules(self, user_data):
+        """Validate user data against role validation rules."""
+        if not self.validation_rules:
+            return True, None
+
+        try:
+            rules = json.loads(self.validation_rules)
+            for field, rule in rules.items():
+                if field in user_data:
+                    if not self._validate_rule(rule, user_data[field]):
+                        return False, f"Validation failed for {field}"
+            return True, None
+        except json.JSONDecodeError:
+            return False, "Invalid validation rules"
+
+    def _validate_rule(self, rule, value):
+        """Validate a single rule against a value."""
+        if rule.get('type') == 'regex':
+            return bool(re.match(rule['pattern'], str(value)))
+        elif rule.get('type') == 'range':
+            return rule['min'] <= value <= rule['max']
+        elif rule.get('type') == 'enum':
+            return value in rule['values']
+        return True
+
+    def get_usage_analytics(self):
+        """Get analytics about role usage."""
+        return {
+            'total_users': self.usage_count,
+            'last_assigned': self.last_assigned_at.isoformat() if self.last_assigned_at else None,
+            'active_users': self.users.filter_by(is_active=True).count(),
+            'inactive_users': self.users.filter_by(is_active=False).count()
+        }
+
+    def update_status(self, new_status):
+        """Update the role status with validation."""
+        valid_statuses = ['active', 'inactive', 'deprecated']
+        if new_status not in valid_statuses:
+            raise ValueError(f"Invalid status. Must be one of {valid_statuses}")
+
+        if new_status == 'deprecated' and self.usage_count > 0:
+            raise ValueError("Cannot deprecate a role that is still in use")
+
+        self.status = new_status
+        db.session.commit()
+
+    @staticmethod
+    def get_role_hierarchy(role_id=None):
+        """Get the complete role hierarchy starting from a specific role or all roles."""
+        if role_id:
+            role = Role.query.get(role_id)
+            if not role:
+                return None
+            return role.get_hierarchy()
+
+        # Get all root roles (roles without parents)
+        root_roles = Role.query.filter_by(parent_id=None, is_deleted=False).all()
+        return [role.get_hierarchy() for role in root_roles]
 
 
 class User(db.Model):
@@ -200,15 +299,54 @@ class User(db.Model):
         return User.query.filter_by(is_deleted=False, is_active=True).all()
 
     def check_permission(self, permission):
-        """Check if user has a specific permission."""
-        if not self.role or not self.role.permissions:
+        """Check if user has a specific permission.
+
+        Checks both the role's permissions and the access rules.
+        Returns True if either system grants the permission.
+        """
+        if not self.role:
             return False
-        permissions = json.loads(self.role.permissions)
-        return permission in permissions
+
+        # Check Access model permissions
+        access = Access.get_access_by_role(self.role_id)
+        if access and hasattr(access, permission):
+            if getattr(access, permission):
+                return True
+
+        # Check Role model permissions
+        if self.role.permissions:
+            try:
+                permissions = json.loads(self.role.permissions)
+                return permissions.get(permission, False)
+            except json.JSONDecodeError:
+                logger.error(f"Invalid permissions JSON for role {self.role_id}")
+                return False
+
+        return False
 
     def get_effective_permissions(self):
-        """Get all effective permissions for the user."""
-        if not self.role or not self.role.permissions:
-            return set()
-        return set(json.loads(self.role.permissions))
+        """Get all effective permissions for the user.
+
+        Combines permissions from both the Access model and Role model.
+        """
+        permissions = set()
+
+        # Get permissions from Access model
+        access = Access.get_access_by_role(self.role_id)
+        if access:
+            for perm in Access.get_all_permissions():
+                if getattr(access, perm, False):
+                    permissions.add(perm)
+
+        # Get permissions from Role model
+        if self.role and self.role.permissions:
+            try:
+                role_perms = json.loads(self.role.permissions)
+                for perm, value in role_perms.items():
+                    if value:
+                        permissions.add(perm)
+            except json.JSONDecodeError:
+                logger.error(f"Invalid permissions JSON for role {self.role_id}")
+
+        return permissions
 
