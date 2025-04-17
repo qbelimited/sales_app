@@ -6,6 +6,24 @@ import logging.config
 class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'your_secret_key')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # Optimized database connection pooling for high transaction volume
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        'pool_size': 50,  # Increased pool size for more concurrent connections
+        'max_overflow': 30,  # Increased overflow for peak loads
+        'pool_timeout': 30,
+        'pool_recycle': 3600,  # Recycle connections every hour
+        'pool_pre_ping': True,  # Enable connection health checks
+        'echo': False,  # Disable SQL logging for better performance
+        'executemany_mode': 'values'  # Optimize bulk operations
+    }
+
+    # SQLAlchemy settings
+    SQLALCHEMY_POOL_RECYCLE = 3600
+    SQLALCHEMY_POOL_TIMEOUT = 30
+    SQLALCHEMY_MAX_OVERFLOW = 30
+    SQLALCHEMY_POOL_SIZE = 50
+
     JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'your_jwt_secret_key')
     API_VERSION = os.getenv('API_VERSION', 'v1')
 

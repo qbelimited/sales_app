@@ -10,8 +10,8 @@ from logger import setup_logger
 
 # Disable OneDNN for TensorFlow optimizations (if applicable)
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-os.environ['FLASK_ENV'] = 'production'
-# os.environ['FLASK_ENV'] = 'development'
+# os.environ['FLASK_ENV'] = 'production'
+os.environ['FLASK_ENV'] = 'development'
 
 # Load environment variables from .env file
 load_dotenv()
@@ -20,8 +20,8 @@ load_dotenv()
 app = Flask(__name__)
 
 # Determine the environment and load the appropriate config
-env = os.getenv('FLASK_ENV', 'production')
-# env = os.getenv('FLASK_ENV', 'development')
+# env = os.getenv('FLASK_ENV', 'production')
+env = os.getenv('FLASK_ENV', 'development')
 if env == 'development':
     app.config.from_object('config.DevelopmentConfig')
 elif env == 'testing':

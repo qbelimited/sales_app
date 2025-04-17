@@ -2,5 +2,9 @@
   {
     "type": "sqlite",
     "path": "c:\\Users\\ekbotchway\\Desktop\\Impact\\Desktop\\CODE WORKS\\Python\\sales_app\\instance\\dev.db"
+  },
+  {
+    "type": "sqlite",
+    "path": "c:\\Users\\ekbotchway\\Desktop\\Impact\\Desktop\\CODE_WORKS\\Python\\sales_app\\instance\\dev.db"
   }
 ]

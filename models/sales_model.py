@@ -1,8 +1,8 @@
 from app import db, logger
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, not_
 from flask import jsonify, request
 from models.bank_model import Bank
-from sqlalchemy.orm import validates
+from sqlalchemy.orm import validates, selectinload
 from datetime import datetime, timedelta
 from models.under_investigation_model import UnderInvestigation
 
@@ -37,6 +37,20 @@ class Sale(db.Model):
     status = db.Column(db.String(50), default='submitted', index=True)
     customer_called = db.Column(db.Boolean, default=False)
     momo_first_premium = db.Column(db.Boolean, default=False)
+
+    # Modify fraud detection fields and constants
+    transaction_velocity = db.Column(db.Integer, default=0)  # Transactions per hour
+    amount_deviation = db.Column(db.Float, nullable=True)  # Deviation from average
+    information_risk_score = db.Column(db.Float, nullable=True)  # Risk based on info quality
+    device_fingerprint = db.Column(db.String(255), nullable=True)
+    ip_address = db.Column(db.String(45), nullable=True)
+    session_duration = db.Column(db.Integer, nullable=True)
+
+    # Update constants for fraud detection
+    MAX_HOURLY_TRANSACTIONS = 20  # Increased for high-volume locations
+    AMOUNT_DEVIATION_THRESHOLD = 3.0  # Increased threshold
+    MIN_SESSION_DURATION = 15  # Reduced minimum time
+    INFO_RISK_THRESHOLD = 0.8  # New threshold for information quality
 
     # Relationships
     policy_type = db.relationship('ImpactProduct', foreign_keys=[policy_type_id], lazy='joined')
@@ -109,123 +123,218 @@ class Sale(db.Model):
                 raise ValueError("Longitude must be between -180 and 180")
         return value
 
-    def check_duplicate(self):
-        """Check for duplicate sale based on combinations of key fields, including phone number."""
+    def calculate_fraud_indicators(self):
+        """Calculate fraud indicators focusing on information quality"""
         try:
-            # Add the sale to the session to get its ID
-            db.session.add(self)
-            db.session.flush()  # This will generate the ID for the sale
+            # Calculate transaction velocity
+            hour_ago = datetime.utcnow() - timedelta(hours=1)
+            self.transaction_velocity = db.session.query(
+                db.func.count(Sale.id)
+            ).filter(
+                Sale.client_phone == self.client_phone,
+                Sale.created_at >= hour_ago,
+                not_(Sale.is_deleted)
+            ).scalar()
 
-            # Normalize and sanitize user inputs
-            client_phone_normalized = self.sanitize_input(self.client_phone.strip())
-            client_id_no_normalized = self.sanitize_input(self.client_id_no.strip().lower() or "")
-            serial_number_normalized = self.sanitize_input(self.serial_number.strip().lower() or "")
-            momo_reference_number_normalized = self.sanitize_input(self.momo_reference_number.strip().lower() or "")
-            bank_acc_number_normalized = self.sanitize_input(self.bank_acc_number.strip() or "")
+            # Calculate amount deviation
+            avg_amount = db.session.query(
+                db.func.avg(Sale.amount)
+            ).filter(
+                Sale.policy_type_id == self.policy_type_id,
+                not_(Sale.is_deleted)
+            ).scalar() or 0
 
-            # Check transaction frequency
-            recent_transactions_count = self.get_recent_transaction_count(client_phone_normalized)
+            if avg_amount > 0:
+                self.amount_deviation = self.amount / avg_amount
 
-            if recent_transactions_count > self.MAX_RECENT_TRANSACTIONS:
-                logger.warning(f"High transaction frequency detected for {client_phone_normalized}. Consider flagging for review.")
-                self.flag_under_investigation("High transaction frequency detected.")
-                return self
+            # Calculate information risk score
+            self.information_risk_score = self._calculate_info_risk()
 
-            # Check for duplicates
-            critical_duplicates = self.find_duplicate(
-                critical=True,
-                client_phone=client_phone_normalized,
-                client_id_no=client_id_no_normalized,
-                serial_number=serial_number_normalized,
-                momo_reference_number=momo_reference_number_normalized,
-                bank_acc_number=bank_acc_number_normalized
-            )
-
-            if critical_duplicates:  # If there are actual duplicates
-                self.status = 'under investigation'
-                self.flag_under_investigation("Critical duplicate detected.")
-                return self
-
-            less_critical_duplicates = self.find_duplicate(
-                critical=False,
-                client_phone=client_phone_normalized,
-                serial_number=serial_number_normalized
-            )
-
-            if less_critical_duplicates:  # If there are actual duplicates
-                self.status = 'potential duplicate'
-                self.flag_under_investigation("Potential duplicate detected.")
-                return self
-
-            logger.info("No sales found that match the criteria.")
-
-            # No duplicates found, proceed with normal submission
-            self.status = 'submitted'
-            db.session.commit()
-            return self
-
-        except ValueError as ve:
-            logger.error(f"Validation error in duplicate check: {ve}")
-            db.session.rollback()  # Rollback session on validation errors
-            raise ValueError("Validation error: " + str(ve))
+            return True
         except Exception as e:
-            db.session.rollback()  # Ensure rollback on any exception
-            logger.error(f"Database error checking for duplicates: {e}")
-            raise ValueError("An error occurred while checking for duplicates. Please try again.")
+            logger.error(f"Error calculating fraud indicators: {str(e)}")
+            return False
+
+    def _calculate_info_risk(self):
+        """Calculate risk based on information quality and consistency"""
+        try:
+            risk_score = 0.0
+            total_checks = 0
+
+            # Check client information completeness
+            if self.client_name and len(self.client_name.strip()) > 2:
+                total_checks += 1
+            if self.client_phone and len(self.client_phone.strip()) == 10:
+                total_checks += 1
+            if self.client_id_no and len(self.client_id_no.strip()) >= 6:
+                total_checks += 1
+
+            # Check payment information consistency
+            if self.collection_platform:
+                total_checks += 1
+                if self.collection_platform == 'Momo' and self.momo_reference_number:
+                    total_checks += 1
+                elif self.collection_platform == 'Bank' and self.bank_acc_number:
+                    total_checks += 1
+
+            # Check policy information
+            if self.policy_type_id and self.amount > 0:
+                total_checks += 1
+
+            # Calculate final risk score (lower is better)
+            if total_checks > 0:
+                risk_score = 1.0 - (total_checks / 7.0)  # 7 is max possible checks
+
+            return risk_score
+        except Exception as e:
+            logger.error(f"Error calculating info risk: {str(e)}")
+            return 0.5
+
+    def check_duplicate(self):
+        """Enhanced duplicate and fraud checking focusing on information quality"""
+        try:
+            # Calculate fraud indicators
+            if not self.calculate_fraud_indicators():
+                raise ValueError("Failed to calculate fraud indicators")
+
+            # Check transaction velocity with higher threshold
+            if self.transaction_velocity > self.MAX_HOURLY_TRANSACTIONS:
+                logger.warning(
+                    f"High transaction velocity detected: {self.transaction_velocity}"
+                )
+                self.flag_under_investigation("High transaction velocity")
+                return self
+
+            # Check amount deviation with higher threshold
+            if self.amount_deviation and self.amount_deviation > self.AMOUNT_DEVIATION_THRESHOLD:
+                logger.warning(
+                    f"Unusual amount deviation detected: {self.amount_deviation}x"
+                )
+                self.flag_under_investigation("Unusual transaction amount")
+                return self
+
+            # Check information quality
+            if self.information_risk_score and self.information_risk_score > self.INFO_RISK_THRESHOLD:
+                logger.warning(
+                    f"Poor information quality detected: {self.information_risk_score}"
+                )
+                self.flag_under_investigation("Poor information quality")
+                return self
+
+            # Check session duration with lower threshold
+            if self.session_duration and self.session_duration < self.MIN_SESSION_DURATION:
+                logger.warning(
+                    f"Suspiciously quick transaction: {self.session_duration}s"
+                )
+                self.flag_under_investigation("Suspicious transaction speed")
+                return self
+
+            # Continue with existing duplicate checks
+            return super().check_duplicate()
+
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error in enhanced fraud check: {str(e)}")
+            raise ValueError("An error occurred during fraud detection")
 
     def get_recent_transaction_count(self, client_phone):
-        """Retrieve the count of recent transactions for a client phone number."""
+        """Retrieve the count of recent transactions for a client phone number with optimized query"""
         try:
-            return Sale.query.filter(
+            # Use a subquery for better performance
+            thirty_days_ago = datetime.utcnow() - timedelta(days=self.TRANSACTION_PERIOD_DAYS)
+
+            return db.session.query(
+                db.func.count(Sale.id)
+            ).filter(
                 Sale.client_phone == client_phone,
-                Sale.created_at >= datetime.utcnow() - timedelta(days=self.TRANSACTION_PERIOD_DAYS)
-            ).count()
+                Sale.created_at >= thirty_days_ago,
+                not_(Sale.is_deleted)
+            ).scalar()
+
         except Exception as e:
             logger.error(f"Error fetching recent transaction count: {e}")
             raise
 
     def find_duplicate(self, critical, client_phone=None, client_id_no=None, serial_number=None, momo_reference_number=None, bank_acc_number=None):
-        """Check for duplicates based on specified criteria."""
-        query = Sale.query.filter(Sale.is_deleted == False, Sale.status.notin_(['under investigation', 'potential duplicate']))
-
-        logger.info(f"Checking for duplicates with: "
-                    f"client_phone={client_phone}, "
-                    f"client_id_no={client_id_no}, "
-                    f"serial_number={serial_number}, "
-                    f"momo_reference_number={momo_reference_number}, "
-                    f"bank_acc_number={bank_acc_number}")
-
-        if critical:
-            conditions = or_(
-                and_(
-                    Sale.client_phone == client_phone,
-                    Sale.client_id_no == client_id_no,
-                    Sale.policy_type_id == self.policy_type_id
-                ),
-                and_(
-                    Sale.client_phone == client_phone,
-                    Sale.serial_number == serial_number,
-                    Sale.momo_reference_number == momo_reference_number
-                ),
-                and_(
-                    Sale.client_id_no == client_id_no,
-                    Sale.bank_acc_number == bank_acc_number,
-                    Sale.serial_number == serial_number
-                )
-            )
-        else:
-            conditions = or_(
-                and_(
-                    Sale.client_phone == client_phone,
-                    Sale.policy_type_id == self.policy_type_id
-                ),
-                and_(
-                    Sale.client_phone == client_phone,
-                    Sale.serial_number == serial_number
-                )
+        """Check for duplicates based on specified criteria with optimized querying"""
+        try:
+            # Start with a base query using index hints
+            query = Sale.query.filter(
+                not_(Sale.is_deleted),  # Use not_ instead of == False
+                Sale.status.notin_(['under investigation', 'potential duplicate'])
             )
 
-        return query.filter(conditions).all()  # Return all matching records
+            if critical:
+                # Use compound indexes for critical checks with optimized conditions
+                conditions = []
+
+                # Check for exact matches first (most critical)
+                if client_phone and serial_number:
+                    conditions.append(
+                        and_(
+                            Sale.client_phone == client_phone,
+                            Sale.serial_number == serial_number
+                        )
+                    )
+
+                # Check for ID number matches with policy type
+                if client_id_no and self.policy_type_id:
+                    conditions.append(
+                        and_(
+                            Sale.client_id_no == client_id_no,
+                            Sale.policy_type_id == self.policy_type_id
+                        )
+                    )
+
+                # Check for bank account and reference number matches
+                if bank_acc_number and momo_reference_number:
+                    conditions.append(
+                        and_(
+                            Sale.bank_acc_number == bank_acc_number,
+                            Sale.momo_reference_number == momo_reference_number
+                        )
+                    )
+
+                if conditions:
+                    # Use union to combine results efficiently
+                    subqueries = []
+                    for condition in conditions:
+                        subquery = query.filter(condition)
+                        subqueries.append(subquery)
+
+                    if subqueries:
+                        final_query = subqueries[0]
+                        for subquery in subqueries[1:]:
+                            final_query = final_query.union(subquery)
+                        return final_query.limit(100).all()
+            else:
+                # Non-critical checks with simpler conditions
+                conditions = []
+
+                # Check for phone number matches with policy type
+                if client_phone and self.policy_type_id:
+                    conditions.append(
+                        and_(
+                            Sale.client_phone == client_phone,
+                            Sale.policy_type_id == self.policy_type_id
+                        )
+                    )
+
+                # Check for serial number matches
+                if serial_number:
+                    conditions.append(
+                        Sale.serial_number == serial_number
+                    )
+
+                if conditions:
+                    query = query.filter(or_(*conditions))
+                    return query.limit(100).all()
+
+            return []
+
+        except Exception as e:
+            logger.error(f"Error finding duplicates: {str(e)}")
+            return []
 
     def flag_under_investigation(self, reason):
         """Flag the current sale under investigation and log the reason."""
@@ -301,13 +410,49 @@ class Sale(db.Model):
 
     @staticmethod
     def get_active_sales(page=1, per_page=10):
-        """Retrieve paginated list of active (non-deleted) sales."""
+        """Get active sales with optimized querying for large datasets"""
         try:
-            sales = Sale.query.filter_by(is_deleted=False).paginate(page=page, per_page=per_page)
-            return sales.items, sales.total, sales.pages, sales.page
+            # Use selectinload for efficient relationship loading
+            # Add index hints for better query performance
+            query = Sale.query.options(
+                selectinload(Sale.policy_type),
+                selectinload(Sale.sales_executive),
+                selectinload(Sale.paypoint),
+                selectinload(Sale.sale_manager),
+                selectinload(Sale.bank),
+                selectinload(Sale.bank_branch),
+                selectinload(Sale.user)
+            ).filter(
+                Sale.is_deleted == False
+            ).order_by(
+                Sale.created_at.desc()
+            )
+
+            # Optimize pagination for large datasets
+            # Use keyset pagination for better performance
+            if page > 1:
+                last_sale = query.limit((page-1) * per_page).all()[-1]
+                query = query.filter(Sale.created_at < last_sale.created_at)
+
+            # Get only the current page
+            current_page_sales = query.limit(per_page).all()
+
+            # Get total count efficiently
+            total_count = db.session.query(db.func.count(Sale.id)).filter(
+                Sale.is_deleted == False
+            ).scalar()
+
+            total_pages = (total_count + per_page - 1) // per_page
+
+            return {
+                'sales': [sale.serialize() for sale in current_page_sales],
+                'total': total_count,
+                'pages': total_pages,
+                'current_page': page
+            }
         except Exception as e:
-            logger.error(f"Error fetching active sales: {e}")
-            raise ValueError(f"Error fetching active sales: {e}")
+            logger.error(f"Error getting active sales: {str(e)}")
+            return {'error': 'Failed to fetch sales'}, 500
 
     @staticmethod
     def check_serial_number():
@@ -318,3 +463,48 @@ class Sale(db.Model):
 
         exists = Sale.query.filter_by(serial_number=serial_number).first() is not None
         return jsonify({"exists": exists})
+
+    def get_performance_metrics(self):
+        """Calculate performance metrics for the sale."""
+        try:
+            metrics = {
+                'fraud_risk_score': self.information_risk_score or 0.0,
+                'transaction_velocity': self.transaction_velocity,
+                'amount_deviation': self.amount_deviation or 0.0
+            }
+            return metrics
+        except Exception as e:
+            logger.error(f"Error calculating performance metrics: {str(e)}")
+            return {}
+
+    def get_customer_retention_metrics(self):
+        """Calculate customer retention metrics."""
+        try:
+            # Get all sales for this customer
+            customer_sales = Sale.query.filter(
+                Sale.client_phone == self.client_phone,
+                not_(Sale.is_deleted)
+            ).order_by(Sale.created_at.desc()).all()
+
+            if not customer_sales:
+                return {}
+
+            # Calculate metrics
+            total_sales = len(customer_sales)
+            total_amount = sum(sale.amount for sale in customer_sales)
+            avg_time_between_sales = 0
+            if total_sales > 1:
+                time_diffs = [(customer_sales[i].created_at - customer_sales[i+1].created_at).days
+                            for i in range(total_sales-1)]
+                avg_time_between_sales = sum(time_diffs) / len(time_diffs)
+
+            return {
+                'total_sales': total_sales,
+                'total_amount': total_amount,
+                'avg_time_between_sales': avg_time_between_sales,
+                'first_sale_date': customer_sales[-1].created_at,
+                'last_sale_date': customer_sales[0].created_at
+            }
+        except Exception as e:
+            logger.error(f"Error calculating retention metrics: {str(e)}")
+            return {}

@@ -2,12 +2,15 @@ from app import db
 from datetime import datetime
 from sqlalchemy.orm import validates
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import Index
 
 # Define a new table for product categories
 class ProductCategory(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True, index=True)
+    description = db.Column(db.String(500), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
     @validates('name')
     def validate_name(self, _, name):
@@ -21,7 +24,10 @@ class ProductCategory(db.Model):
         return {
             'id': self.id,
             'name': self.name,
-            'created_at': self.created_at.isoformat()
+            'description': self.description,
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat()
+            if self.updated_at else None
         }
 
     @staticmethod
@@ -34,20 +40,34 @@ class ProductCategory(db.Model):
 class ImpactProduct(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, index=True)
+    description = db.Column(db.String(500), nullable=True)
+    status = db.Column(db.String(20), nullable=False, default='active', index=True)
 
     # Foreign key relationship to ProductCategory
-    category_id = db.Column(db.Integer, db.ForeignKey('product_category.id'), nullable=False)
+    category_id = db.Column(
+        db.Integer,
+        db.ForeignKey('product_category.id'),
+        nullable=False
+    )
     category = db.relationship('ProductCategory', backref='products', lazy='joined')
 
     # Group column restricted to three possible values
-    group = db.Column(db.Enum('risk', 'investment', 'hybrid', name='impact_product_group'), nullable=False, index=True)
+    group = db.Column(
+        db.Enum('risk', 'investment', 'hybrid', name='impact_product_group'),
+        nullable=False,
+        index=True
+    )
 
     is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
     # Ensure uniqueness of product names within categories
-    __table_args__ = (db.UniqueConstraint('name', 'category_id', name='_product_category_uc'),)
+    __table_args__ = (
+        db.UniqueConstraint('name', 'category_id', name='_product_category_uc'),
+        Index('idx_product_category_group', 'category_id', 'group'),
+        Index('idx_product_status_group', 'status', 'group')
+    )
 
     @validates('name')
     def validate_name(self, _, name):
@@ -61,28 +81,58 @@ class ImpactProduct(db.Model):
         """Ensure that the group is one of the allowed values."""
         allowed_groups = ['risk', 'investment', 'hybrid']
         if group not in allowed_groups:
-            raise ValueError(f"Invalid group. Allowed values are: {', '.join(allowed_groups)}")
+            raise ValueError(
+                f"Invalid group. Allowed values are: {', '.join(allowed_groups)}"
+            )
         return group
+
+    @validates('status')
+    def validate_status(self, _, status):
+        """Ensure that the status is one of the allowed values."""
+        allowed_statuses = ['active', 'inactive', 'deprecated']
+        if status not in allowed_statuses:
+            raise ValueError(
+                f"Invalid status. Allowed values are: {', '.join(allowed_statuses)}"
+            )
+        return status
 
     def serialize(self):
         """Serialize product data for API responses."""
         return {
             'id': self.id,
             'name': self.name,
+            'description': self.description,
+            'status': self.status,
             'category': self.category.serialize() if self.category else None,
             'group': self.group,
             'is_deleted': self.is_deleted,
             'created_at': self.created_at.isoformat(),
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
+            'updated_at': self.updated_at.isoformat()
+            if self.updated_at else None
         }
 
     @staticmethod
     def get_active_products(page=1, per_page=10):
         """Retrieve paginated list of active products."""
         try:
-            return ImpactProduct.query.filter_by(is_deleted=False).paginate(page=page, per_page=per_page).items
+            return ImpactProduct.query.filter_by(
+                is_deleted=False,
+                status='active'
+            ).paginate(page=page, per_page=per_page).items
         except Exception as e:
             raise ValueError(f"Error fetching active products: {str(e)}")
+
+    @staticmethod
+    def get_products_by_group(group, page=1, per_page=10):
+        """Retrieve paginated list of products by group."""
+        try:
+            return ImpactProduct.query.filter_by(
+                is_deleted=False,
+                status='active',
+                group=group
+            ).paginate(page=page, per_page=per_page).items
+        except Exception as e:
+            raise ValueError(f"Error fetching products by group: {str(e)}")
 
     def save(self):
         """Save the product to the database with error handling."""
@@ -91,7 +141,9 @@ class ImpactProduct(db.Model):
             db.session.commit()
         except IntegrityError as e:
             db.session.rollback()
-            raise ValueError(f"Error saving product (duplicate or constraint violation): {str(e)}")
+            raise ValueError(
+                f"Error saving product (duplicate or constraint violation): {str(e)}"
+            )
         except Exception as e:
             db.session.rollback()
             raise ValueError(f"Error saving product: {str(e)}")
@@ -101,6 +153,7 @@ class ImpactProduct(db.Model):
         try:
             if soft_delete:
                 self.is_deleted = True
+                self.status = 'inactive'
             else:
                 db.session.delete(self)
             db.session.commit()
@@ -111,7 +164,12 @@ class ImpactProduct(db.Model):
     @staticmethod
     def get_product_by_id(product_id):
         """Retrieve a single product by its ID."""
-        product = ImpactProduct.query.filter_by(id=product_id, is_deleted=False).first()
+        product = ImpactProduct.query.filter_by(
+            id=product_id,
+            is_deleted=False
+        ).first()
         if not product:
-            raise ValueError(f"Product with ID {product_id} not found or has been deleted.")
+            raise ValueError(
+                f"Product with ID {product_id} not found or has been deleted."
+            )
         return product
