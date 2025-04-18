@@ -3,6 +3,12 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import validates
 from enum import Enum
 import json
+import logging
+
+# Configure logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 
 class InvestigationPriority(Enum):
     """Priority levels for investigations."""
@@ -10,6 +16,7 @@ class InvestigationPriority(Enum):
     MEDIUM = 'medium'
     HIGH = 'high'
     CRITICAL = 'critical'
+
 
 class InvestigationStatus(Enum):
     """Status of an investigation."""
@@ -19,6 +26,7 @@ class InvestigationStatus(Enum):
     RESOLVED = 'resolved'
     CLOSED = 'closed'
 
+
 class InvestigationCategory(Enum):
     """Categories of investigations."""
     FRAUD = 'fraud'
@@ -27,6 +35,7 @@ class InvestigationCategory(Enum):
     DATA_QUALITY = 'data_quality'
     OPERATIONAL = 'operational'
     OTHER = 'other'
+
 
 class InvestigationSLA(db.Model):
     """Service Level Agreement for investigations."""
@@ -49,8 +58,12 @@ class InvestigationSLA(db.Model):
         """Validate SLA time thresholds."""
         if value <= 0:
             raise ValueError(f"{key} must be positive")
-        if key == 'warning_threshold_days' and value >= self.breach_threshold_days:
-            raise ValueError("Warning threshold must be less than breach threshold")
+        if key == 'warning_threshold_days' and (
+            value >= self.breach_threshold_days
+        ):
+            raise ValueError(
+                "Warning threshold must be less than breach threshold"
+            )
         if key == 'target_resolution_days' and value >= self.warning_threshold_days:
             raise ValueError("Target resolution must be less than warning threshold")
         return value
@@ -97,6 +110,7 @@ class InvestigationSLA(db.Model):
             priority=priority,
             is_active=True
         ).first()
+
 
 class UnderInvestigation(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -431,9 +445,12 @@ class UnderInvestigation(db.Model):
 
             avg_resolution_time = db.session.query(
                 db.func.avg(
-                    db.func.extract('epoch', UnderInvestigation.resolved_at - UnderInvestigation.flagged_at)
+                    db.func.extract(
+                        'epoch',
+                        UnderInvestigation.resolved_at - UnderInvestigation.flagged_at
+                    )
                 )
-            ).filter(UnderInvestigation.resolved == True).scalar() or 0
+            ).filter(UnderInvestigation.resolved).scalar() or 0
 
             sla_breach_count = UnderInvestigation.query.filter_by(
                 sla_status='breached',

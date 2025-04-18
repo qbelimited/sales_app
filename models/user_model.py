@@ -1,4 +1,3 @@
-from flask_sqlalchemy import SQLAlchemy
 from extensions import db
 from datetime import datetime, timedelta
 from sqlalchemy.orm import validates
@@ -7,8 +6,9 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from enum import Enum
 import json
 from flask import request
-from sqlalchemy import UniqueConstraint
 import logging
+from functools import lru_cache
+from models.audit_model import AuditTrail
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -149,6 +149,18 @@ class Role(db.Model):
         # Get all root roles (roles without parents)
         root_roles = Role.query.filter_by(parent_id=None, is_deleted=False).all()
         return [role.get_hierarchy() for role in root_roles]
+
+
+def validate_status_transition(current_status, new_status):
+    """Validate if a status transition is allowed."""
+    valid_transitions = {
+        UserStatus.ACTIVE.value: [UserStatus.INACTIVE.value, UserStatus.SUSPENDED.value, UserStatus.LOCKED.value],
+        UserStatus.INACTIVE.value: [UserStatus.ACTIVE.value],
+        UserStatus.SUSPENDED.value: [UserStatus.ACTIVE.value],
+        UserStatus.LOCKED.value: [UserStatus.ACTIVE.value]
+    }
+    if new_status not in valid_transitions.get(current_status, []):
+        raise ValueError(f"Invalid status transition from {current_status} to {new_status}")
 
 
 class User(db.Model):
@@ -317,7 +329,7 @@ class User(db.Model):
             return False
 
         # Check if permission exists and is granted
-        for resource, perms in access_rules.items():
+        for _, perms in access_rules.items():
             if permission in perms and perms[permission]:
                 return True
 
@@ -332,3 +344,87 @@ class User(db.Model):
 
         return Access.get_role_permissions(self.role_id)
 
+    @classmethod
+    @lru_cache(maxsize=100)
+    def get_by_id(cls, user_id):
+        """Get user by ID with caching."""
+        return cls.query.get(user_id)
+
+    @classmethod
+    @lru_cache(maxsize=100)
+    def get_by_email(cls, email):
+        """Get user by email with caching."""
+        return cls.query.filter_by(email=email, is_deleted=False).first()
+
+    def update_status(self, new_status):
+        """Update user status."""
+        try:
+            validate_status_transition(self.status, new_status)
+            self.status = new_status
+            self.updated_at = datetime.utcnow()
+            db.session.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Error updating user status: {str(e)}")
+            db.session.rollback()
+            return False
+
+    def update_password(self, new_password):
+        """Update user password."""
+        try:
+            self.password = new_password
+            self.last_password_change = datetime.utcnow()
+            db.session.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Error updating password: {str(e)}")
+            db.session.rollback()
+            return False
+
+    def get_activity_metrics(self, days=30):
+        """Get user activity metrics for the last N days."""
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=days)
+
+        try:
+            login_history = json.loads(self.login_history) if self.login_history else []
+            recent_logins = [
+                login for login in login_history
+                if datetime.fromisoformat(login['timestamp']) >= start_date
+            ]
+
+            return {
+                'total_logins': len(recent_logins),
+                'unique_devices': len(set(login.get('device_info', '') for login in recent_logins)),
+                'last_activity': self.last_activity.isoformat() if self.last_activity else None,
+                'status_changes': self.get_status_changes(start_date, end_date)
+            }
+        except Exception as e:
+            logger.error(f"Error getting activity metrics: {str(e)}")
+            return None
+
+    def get_status_changes(self, start_date, end_date):
+        """Get user status changes within a date range."""
+        try:
+            audit_trails = AuditTrail.query.filter(
+                AuditTrail.user_id == self.id,
+                AuditTrail.action == 'STATUS_CHANGE',
+                AuditTrail.created_at.between(start_date, end_date)
+            ).all()
+
+            return [{
+                'old_status': trail.details.get('old_status'),
+                'new_status': trail.details.get('new_status'),
+                'timestamp': trail.created_at.isoformat()
+            } for trail in audit_trails]
+        except Exception as e:
+            logger.error(f"Error getting status changes: {str(e)}")
+            return []
+
+    def invalidate_cache(self):
+        """Invalidate cached user data."""
+        self.get_by_id.cache_clear()
+        self.get_by_email.cache_clear()
+
+    def __repr__(self):
+        return f'<User {self.email}>'

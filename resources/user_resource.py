@@ -5,7 +5,7 @@ from models.branch_model import Branch
 from models.user_session_model import UserSession
 from models.audit_model import AuditTrail
 from extensions import db
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt, create_access_token
 from datetime import datetime, timedelta
 from utils import get_client_ip
 import json
@@ -53,6 +53,12 @@ session_model = user_ns.model('UserSession', {
     'is_active': fields.Boolean(description='Is Active'),
 })
 
+# Token settings
+TOKEN_GRACE_PERIOD = 5  # minutes
+TOKEN_EXPIRATION_WARNING = 10  # minutes
+TOKEN_REFRESH_THRESHOLD = 15  # minutes before expiration to refresh
+MAX_REFRESH_ATTEMPTS = 3  # Maximum number of refresh attempts per session
+USER_ACTIVITY_TIMEOUT = 30  # minutes of inactivity before considering user inactive
 
 @lru_cache(maxsize=100)
 def validate_email_format(email):
@@ -427,40 +433,130 @@ class PasswordUpdateResource(Resource):
         return {'message': 'Password updated successfully'}, 200
 
 
-# User Sessions Management
+def handle_token_expiration():
+    """Handle token expiration and logout user."""
+    try:
+        current_user = get_jwt_identity()
+        if current_user:
+            # End all active sessions for the user
+            active_sessions = UserSession.query.filter_by(
+                user_id=current_user['id'],
+                is_active=True
+            ).all()
+
+            for session in active_sessions:
+                session.end_session()
+                logger.info(f"Session {session.id} ended due to token expiration")
+
+            db.session.commit()
+    except Exception as e:
+        logger.error(f"Error handling token expiration: {str(e)}")
+
+
+def check_token_expiration():
+    """Check if token is expired or about to expire."""
+    try:
+        jwt_data = get_jwt()
+        expiration_time = datetime.fromtimestamp(jwt_data['exp'])
+        current_time = datetime.utcnow()
+
+        # Check if token is expired (including grace period)
+        if expiration_time < current_time - timedelta(minutes=TOKEN_GRACE_PERIOD):
+            handle_token_expiration()
+            return False, 'Token expired'
+
+        # Check if token is about to expire (for warning)
+        if expiration_time < current_time + timedelta(minutes=TOKEN_EXPIRATION_WARNING):
+            return True, 'Token about to expire'
+
+        return True, None
+    except Exception as e:
+        logger.error(f"Error checking token expiration: {str(e)}")
+        return False, 'Error checking token'
+
+
+def is_user_active(user_id):
+    """Check if user has been active recently."""
+    try:
+        user = User.query.filter_by(id=user_id, is_deleted=False).first()
+        if not user:
+            return False
+
+        last_activity = user.last_activity
+        if not last_activity:
+            return False
+
+        inactive_time = datetime.utcnow() - last_activity
+        return inactive_time < timedelta(minutes=USER_ACTIVITY_TIMEOUT)
+    except Exception as e:
+        logger.error(f"Error checking user activity: {str(e)}")
+        return False
+
+
+def refresh_token_if_needed():
+    """Refresh token if it's about to expire and user is active."""
+    try:
+        jwt_data = get_jwt()
+        expiration_time = datetime.fromtimestamp(jwt_data['exp'])
+        current_time = datetime.utcnow()
+
+        # Check if token needs refresh
+        if expiration_time < current_time + timedelta(minutes=TOKEN_REFRESH_THRESHOLD):
+            current_user = get_jwt_identity()
+            if current_user and is_user_active(current_user['id']):
+                # Create new token with same identity
+                new_token = create_access_token(
+                    identity=current_user,
+                    expires_delta=timedelta(minutes=30)  # Standard token lifetime
+                )
+                logger.info(f"Token refreshed for user {current_user['id']}")
+                return new_token
+            else:
+                logger.warning(
+                    f"Token refresh skipped - user inactive or not found: "
+                    f"{current_user['id'] if current_user else 'None'}"
+                )
+        return None
+    except Exception as e:
+        logger.error(f"Error refreshing token: {str(e)}")
+        return None
+
+
 @user_ns.route('/<int:user_id>/sessions')
 class UserSessionResource(Resource):
     @user_ns.doc(security='Bearer Auth')
     @jwt_required()
-    @user_ns.marshal_list_with(session_model)
     def get(self, user_id):
-        """Retrieve active sessions for a specific user."""
-        current_user = get_jwt_identity()
+        """Get user sessions with automatic token refresh."""
+        try:
+            # Check token expiration with grace period
+            is_valid, message = check_token_expiration()
+            if not is_valid:
+                return {'message': message}, 401
 
-        # Only allow users to view their own sessions or admins to view any user's sessions
-        if current_user['id'] != user_id and current_user['role'].lower() != 'admin':
-            return {'message': 'Unauthorized'}, 403
+            # Attempt to refresh token if needed
+            new_token = refresh_token_if_needed()
+            if new_token:
+                return {
+                    'message': 'Token refreshed',
+                    'new_token': new_token
+                }, 200
 
-        # Retrieve active sessions for the specified user
-        sessions = UserSession.get_active_sessions(user_id=user_id)
+            current_user = get_jwt_identity()
+            if current_user['id'] != user_id and current_user['role'].lower() != 'admin':
+                return {'message': 'Unauthorized'}, 403
 
-        # Log the access to the sessions
-        logger.info(f"User {current_user['id']} accessed sessions of user {user_id}.")
+            # Update user's last activity
+            user = User.query.filter_by(id=user_id).first()
+            if user:
+                user.last_activity = datetime.utcnow()
+                db.session.commit()
 
-        # Add audit trail entry
-        audit = AuditTrail(
-            user_id=current_user['id'],
-            action='ACCESS',
-            resource_type='user_sessions',
-            resource_id=user_id,
-            details=f"Accessed active sessions for user {user_id}",
-            ip_address=get_client_ip(),
-            user_agent=request.headers.get('User-Agent')
-        )
-        db.session.add(audit)
-        db.session.commit()
-
-        return [session.serialize() for session in sessions], 200
+            sessions = UserSession.query.filter_by(user_id=user_id).all()
+            return [session.serialize() for session in sessions], 200
+        except Exception as e:
+            logger.error(f"Error getting user sessions: {str(e)}")
+            return {'message': 'An error occurred'}, 500
 
     @user_ns.doc(security='Bearer Auth')
     @jwt_required()
@@ -992,6 +1088,11 @@ class SessionActivityResource(Resource):
         return activity_data, 200
 
 
+def check_role_permission(user, allowed_roles):
+    """Check if user has required role permissions."""
+    return user['role'].lower() in allowed_roles
+
+
 @user_ns.route('/<int:user_id>/timeline')
 class UserTimelineResource(Resource):
     """Resource for getting user activity timeline."""
@@ -1096,3 +1197,197 @@ class UserTimelineResource(Resource):
         except Exception as e:
             logger.error(f"Error getting user timeline: {str(e)}")
             return {'message': 'An error occurred while fetching timeline'}, 500
+
+
+@user_ns.route('/bulk')
+class BulkUserResource(Resource):
+    @user_ns.doc(security='Bearer Auth')
+    @jwt_required()
+    def post(self):
+        """Bulk create users."""
+        current_user = get_jwt_identity()
+        if current_user['role'].lower() not in ['admin', 'manager']:
+            return {'message': 'Unauthorized'}, 403
+
+        try:
+            data = request.json
+            if not isinstance(data, list):
+                return {'message': 'Request body must be a list of users'}, 400
+
+            created_users = []
+            errors = []
+
+            for user_data in data:
+                try:
+                    validate_user_data(user_data)
+                    new_user = User(
+                        email=user_data['email'],
+                        name=user_data['name'],
+                        role_id=user_data['role_id'],
+                        status=user_data.get('status', 'active')
+                    )
+
+                    if 'password' in user_data:
+                        new_user.password = user_data['password']
+                    else:
+                        new_user.password = "Password"  # Set default password
+
+                    if 'branches' in user_data:
+                        branches = Branch.query.filter(Branch.id.in_(user_data['branches'])).all()
+                        new_user.branches = branches
+
+                    db.session.add(new_user)
+                    created_users.append(new_user.serialize())
+                except Exception as e:
+                    errors.append({
+                        'email': user_data.get('email'),
+                        'error': str(e)
+                    })
+
+            if errors:
+                db.session.rollback()
+                return {
+                    'message': 'Some users could not be created',
+                    'errors': errors
+                }, 400
+
+            db.session.commit()
+            return {'users': created_users}, 201
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error in bulk user creation: {str(e)}")
+            return {'message': 'Error creating users'}, 500
+
+    @user_ns.doc(security='Bearer Auth')
+    @jwt_required()
+    def put(self):
+        """Bulk update users."""
+        current_user = get_jwt_identity()
+        if current_user['role'].lower() not in ['admin', 'manager']:
+            return {'message': 'Unauthorized'}, 403
+
+        try:
+            data = request.json
+            if not isinstance(data, list):
+                return {'message': 'Request body must be a list of user updates'}, 400
+
+            updated_users = []
+            errors = []
+
+            for update_data in data:
+                try:
+                    user_id = update_data.get('id')
+                    if not user_id:
+                        raise ValueError('User ID is required for updates')
+
+                    user = User.query.get(user_id)
+                    if not user:
+                        raise ValueError(f'User with ID {user_id} not found')
+
+                    # Update user fields
+                    for field in ['name', 'role_id', 'status']:
+                        if field in update_data:
+                            setattr(user, field, update_data[field])
+
+                    if 'branches' in update_data:
+                        branches = Branch.query.filter(Branch.id.in_(update_data['branches'])).all()
+                        user.branches = branches
+
+                    updated_users.append(user.serialize())
+                except Exception as e:
+                    errors.append({
+                        'user_id': update_data.get('id'),
+                        'error': str(e)
+                    })
+
+            if errors:
+                db.session.rollback()
+                return {
+                    'message': 'Some users could not be updated',
+                    'errors': errors
+                }, 400
+
+            db.session.commit()
+            return {'users': updated_users}, 200
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error in bulk user update: {str(e)}")
+            return {'message': 'Error updating users'}, 500
+
+    @user_ns.doc(security='Bearer Auth')
+    @jwt_required()
+    def delete(self):
+        """Bulk delete users."""
+        current_user = get_jwt_identity()
+        if current_user['role'].lower() not in ['admin', 'manager']:
+            return {'message': 'Unauthorized'}, 403
+
+        try:
+            data = request.json
+            if not isinstance(data, list):
+                return {'message': 'Request body must be a list of user IDs'}, 400
+
+            deleted_users = []
+            errors = []
+
+            for user_id in data:
+                try:
+                    user = User.query.get(user_id)
+                    if not user:
+                        raise ValueError(f'User with ID {user_id} not found')
+
+                    user.is_deleted = True
+                    user.updated_at = datetime.utcnow()
+                    deleted_users.append(user.serialize())
+                except Exception as e:
+                    errors.append({
+                        'user_id': user_id,
+                        'error': str(e)
+                    })
+
+            if errors:
+                db.session.rollback()
+                return {
+                    'message': 'Some users could not be deleted',
+                    'errors': errors
+                }, 400
+
+            db.session.commit()
+            return {'users': deleted_users}, 200
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Error in bulk user deletion: {str(e)}")
+            return {'message': 'Error deleting users'}, 500
+
+
+@user_ns.route('/export')
+class UserExportResource(Resource):
+    @user_ns.doc(security='Bearer Auth')
+    @jwt_required()
+    def get(self):
+        """Export users data."""
+        current_user = get_jwt_identity()
+        if current_user['role'].lower() not in ['admin', 'manager']:
+            return {'message': 'Unauthorized'}, 403
+
+        try:
+            users = User.query.filter_by(is_deleted=False).all()
+            export_data = [user.serialize() for user in users]
+
+            # Add audit trail
+            audit = AuditTrail(
+                user_id=current_user['id'],
+                action='EXPORT',
+                resource_type='users',
+                resource_id=None,
+                details='Exported users data',
+                ip_address=get_client_ip(),
+                user_agent=request.headers.get('User-Agent')
+            )
+            db.session.add(audit)
+            db.session.commit()
+
+            return {'users': export_data}, 200
+        except Exception as e:
+            logger.error(f"Error exporting users: {str(e)}")
+            return {'message': 'Error exporting users'}, 500

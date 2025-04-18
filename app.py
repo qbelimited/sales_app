@@ -155,7 +155,6 @@ def handle_exception(e):
     app.logger.error(f'Unhandled Exception: {e}', exc_info=True)
     return jsonify({"message": "An unexpected error occurred."}), 500
 
-
 # Run the Flask application
 if __name__ == "__main__":
     app.run(debug=app.config.get('DEBUG', False))
