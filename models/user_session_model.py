@@ -49,7 +49,7 @@ class UserSession(db.Model):
     device_fingerprint = db.Column(db.String(64), nullable=True)
     activity_count = db.Column(db.Integer, default=0)
     suspicious_activity = db.Column(db.Boolean, default=False)
-    session_id = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    session_id = db.Column(db.String(64), unique=True, nullable=False, index=True, default=lambda: secrets.token_hex(32))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     device_info = db.Column(db.String(255), nullable=True)
     is_deleted = db.Column(db.Boolean, default=False, index=True)  # Soft delete flag

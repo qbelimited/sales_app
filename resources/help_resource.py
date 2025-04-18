@@ -235,12 +235,12 @@ class HelpTourResource(Resource):
         return {'message': 'Tour deleted successfully'}
 
 
+@help_ns.route('/tours/list')
 class HelpTourListResource(Resource):
     """
     Resource for managing lists of help tours.
     """
     @jwt_required()
-    @admin_required
     def get(self) -> Dict[str, Any]:
         """
         Get all help tours with optional filtering.
@@ -249,7 +249,8 @@ class HelpTourListResource(Resource):
             Dictionary containing list of help tours
         """
         parser = reqparse.RequestParser()
-        parser.add_argument('user_id', type=int)
+        parser.add_argument('userId', type=int, location='args')
+        parser.add_argument('user_id', type=int, location='args')
         parser.add_argument('is_template', type=bool)
         parser.add_argument('include_deleted', type=bool, default=False)
         args = parser.parse_args()
@@ -257,8 +258,11 @@ class HelpTourListResource(Resource):
         query = HelpTour.query
         if not args.get('include_deleted'):
             query = query.filter_by(is_deleted=False)
-        if args.get('user_id'):
-            query = query.filter_by(user_id=args['user_id'])
+
+        user_id = args.get('userId') or args.get('user_id')
+        if user_id:
+            query = query.filter_by(user_id=user_id)
+
         if args.get('is_template') is not None:
             query = query.filter_by(is_template=args['is_template'])
 
