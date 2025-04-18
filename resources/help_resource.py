@@ -1,13 +1,15 @@
-from flask_restx import Namespace, Resource, fields
+from flask_restx import Namespace, Resource, fields, reqparse
 from flask import request
-from app import db, logger
-from models.help_model import HelpStep, HelpTour, HelpStepCategory, HelpStepLanguage
-from models.audit_model import AuditTrail
+from extensions import db
+from models.help_model import HelpStep, HelpTour, HelpStepCategory
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
-from flask_restful import Resource, reqparse
-from resources.auth_resource import token_required, admin_required
+from resources.auth_resource import admin_required
 from typing import Dict, Any, List, Optional
+import logging
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 # Define a namespace for HelpTour and HelpStep related operations
 help_ns = Namespace('help', description='Help Tour and Help Step operations')
@@ -34,7 +36,7 @@ class HelpStepResource(Resource):
     """
     Resource for managing individual help steps.
     """
-    @token_required
+    @jwt_required()
     @admin_required
     def get(self, step_id: int) -> Dict[str, Any]:
         """
@@ -51,7 +53,7 @@ class HelpStepResource(Resource):
             return {'message': 'Help step not found'}, 404
         return help_step.serialize()
 
-    @token_required
+    @jwt_required()
     @admin_required
     def put(self, step_id: int) -> Dict[str, Any]:
         """
@@ -88,7 +90,7 @@ class HelpStepResource(Resource):
             logger.error(f"Error updating help step {step_id}: {e}")
             return {'message': 'Error updating help step'}, 500
 
-    @token_required
+    @jwt_required()
     @admin_required
     def delete(self, step_id: int) -> Dict[str, Any]:
         """
@@ -119,7 +121,7 @@ class HelpStepListResource(Resource):
     """
     Resource for managing lists of help steps.
     """
-    @token_required
+    @jwt_required()
     @admin_required
     def get(self) -> Dict[str, Any]:
         """
@@ -145,7 +147,7 @@ class HelpStepListResource(Resource):
         help_steps = query.order_by(HelpStep.order).all()
         return {'help_steps': [step.serialize() for step in help_steps]}
 
-    @token_required
+    @jwt_required()
     @admin_required
     def post(self) -> Dict[str, Any]:
         """
@@ -180,89 +182,64 @@ class HelpTourResource(Resource):
     """
     Resource for managing individual help tours.
     """
-    @token_required
-    def get(self, tour_id: int) -> Dict[str, Any]:
+    @jwt_required()
+    def get(self) -> Dict[str, Any]:
         """
         Get a specific help tour by ID.
-
-        Args:
-            tour_id: ID of the help tour to retrieve
-
-        Returns:
-            Dictionary containing help tour data
         """
-        help_tour = HelpTour.query.get(tour_id)
-        if not help_tour or help_tour.is_deleted:
-            return {'message': 'Help tour not found'}, 404
-        return help_tour.serialize()
+        tour_id = request.args.get('tour_id')
+        if not tour_id:
+            return {'message': 'Tour ID is required'}, 400
 
-    @token_required
+        tour = HelpTour.query.get(tour_id)
+        if not tour:
+            return {'message': 'Tour not found'}, 404
+
+        return tour.serialize()
+
+    @jwt_required()
     @admin_required
-    def put(self, tour_id: int) -> Dict[str, Any]:
+    def put(self) -> Dict[str, Any]:
         """
         Update a specific help tour.
-
-        Args:
-            tour_id: ID of the help tour to update
-
-        Returns:
-            Dictionary containing updated help tour data
         """
-        help_tour = HelpTour.query.get(tour_id)
-        if not help_tour or help_tour.is_deleted:
-            return {'message': 'Help tour not found'}, 404
+        tour_id = request.args.get('tour_id')
+        if not tour_id:
+            return {'message': 'Tour ID is required'}, 400
 
-        parser = reqparse.RequestParser()
-        parser.add_argument('name', type=str)
-        parser.add_argument('description', type=str)
-        parser.add_argument('is_template', type=bool)
-        args = parser.parse_args()
+        tour = HelpTour.query.get(tour_id)
+        if not tour:
+            return {'message': 'Tour not found'}, 404
 
-        for key, value in args.items():
-            if value is not None:
-                setattr(help_tour, key, value)
+        data = request.get_json()
+        tour.update(data)
+        db.session.commit()
+        return tour.serialize()
 
-        try:
-            db.session.commit()
-            logger.info(f"Updated help tour: {tour_id}")
-            return help_tour.serialize()
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Error updating help tour {tour_id}: {e}")
-            return {'message': 'Error updating help tour'}, 500
-
-    @token_required
+    @jwt_required()
     @admin_required
-    def delete(self, tour_id: int) -> Dict[str, Any]:
+    def delete(self) -> Dict[str, Any]:
         """
-        Soft delete a help tour.
-
-        Args:
-            tour_id: ID of the help tour to delete
-
-        Returns:
-            Dictionary containing success message
+        Delete a specific help tour.
         """
-        help_tour = HelpTour.query.get(tour_id)
-        if not help_tour or help_tour.is_deleted:
-            return {'message': 'Help tour not found'}, 404
+        tour_id = request.args.get('tour_id')
+        if not tour_id:
+            return {'message': 'Tour ID is required'}, 400
 
-        help_tour.is_deleted = True
-        try:
-            db.session.commit()
-            logger.info(f"Deleted help tour: {tour_id}")
-            return {'message': 'Help tour deleted successfully'}
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Error deleting help tour {tour_id}: {e}")
-            return {'message': 'Error deleting help tour'}, 500
+        tour = HelpTour.query.get(tour_id)
+        if not tour:
+            return {'message': 'Tour not found'}, 404
+
+        db.session.delete(tour)
+        db.session.commit()
+        return {'message': 'Tour deleted successfully'}
 
 
 class HelpTourListResource(Resource):
     """
     Resource for managing lists of help tours.
     """
-    @token_required
+    @jwt_required()
     @admin_required
     def get(self) -> Dict[str, Any]:
         """
@@ -288,7 +265,7 @@ class HelpTourListResource(Resource):
         help_tours = query.all()
         return {'help_tours': [tour.serialize() for tour in help_tours]}
 
-    @token_required
+    @jwt_required()
     @admin_required
     def post(self) -> Dict[str, Any]:
         """
@@ -331,7 +308,7 @@ class HelpTourTemplateResource(Resource):
     """
     Resource for managing help tour templates.
     """
-    @token_required
+    @jwt_required()
     @admin_required
     def get(self) -> Dict[str, Any]:
         """
@@ -343,7 +320,7 @@ class HelpTourTemplateResource(Resource):
         templates = HelpTour.get_templates()
         return {'templates': [template.serialize() for template in templates]}
 
-    @token_required
+    @jwt_required()
     def post(self) -> Dict[str, Any]:
         """
         Create a new help tour from a template.
@@ -368,7 +345,7 @@ class HelpTourProgressResource(Resource):
     """
     Resource for managing help tour progress.
     """
-    @token_required
+    @jwt_required()
     def get(self, user_id: int) -> Dict[str, Any]:
         """
         Get help tour progress for a specific user.
@@ -382,7 +359,7 @@ class HelpTourProgressResource(Resource):
         progress = HelpTour.get_help_tour_progress(user_id)
         return progress
 
-    @token_required
+    @jwt_required()
     def post(self, user_id: int) -> Dict[str, Any]:
         """
         Mark a help tour as completed for a specific user.
@@ -409,7 +386,7 @@ class HelpTourProgressResource(Resource):
             logger.error(f"Error marking help tour as completed for user {user_id}: {e}")
             return {'message': 'Error marking help tour as completed'}, 500
 
-    @token_required
+    @jwt_required()
     def delete(self, user_id: int) -> Dict[str, Any]:
         """
         Reset help tour progress for a specific user.

@@ -3,7 +3,7 @@ from flask import request
 from models.sales_model import Sale
 from models.audit_model import AuditTrail
 from models.performance_model import SalesPerformance
-from app import db, logger
+from extensions import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import or_, func
 from datetime import datetime, timedelta

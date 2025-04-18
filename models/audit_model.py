@@ -1,4 +1,4 @@
-from app import db
+from extensions import db
 from datetime import datetime, timedelta
 from enum import Enum
 from typing import Optional, List, Dict, Any

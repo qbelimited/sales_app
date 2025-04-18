@@ -3,11 +3,14 @@ from flask import request
 from models.user_model import Role
 from models.access_model import Access
 from models.audit_model import AuditTrail, AuditAction
-from app import db, logger
+from extensions import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from utils import get_client_ip
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Create a namespace for access-related operations
 access_ns = Namespace('access', description='Access control and management operations')

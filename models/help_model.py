@@ -1,4 +1,4 @@
-from app import db, logger
+from extensions import db
 from datetime import datetime
 from sqlalchemy.exc import IntegrityError
 from typing import List, Dict, Any, Optional
@@ -12,7 +12,6 @@ class HelpStepCategory(Enum):
     FEATURE = 'feature'
     TROUBLESHOOTING = 'troubleshooting'
     BEST_PRACTICES = 'best_practices'
-
 
 # Association table for many-to-many relationship between HelpTour and HelpStep
 help_tour_steps = db.Table(

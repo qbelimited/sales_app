@@ -4,13 +4,16 @@ from models.user_model import User, Role
 from models.branch_model import Branch
 from models.user_session_model import UserSession
 from models.audit_model import AuditTrail
-from app import db, logger
+from extensions import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime, timedelta
 from utils import get_client_ip
 import json
 import re
 from functools import lru_cache
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Define a namespace for User-related operations
 user_ns = Namespace('user', description='User operations')

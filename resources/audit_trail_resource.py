@@ -1,7 +1,7 @@
 from flask_restx import Namespace, Resource, fields
 from flask import request
 from models.audit_model import AuditTrail, AuditAction
-from app import logger, db
+from extensions import db, db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from utils import get_client_ip
 from datetime import datetime, timedelta

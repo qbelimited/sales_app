@@ -1,8 +1,9 @@
-from app import db
+from extensions import db
 from datetime import datetime
 from sqlalchemy.orm import validates
-from sqlalchemy import Index
-from models.sale_model import Sale
+from sqlalchemy import Index, UniqueConstraint
+from models.sales_model import Sale
+import json
 
 class Paypoint(db.Model):
     __tablename__ = 'paypoint'
@@ -20,7 +21,7 @@ class Paypoint(db.Model):
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
     # Relationships
-    sales = db.relationship('Sale', backref=db.backref('paypoint', lazy=True))
+    sales = db.relationship('Sale', back_populates='paypoint')
 
     # Ensure uniqueness of paypoints
     __table_args__ = (

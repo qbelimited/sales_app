@@ -16,11 +16,14 @@ const ManageRolesPage = ({ showToast }) => {
   const [currentAccess, setCurrentAccess] = useState({
     role_id: '',
     can_create: false,
+    can_read: false,
     can_update: false,
     can_delete: false,
-    can_view_logs: false,
-    can_manage_users: false,
-    can_view_audit_trail: false,
+    can_export: false,
+    can_import: false,
+    can_approve: false,
+    can_reject: false,
+    can_audit: false,
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState(null);
@@ -104,11 +107,14 @@ const ManageRolesPage = ({ showToast }) => {
       setCurrentAccess({
         role_id: '',
         can_create: false,
+        can_read: false,
         can_update: false,
         can_delete: false,
-        can_view_logs: false,
-        can_manage_users: false,
-        can_view_audit_trail: false,
+        can_export: false,
+        can_import: false,
+        can_approve: false,
+        can_reject: false,
+        can_audit: false,
       });
     } catch (error) {
       console.error('Error saving access:', error.response ? error.response.data : error.message);
@@ -231,11 +237,14 @@ const ManageRolesPage = ({ showToast }) => {
           <tr>
             <th>Role Name</th>
             <th>Can Create</th>
+            <th>Can Read</th>
             <th>Can Update</th>
             <th>Can Delete</th>
-            <th>Can View Logs</th>
-            <th>Can Manage Users</th>
-            <th>Can View Audit Trail</th>
+            <th>Can Export</th>
+            <th>Can Import</th>
+            <th>Can Approve</th>
+            <th>Can Reject</th>
+            <th>Can Audit</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -247,11 +256,14 @@ const ManageRolesPage = ({ showToast }) => {
                 <tr key={access.role_id}>
                   <td>{role ? role.name : 'Role Not Found'}</td>
                   <td>{access.can_create ? 'Yes' : 'No'}</td>
+                  <td>{access.can_read ? 'Yes' : 'No'}</td>
                   <td>{access.can_update ? 'Yes' : 'No'}</td>
                   <td>{access.can_delete ? 'Yes' : 'No'}</td>
-                  <td>{access.can_view_logs ? 'Yes' : 'No'}</td>
-                  <td>{access.can_manage_users ? 'Yes' : 'No'}</td>
-                  <td>{access.can_view_audit_trail ? 'Yes' : 'No'}</td>
+                  <td>{access.can_export ? 'Yes' : 'No'}</td>
+                  <td>{access.can_import ? 'Yes' : 'No'}</td>
+                  <td>{access.can_approve ? 'Yes' : 'No'}</td>
+                  <td>{access.can_reject ? 'Yes' : 'No'}</td>
+                  <td>{access.can_audit ? 'Yes' : 'No'}</td>
                   <td>
                     <Button variant="link" size="sm" onClick={() => handleEditAccess(access)}>
                       <FaPen />
@@ -265,7 +277,7 @@ const ManageRolesPage = ({ showToast }) => {
             })
           ) : (
             <tr>
-              <td colSpan="8" className="text-center">No access records found</td>
+              <td colSpan="11" className="text-center">No access records found</td>
             </tr>
           )}
         </tbody>
@@ -338,6 +350,12 @@ const ManageRolesPage = ({ showToast }) => {
               />
               <Form.Check
                 type="checkbox"
+                label="Can Read"
+                checked={currentAccess.can_read}
+                onChange={(e) => setCurrentAccess({ ...currentAccess, can_read: e.target.checked })}
+              />
+              <Form.Check
+                type="checkbox"
                 label="Can Update"
                 checked={currentAccess.can_update}
                 onChange={(e) => setCurrentAccess({ ...currentAccess, can_update: e.target.checked })}
@@ -350,21 +368,33 @@ const ManageRolesPage = ({ showToast }) => {
               />
               <Form.Check
                 type="checkbox"
-                label="Can View Logs"
-                checked={currentAccess.can_view_logs}
-                onChange={(e) => setCurrentAccess({ ...currentAccess, can_view_logs: e.target.checked })}
+                label="Can Export"
+                checked={currentAccess.can_export}
+                onChange={(e) => setCurrentAccess({ ...currentAccess, can_export: e.target.checked })}
               />
               <Form.Check
                 type="checkbox"
-                label="Can Manage Users"
-                checked={currentAccess.can_manage_users}
-                onChange={(e) => setCurrentAccess({ ...currentAccess, can_manage_users: e.target.checked })}
+                label="Can Import"
+                checked={currentAccess.can_import}
+                onChange={(e) => setCurrentAccess({ ...currentAccess, can_import: e.target.checked })}
               />
               <Form.Check
                 type="checkbox"
-                label="Can View Audit Trail"
-                checked={currentAccess.can_view_audit_trail}
-                onChange={(e) => setCurrentAccess({ ...currentAccess, can_view_audit_trail: e.target.checked })}
+                label="Can Approve"
+                checked={currentAccess.can_approve}
+                onChange={(e) => setCurrentAccess({ ...currentAccess, can_approve: e.target.checked })}
+              />
+              <Form.Check
+                type="checkbox"
+                label="Can Reject"
+                checked={currentAccess.can_reject}
+                onChange={(e) => setCurrentAccess({ ...currentAccess, can_reject: e.target.checked })}
+              />
+              <Form.Check
+                type="checkbox"
+                label="Can Audit"
+                checked={currentAccess.can_audit}
+                onChange={(e) => setCurrentAccess({ ...currentAccess, can_audit: e.target.checked })}
               />
             </Form.Group>
           </Form>

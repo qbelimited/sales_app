@@ -7,7 +7,7 @@ from models.branch_model import Branch
 from models.paypoint_model import Paypoint
 from models.impact_product_model import ImpactProduct
 from models.audit_model import AuditTrail, AuditAction
-from app import db, logger
+from extensions import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from utils import get_client_ip
 from sqlalchemy.exc import SQLAlchemyError

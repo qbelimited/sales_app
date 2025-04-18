@@ -2,7 +2,7 @@ from flask_restx import Namespace, Resource, fields
 from flask import request
 from models.paypoint_model import Paypoint
 from models.audit_model import AuditTrail
-from app import db, logger
+from extensions import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from utils import get_client_ip

@@ -1,4 +1,4 @@
-from app import db, logger
+from extensions import db
 from datetime import datetime, timedelta
 from sqlalchemy.orm import validates
 from enum import Enum

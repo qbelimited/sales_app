@@ -4,7 +4,7 @@ from models.performance_model import SalesPerformance, SalesTarget
 from models.sales_model import Sale
 from models.audit_model import AuditTrail
 from models.impact_product_model import ImpactProduct  # Assuming you have a Product model defined
-from app import db, logger
+from extensions import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from utils import get_client_ip

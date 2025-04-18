@@ -3,7 +3,7 @@ from flask import request
 from models.user_model import User
 from models.performance_model import SalesTarget, SalesPerformance
 from models.audit_model import AuditTrail
-from app import db, logger
+from extensions import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from utils import get_client_ip

@@ -1,3 +1,5 @@
+# Import models as needed to avoid circular dependencies
+from .user_model import User, Role, UserStatus
 from .access_model import Access
 from .audit_model import AuditTrail, AuditAction
 from .bank_model import Bank, BankBranch
@@ -21,5 +23,26 @@ from .under_investigation_model import (
     InvestigationSLA,
     InvestigationTemplate
 )
-from .user_model import User, Role, UserStatus
 from .user_session_model import UserSession
+
+__all__ = [
+    'User', 'Role', 'UserStatus',
+    'Access',
+    'AuditTrail', 'AuditAction',
+    'Bank', 'BankBranch',
+    'Branch', 'BranchStatus',
+    'HelpTour', 'HelpStep', 'HelpStepCategory',
+    'ImpactProduct', 'ProductCategory',
+    'Inception',
+    'Paypoint',
+    'SalesTarget', 'SalesPerformance',
+    'Query', 'QueryResponse',
+    'Report', 'CustomReport', 'ReportType', 'ReportSchedule', 'ReportAccessLevel',
+    'RetentionPolicy', 'DataType', 'DataImportance', 'ArchivedData',
+    'SalesExecutive', 'ExecutiveStatus',
+    'Sale',
+    'RefreshToken', 'TokenBlacklist',
+    'UnderInvestigation', 'InvestigationPriority', 'InvestigationStatus',
+    'InvestigationCategory', 'InvestigationSLA', 'InvestigationTemplate',
+    'UserSession'
+]

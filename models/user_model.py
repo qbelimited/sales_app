@@ -1,4 +1,5 @@
-from app import db, logger
+from flask_sqlalchemy import SQLAlchemy
+from extensions import db
 from datetime import datetime, timedelta
 from sqlalchemy.orm import validates
 import re
@@ -6,7 +7,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from enum import Enum
 import json
 from flask import request
-from models.access_model import Access  # Add missing import
+from sqlalchemy import UniqueConstraint
+import logging
+
+# Configure logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 class UserStatus(Enum):
@@ -46,7 +52,7 @@ class Role(db.Model):
     parent = db.relationship('Role', remote_side=[id], backref='children')
 
     # Relationship with users
-    users = db.relationship('User', backref='role_ref', lazy='dynamic')
+    users = db.relationship('User', back_populates='role', lazy='dynamic')
 
     def serialize(self):
         return {
@@ -173,7 +179,7 @@ class User(db.Model):
     status = db.Column(db.String(20), default=UserStatus.ACTIVE.value)
 
     # Relationships
-    role = db.relationship('Role', backref='users')
+    role = db.relationship('Role', back_populates='users')
     branches = db.relationship('Branch', secondary=user_branches, backref=db.backref('users', lazy='selectin'))
 
     @validates('email')
@@ -299,54 +305,30 @@ class User(db.Model):
         return User.query.filter_by(is_deleted=False, is_active=True).all()
 
     def check_permission(self, permission):
-        """Check if user has a specific permission.
+        """Check if user has a specific permission."""
+        from models.access_model import Access  # Lazy import to avoid circular dependency
 
-        Checks both the role's permissions and the access rules.
-        Returns True if either system grants the permission.
-        """
-        if not self.role:
+        if not self.role_id:
             return False
 
-        # Check Access model permissions
-        access = Access.get_access_by_role(self.role_id)
-        if access and hasattr(access, permission):
-            if getattr(access, permission):
-                return True
+        # Get permissions from Access model
+        access_rules = Access.get_role_permissions(self.role_id)
+        if not access_rules:
+            return False
 
-        # Check Role model permissions
-        if self.role.permissions:
-            try:
-                permissions = json.loads(self.role.permissions)
-                return permissions.get(permission, False)
-            except json.JSONDecodeError:
-                logger.error(f"Invalid permissions JSON for role {self.role_id}")
-                return False
+        # Check if permission exists and is granted
+        for resource, perms in access_rules.items():
+            if permission in perms and perms[permission]:
+                return True
 
         return False
 
     def get_effective_permissions(self):
-        """Get all effective permissions for the user.
+        """Get all effective permissions for the user."""
+        from models.access_model import Access  # Lazy import to avoid circular dependency
 
-        Combines permissions from both the Access model and Role model.
-        """
-        permissions = set()
+        if not self.role_id:
+            return {}
 
-        # Get permissions from Access model
-        access = Access.get_access_by_role(self.role_id)
-        if access:
-            for perm in Access.get_all_permissions():
-                if getattr(access, perm, False):
-                    permissions.add(perm)
-
-        # Get permissions from Role model
-        if self.role and self.role.permissions:
-            try:
-                role_perms = json.loads(self.role.permissions)
-                for perm, value in role_perms.items():
-                    if value:
-                        permissions.add(perm)
-            except json.JSONDecodeError:
-                logger.error(f"Invalid permissions JSON for role {self.role_id}")
-
-        return permissions
+        return Access.get_role_permissions(self.role_id)
 

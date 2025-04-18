@@ -1,12 +1,10 @@
 import os
 from flask import Flask, jsonify
-from flask_sqlalchemy import SQLAlchemy
-from flask_jwt_extended import JWTManager
-from flask_migrate import Migrate
 from flask_cors import CORS
 from dotenv import load_dotenv
 from flask_restx import Api
 from logger import setup_logger
+from extensions import db, jwt, migrate, cache
 
 # Import all resource namespaces
 from resources.auth_resource import auth_ns
@@ -67,10 +65,11 @@ CORS(app, resources={
     }
 })
 
-# Initialize Flask extensions
-db = SQLAlchemy(app)
-jwt = JWTManager(app)
-migrate = Migrate(app, db)
+# Initialize Flask extensions with the app
+db.init_app(app)
+jwt.init_app(app)
+migrate.init_app(app, db)
+cache.init_app(app)
 
 # Setup logging based on environment
 logger = setup_logger(app)

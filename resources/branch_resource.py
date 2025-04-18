@@ -1,12 +1,16 @@
-from app import db
+from extensions import db
 from datetime import datetime
 from flask_restx import Namespace, Resource, fields
 from flask import request
 from models.branch_model import Branch, BranchStatus
 from models.audit_model import AuditTrail
-from app import logger
+from extensions import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from utils import get_client_ip
+import logging
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 # Define a namespace for branch-related operations
 branch_ns = Namespace('branch', description='Branch operations')

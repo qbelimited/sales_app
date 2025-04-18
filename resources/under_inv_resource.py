@@ -5,7 +5,7 @@ from models.under_investigation_model import (
 )
 from models.audit_model import AuditTrail
 from models.sales_model import Sale
-from app import db, logger
+from extensions import db
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
 from utils import get_client_ip

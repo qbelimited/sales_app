@@ -1,4 +1,4 @@
-from app import db, logger
+from extensions import db
 from datetime import datetime, timedelta
 from sqlalchemy.orm import validates
 from enum import Enum
@@ -128,7 +128,7 @@ class UnderInvestigation(db.Model):
 
     # Relationships
     sale = db.relationship('Sale', backref='under_investigations')
-    updated_by = db.relationship('User', backref='investigation_updates')
+    updated_by = db.relationship('User', foreign_keys=[updated_by_user_id], backref='investigation_updates')
     assigned_to = db.relationship('User', foreign_keys=[assigned_to_user_id], backref='assigned_investigations')
     template = db.relationship('InvestigationTemplate', backref='investigations')
     sla = db.relationship('InvestigationSLA', backref='investigations')

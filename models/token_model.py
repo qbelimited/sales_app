@@ -1,7 +1,12 @@
-from app import db, logger
+from extensions import db
 from datetime import datetime, timedelta
 from sqlalchemy import and_, func
 from models.retention_model import RetentionPolicy, DataType
+import logging
+
+# Configure logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 # TokenBlacklist model for managing blacklisted (revoked) JWT tokens
 class TokenBlacklist(db.Model):

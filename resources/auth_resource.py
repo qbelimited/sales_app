@@ -9,13 +9,18 @@ from models.user_model import User, UserStatus
 from models.user_session_model import UserSession
 from models.audit_model import AuditTrail, AuditAction
 from models.token_model import TokenBlacklist, RefreshToken
-from app import db, logger
+from extensions import db
 from utils import get_client_ip
 from datetime import datetime, timedelta
 import secrets
 import json
 import re
 import ipaddress
+import logging
+
+# Configure logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 # Define a namespace for auth-related operations
 auth_ns = Namespace('auth', description='Authentication operations')
@@ -330,51 +335,58 @@ class LogoutResource(Resource):
             # Attempt to get the current user's identity
             try:
                 current_user = get_jwt_identity()
-                jti_access = get_jwt().get('jti')
+                jwt_data = get_jwt()
+                jti_access = jwt_data.get('jti')
+                exp = datetime.fromtimestamp(jwt_data.get('exp', 0))
             except ExpiredSignatureError:
                 token = request.headers.get('Authorization').split()[1]
                 decoded_token = decode_token(token, allow_expired=True)
                 current_user = decoded_token['sub']
                 jti_access = decoded_token.get('jti')
+                exp = datetime.fromtimestamp(decoded_token.get('exp', 0))
                 logger.info(f"Expired token used for logout for user {current_user['email']}")
 
-            # Retrieve and revoke the refresh token
-            refresh_token = RefreshToken.query.filter_by(
-                user_id=current_user['id'],
-                revoked=False
-            ).first()
-            if refresh_token:
-                refresh_token.revoke()
-                logger.info(f"Refresh token for user {current_user['email']} revoked")
-            else:
-                logger.warning(f"No active refresh token found for user {current_user['email']}")
-                return {'message': 'No active refresh token to revoke'}, 404
+            # Use no_autoflush to prevent premature flushes
+            with db.session.no_autoflush:
+                # Retrieve and revoke the refresh token
+                refresh_token = RefreshToken.query.filter_by(
+                    user_id=current_user['id'],
+                    revoked=False
+                ).first()
+                if refresh_token:
+                    refresh_token.revoke()
+                    logger.info(f"Refresh token for user {current_user['email']} revoked")
+                else:
+                    logger.warning(f"No active refresh token found for user {current_user['email']}")
+                    return {'message': 'No active refresh token to revoke'}, 404
 
-            # Blacklist the access token
-            if jti_access:
-                blacklisted_token = TokenBlacklist(
-                    jti=jti_access,
-                    token_type='access',
-                    user_id=current_user['id']
+                # Blacklist the access token
+                if jti_access:
+                    blacklisted_token = TokenBlacklist(
+                        jti=jti_access,
+                        token_type='access',
+                        user_id=current_user['id'],
+                        expire_at=exp  # Set the expiration time from the token
+                    )
+                    db.session.add(blacklisted_token)
+
+                # End active sessions
+                active_sessions = UserSession.get_active_sessions(current_user['id'])
+                for session in active_sessions:
+                    session.end_session()
+
+                # Log the logout
+                AuditTrail.log_action(
+                    user_id=current_user['id'],
+                    action=AuditAction.LOGOUT,
+                    resource_type='user',
+                    resource_id=current_user['id'],
+                    details=f"User {current_user['email']} logged out successfully",
+                    ip_address=get_client_ip(),
+                    user_agent=request.headers.get('User-Agent')
                 )
-                db.session.add(blacklisted_token)
 
-            # End active sessions
-            active_sessions = UserSession.get_active_sessions(current_user['id'])
-            for session in active_sessions:
-                session.end_session()
-
-            # Log the logout
-            AuditTrail.log_action(
-                user_id=current_user['id'],
-                action=AuditAction.LOGOUT,
-                resource_type='user',
-                resource_id=current_user['id'],
-                details=f"User {current_user['email']} logged out successfully",
-                ip_address=get_client_ip(),
-                user_agent=request.headers.get('User-Agent')
-            )
-
+            # Commit all changes at once
             db.session.commit()
             logger.info(f"User {current_user['email']} logged out successfully")
             return {'message': 'Logged out successfully'}, 200

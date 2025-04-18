@@ -1,4 +1,4 @@
-from app import db, logger
+from extensions import db
 from datetime import datetime
 from sqlalchemy.orm import validates
 from typing import Optional, Dict, List, Any

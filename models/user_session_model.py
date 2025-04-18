@@ -1,4 +1,4 @@
-from app import db, logger
+from extensions import db
 from datetime import datetime, timedelta
 import ipaddress
 from sqlalchemy.orm import validates
@@ -8,6 +8,10 @@ import os
 from typing import Optional, List
 from sqlalchemy import Index, and_, func
 from models.retention_model import RetentionPolicy, DataType
+import json
+import logging
+import redis
+from flask import current_app
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -64,9 +68,9 @@ class UserSession(db.Model):
             'id': self.id,
             'user_id': self.user_id,
             'session_id': self.session_id,
-            'created_at': self.created_at.isoformat(),
-            'last_activity': self.last_activity.isoformat(),
-            'expires_at': self.expires_at.isoformat(),
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'last_activity': self.last_activity.isoformat() if self.last_activity else None,
+            'expires_at': self.expires_at.isoformat() if self.expires_at else None,
             'device_info': self.device_info,
             'ip_address': self.ip_address,
             'is_active': self.is_active,
@@ -80,7 +84,8 @@ class UserSession(db.Model):
         now = datetime.utcnow()
 
         query = UserSession.query.filter(
-            UserSession.is_active,
+            UserSession.is_active == True,
+            UserSession.is_deleted == False,
             UserSession.expires_at > now
         )
 
@@ -203,16 +208,6 @@ class UserSession(db.Model):
             db.session.rollback()
             logger.error(f"Error cleaning up expired sessions: {e}")
             raise ValueError(f"Error cleaning up expired sessions: {e}")
-
-    @staticmethod
-    def get_active_sessions():
-        """Get all non-deleted active sessions."""
-        return UserSession.query.filter(
-            and_(
-                UserSession.is_active == True,
-                UserSession.is_deleted == False
-            )
-        ).all()
 
     @staticmethod
     def get_expired_sessions():

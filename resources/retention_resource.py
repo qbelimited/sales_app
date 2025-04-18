@@ -3,7 +3,7 @@ from flask import request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models.retention_model import RetentionPolicy, DataType, DataImportance
 from models.audit_model import AuditTrail
-from app import db, logger
+from extensions import db
 from utils import get_client_ip
 
 # Define a namespace for retention policy operations

@@ -1,4 +1,4 @@
-from app import db
+from extensions import db
 from datetime import datetime, timedelta
 from sqlalchemy.orm import validates
 from sqlalchemy import Index, and_, or_, func

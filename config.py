@@ -2,10 +2,18 @@ import os
 import logging
 import logging.config
 
+
 # Base configuration class
 class Config:
     SECRET_KEY = os.getenv('SECRET_KEY', 'your_secret_key')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # Cache configuration
+    CACHE_TYPE = 'SimpleCache'  # Default to SimpleCache
+    CACHE_DEFAULT_TIMEOUT = 300  # 5 minutes default timeout
+    CACHE_THRESHOLD = 1000  # Maximum number of items to store
+    CACHE_KEY_PREFIX = 'sales_app_'
+    CACHE_NO_NULL_WARNING = True
 
     # Optimized database connection pooling for high transaction volume
     SQLALCHEMY_ENGINE_OPTIONS = {
@@ -14,8 +22,7 @@ class Config:
         'pool_timeout': 30,
         'pool_recycle': 3600,  # Recycle connections every hour
         'pool_pre_ping': True,  # Enable connection health checks
-        'echo': False,  # Disable SQL logging for better performance
-        'executemany_mode': 'values'  # Optimize bulk operations
+        'echo': False  # Disable SQL logging for better performance
     }
 
     # SQLAlchemy settings
@@ -82,10 +89,23 @@ class Config:
 
 # Development Configuration
 class DevelopmentConfig(Config):
-    SQLALCHEMY_DATABASE_URI = os.getenv('DEV_DATABASE_URL', 'sqlite:///dev.db')
-    CORS_ORIGINS = ["http://localhost:3000", "http://localhost:5000", "http://127.0.0.1:3000", "http://127.0.0.1:5000"]
+    SQLALCHEMY_DATABASE_URI = os.getenv(
+        'DEV_DATABASE_URL',
+        'sqlite:///dev.db'
+    )
+    CORS_ORIGINS = [
+        "http://localhost:3000",
+        "http://localhost:5000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5000"
+    ]
     DEBUG = True
     TESTING = True
+
+    # Development cache configuration
+    CACHE_DEFAULT_TIMEOUT = 60  # 1 minute in development
+    CACHE_THRESHOLD = 500
+    CACHE_KEY_PREFIX = 'sales_app_dev_'
 
     # Override logging for development (stdout, more verbose)
     LOGGING = {
@@ -130,10 +150,22 @@ class DevelopmentConfig(Config):
 
 # Production Configuration
 class ProductionConfig(Config):
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', 'postgresql://root:Sales_Password1@localhost/sales_app_db')
-    CORS_ORIGINS = ["https://salesapp.impactlife.com.gh", "https://api.salesapp.impactlife.com.gh", "http://localhost:3000", "http://127.0.0.1:3000"]
+    SQLALCHEMY_DATABASE_URI = os.getenv(
+        'DATABASE_URL',
+        'postgresql://root:Sales_Password1@localhost/sales_app_db'
+    )
+    CORS_ORIGINS = [
+        "https://salesapp.impactlife.com.gh",
+        "https://api.salesapp.impactlife.com.gh",
+        "http://localhost:3000",
+        "http://127.0.0.1:3000"
+    ]
     DEBUG = False
     TESTING = False
+
+    # Production cache configuration
+    CACHE_DEFAULT_TIMEOUT = 300  # 5 minutes in production
+    CACHE_KEY_PREFIX = 'sales_app_prod_'
 
 
 # Test Configuration (Same as Development but with a separate test database)

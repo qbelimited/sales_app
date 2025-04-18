@@ -2,7 +2,7 @@ from flask import request, jsonify, Response, stream_with_context
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import csv
 from io import StringIO
-from app import db, logger
+from extensions import db
 from models.sales_model import Sale
 from models.user_model import User, Role
 from models.sales_executive_model import SalesExecutive

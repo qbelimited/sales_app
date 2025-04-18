@@ -1,9 +1,5 @@
-from app import (
-    db,
-    cache
-)
+from extensions import db, cache
 from sqlalchemy.orm import validates
-from models.user_model import Role
 from sqlalchemy import UniqueConstraint
 import json
 import logging
@@ -124,6 +120,8 @@ class Access(db.Model):
     @cache.memoize(timeout=300)  # Cache for 5 minutes
     def get_role_permissions(cls, role_id: int) -> Dict:
         """Get all permissions for a role, including inherited permissions."""
+        from models.user_model import Role  # Lazy import to avoid circular dependency
+
         role = db.session.query(Role).get(role_id)
         if not role:
             return {}
@@ -325,6 +323,7 @@ class Access(db.Model):
     @validates('role_id')
     def validate_role_id(self, key, value):
         """Validate that the role_id exists in the Role table."""
+        from models.user_model import Role  # Lazy import to avoid circular dependency
         if not Role.query.get(value):
             raise ValueError(f"Role with id {value} does not exist")
         return value

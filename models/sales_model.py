@@ -1,4 +1,4 @@
-from app import db, logger
+from extensions import db
 from sqlalchemy import and_, or_, not_
 from flask import jsonify, request
 from models.bank_model import Bank
@@ -55,11 +55,11 @@ class Sale(db.Model):
     # Relationships
     policy_type = db.relationship('ImpactProduct', foreign_keys=[policy_type_id], lazy='joined')
     sales_executive = db.relationship('SalesExecutive', foreign_keys=[sales_executive_id], lazy='joined')
-    paypoint = db.relationship('Paypoint', foreign_keys=[paypoint_id], lazy='joined')
-    sale_manager = db.relationship('User', foreign_keys=[sale_manager_id], lazy='joined')
+    paypoint = db.relationship('Paypoint', foreign_keys=[paypoint_id], back_populates='sales', lazy='joined')
+    sale_manager = db.relationship('User', foreign_keys=[sale_manager_id], backref=db.backref('managed_sales', lazy='dynamic'), lazy='joined')
     bank = db.relationship('Bank', foreign_keys=[bank_id], lazy='joined')
     bank_branch = db.relationship('BankBranch', foreign_keys=[bank_branch_id], lazy='joined')
-    user = db.relationship('User', foreign_keys=[user_id], lazy='joined')
+    user = db.relationship('User', foreign_keys=[user_id], backref=db.backref('created_sales', lazy='dynamic'), lazy='joined')
 
     ALLOWED_PLATFORMS = ['', 'Transflow', 'Hubtel', 'company Momo number']
     MAX_RECENT_TRANSACTIONS = 10

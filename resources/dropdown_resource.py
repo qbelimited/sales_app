@@ -7,7 +7,7 @@ from models.user_model import User
 from models.audit_model import AuditTrail
 from models.paypoint_model import Paypoint
 from models.branch_model import Branch, BranchStatus
-from app import db, logger
+from extensions import db
 from flask_jwt_extended import jwt_required
 from utils import get_client_ip
 
