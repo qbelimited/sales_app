@@ -14,6 +14,8 @@ import './App.css';
 import authService from './services/authService';
 import api from './services/api';
 import throttle from 'lodash.throttle';
+import TourService from './services/tourService';
+import { ToastProvider } from './contexts/ToastContext';
 
 // Lazy-loaded pages
 const LoginPage = React.lazy(() => import('./pages/LoginPage'));
@@ -91,7 +93,7 @@ function useLoginRedirect(role, navigate, setShowHelpTour, setTourStarted) {
 
           // Fetch tour status if the user is logged in
           try {
-            const { data: tour } = await api.get(`/help/tours?userId=${role.id}`);
+            const tour = await TourService.getTourStatus(role.id);
             if (tour && !tour.completed) {
               setTourStarted(true); // Start the Help Tour if not completed
               setShowHelpTour(true); // Ensure Help Tour is shown
@@ -99,7 +101,7 @@ function useLoginRedirect(role, navigate, setShowHelpTour, setTourStarted) {
               setShowHelpTour(false); // Hide Help Tour if completed
             }
           } catch (error) {
-            if (error.response && error.response.status === 404) {
+            if (error.response?.status === 404) {
               // If 404, the user has never done the tour before
               setTourStarted(true); // Start the Help Tour for new users
               setShowHelpTour(true); // Show the Help Tour
@@ -171,23 +173,25 @@ function App() {
   }, [role?.id, showToast]);
 
   return (
-    <div>
-      <MemoizedNavbar role={role} logout={logout} showToast={showToast} setShowHelpTour={setShowHelpTour} />
-      <MemoizedSidebar role={role} />
-      {showHelpTour && tourStarted && <HelpTour setShowHelpTour={setShowHelpTour} />} {/* Start tour only if it's marked to show and has started */}
+    <ToastProvider>
+      <div>
+        <MemoizedNavbar role={role} logout={logout} showToast={showToast} setShowHelpTour={setShowHelpTour} />
+        <MemoizedSidebar role={role} />
+        {showHelpTour && tourStarted && <HelpTour setShowHelpTour={setShowHelpTour} />}
 
-      <div className={`content ${role?.id ? 'withSidebar' : 'noSidebar'}`}>
-        <Suspense fallback={<Loading message="Loading, please wait..." />}>
-          <Routes>
-            <Route path="/login" element={<LoginPage showToast={showToast} />} />
-            {memoizedRoutes}
-            <Route path="*" element={<Navigate to={role?.id ? '/sales' : '/login'} />} />
-          </Routes>
-        </Suspense>
+        <div className={`content ${role?.id ? 'withSidebar' : 'noSidebar'}`}>
+          <Suspense fallback={<Loading message="Loading, please wait..." />}>
+            <Routes>
+              <Route path="/login" element={<LoginPage showToast={showToast} />} />
+              {memoizedRoutes}
+              <Route path="*" element={<Navigate to={role?.id ? '/sales' : '/login'} />} />
+            </Routes>
+          </Suspense>
+        </div>
+
+        <Toaster toasts={toasts} removeToast={removeToast} updateServiceWorker={updateServiceWorker} />
       </div>
-
-      <Toaster toasts={toasts} removeToast={removeToast} updateServiceWorker={updateServiceWorker} />
-    </div>
+    </ToastProvider>
   );
 }
 

@@ -17,7 +17,11 @@ class HelpStepCategory(Enum):
 help_tour_steps = db.Table(
     'help_tour_steps',
     db.Column('help_tour_id', db.Integer, db.ForeignKey('help_tour.id', ondelete='CASCADE'), primary_key=True),
-    db.Column('help_step_id', db.Integer, db.ForeignKey('help_step.id', ondelete='CASCADE'), primary_key=True)
+    db.Column('help_step_id', db.Integer, db.ForeignKey('help_step.id', ondelete='CASCADE'), primary_key=True),
+    db.Column('completed', db.Boolean, default=False),
+    db.Column('completed_at', db.DateTime, nullable=True),
+    db.Column('skipped', db.Boolean, default=False),
+    db.Column('skipped_at', db.DateTime, nullable=True)
 )
 
 # Association table for help step dependencies
@@ -209,6 +213,7 @@ class HelpTour(db.Model):
     is_deleted = db.Column(db.Boolean, default=False, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+    last_step_completed = db.Column(db.Integer, nullable=True)  # Track the last completed step
 
     # Relationships
     steps = db.relationship(
@@ -236,8 +241,120 @@ class HelpTour(db.Model):
             'is_deleted': self.is_deleted,
             'created_at': self.created_at.isoformat(),
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
+            'last_step_completed': self.last_step_completed,
             'steps': [step.serialize() for step in self.steps]
         }
+
+    def mark_step_completed(self, step_id: int) -> bool:
+        """
+        Mark a specific step as completed.
+
+        Args:
+            step_id: ID of the step to mark as completed
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Update the step completion status in the association table
+            db.session.execute(
+                help_tour_steps.update()
+                .where(
+                    and_(
+                        help_tour_steps.c.help_tour_id == self.id,
+                        help_tour_steps.c.help_step_id == step_id
+                    )
+                )
+                .values(
+                    completed=True,
+                    completed_at=datetime.utcnow()
+                )
+            )
+
+            # Update the last completed step
+            self.last_step_completed = step_id
+
+            # Check if all steps are completed
+            all_steps_completed = db.session.execute(
+                help_tour_steps.select()
+                .where(
+                    and_(
+                        help_tour_steps.c.help_tour_id == self.id,
+                        help_tour_steps.c.completed.is_(False)
+                    )
+                )
+            ).fetchone() is None
+
+            if all_steps_completed:
+                self.completed = True
+                self.completed_at = datetime.utcnow()
+
+            db.session.commit()
+            return True
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error marking step as completed: {str(e)}")
+            return False
+
+    def mark_step_skipped(self, step_id: int) -> bool:
+        """
+        Mark a specific step as skipped.
+
+        Args:
+            step_id: ID of the step to mark as skipped
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            db.session.execute(
+                help_tour_steps.update()
+                .where(
+                    and_(
+                        help_tour_steps.c.help_tour_id == self.id,
+                        help_tour_steps.c.help_step_id == step_id
+                    )
+                )
+                .values(
+                    skipped=True,
+                    skipped_at=datetime.utcnow()
+                )
+            )
+            db.session.commit()
+            return True
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error marking step as skipped: {str(e)}")
+            return False
+
+    def get_step_status(self, step_id: int) -> Dict[str, Any]:
+        """
+        Get the status of a specific step.
+
+        Args:
+            step_id: ID of the step to get status for
+
+        Returns:
+            Dict containing step status information
+        """
+        result = db.session.execute(
+            help_tour_steps.select()
+            .where(
+                and_(
+                    help_tour_steps.c.help_tour_id == self.id,
+                    help_tour_steps.c.help_step_id == step_id
+                )
+            )
+        ).fetchone()
+
+        if result:
+            return {
+                'completed': result.completed,
+                'completed_at': result.completed_at.isoformat() if result.completed_at else None,
+                'skipped': result.skipped,
+                'skipped_at': result.skipped_at.isoformat() if result.skipped_at else None
+            }
+        return {}
 
     @staticmethod
     def get_user_help_tour_status(user_id: int) -> Optional['HelpTour']:
@@ -250,12 +367,10 @@ class HelpTour(db.Model):
         Returns:
             HelpTour object if found, None otherwise
         """
-        help_tour = HelpTour.query.filter_by(
+        return HelpTour.query.filter_by(
             user_id=user_id,
             is_deleted=False
         ).first()
-        logger.info(f"Retrieved help tour status for user_id: {user_id}")
-        return help_tour
 
     @staticmethod
     def get_templates() -> List['HelpTour']:
@@ -265,92 +380,125 @@ class HelpTour(db.Model):
         Returns:
             List of help tour templates
         """
-        return HelpTour.query.filter_by(is_template=True, is_deleted=False).all()
+        return HelpTour.query.filter_by(
+            is_template=True,
+            is_deleted=False
+        ).all()
 
     @staticmethod
     def create_from_template(template_id: int, user_id: int) -> Optional['HelpTour']:
         """
-        Create a new help tour from a template.
+        Create a new help tour for a user from a template.
 
         Args:
             template_id: ID of the template to use
-            user_id: ID of the user to create tour for
+            user_id: ID of the user to create the tour for
 
         Returns:
-            New HelpTour object or None if template not found
+            New HelpTour object if successful, None otherwise
         """
-        template = HelpTour.query.filter_by(
-            id=template_id,
-            is_template=True,
-            is_deleted=False
-        ).first()
-
-        if not template:
+        template = HelpTour.query.get(template_id)
+        if not template or not template.is_template:
             return None
 
-        new_tour = HelpTour(
-            user_id=user_id,
-            name=template.name,
-            description=template.description
-        )
-        new_tour.steps = template.steps.copy()
+        try:
+            new_tour = HelpTour(
+                user_id=user_id,
+                name=template.name,
+                description=template.description,
+                is_template=False
+            )
+            db.session.add(new_tour)
+            db.session.flush()  # Get the new tour's ID
 
-        db.session.add(new_tour)
-        db.session.commit()
+            # Copy steps from template
+            for step in template.steps:
+                db.session.execute(
+                    help_tour_steps.insert().values(
+                        help_tour_id=new_tour.id,
+                        help_step_id=step.id,
+                        completed=False,
+                        skipped=False
+                    )
+                )
 
-        return new_tour
+            db.session.commit()
+            return new_tour
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error creating tour from template: {str(e)}")
+            return None
 
     @staticmethod
     def reset_user_help_tour(user_id: int) -> Optional['HelpTour']:
         """
-        Reset the help tour progress for a specific user.
+        Reset a user's help tour progress.
 
         Args:
             user_id: ID of the user to reset tour for
 
         Returns:
-            Updated HelpTour object or None if not found
+            Updated HelpTour object if successful, None otherwise
         """
+        tour = HelpTour.get_user_help_tour_status(user_id)
+        if not tour:
+            return None
+
         try:
-            help_tour = HelpTour.get_user_help_tour_status(user_id)
-            if help_tour:
-                help_tour.completed = False
-                help_tour.completed_at = None
-                db.session.commit()
-                logger.info(f"Reset help tour for user_id: {user_id}")
-            return help_tour
+            # Reset all step completion statuses
+            db.session.execute(
+                help_tour_steps.update()
+                .where(help_tour_steps.c.help_tour_id == tour.id)
+                .values(
+                    completed=False,
+                    completed_at=None,
+                    skipped=False,
+                    skipped_at=None
+                )
+            )
+
+            tour.completed = False
+            tour.completed_at = None
+            tour.last_step_completed = None
+            db.session.commit()
+            return tour
         except Exception as e:
             db.session.rollback()
-            logger.error(f"Error resetting help tour for user_id: {user_id}")
+            print(f"Error resetting help tour: {str(e)}")
             return None
 
     @staticmethod
     def get_help_tour_progress(user_id: int) -> Dict[str, Any]:
         """
-        Get detailed progress of a user's help tour.
+        Get detailed progress information for a user's help tour.
 
         Args:
             user_id: ID of the user to get progress for
 
         Returns:
-            Dictionary containing progress information
+            Dict containing progress information
         """
-        help_tour = HelpTour.get_user_help_tour_status(user_id)
-        if not help_tour:
-            return {
-                'completed': False,
-                'total_steps': 0,
-                'completed_steps': 0,
-                'progress_percentage': 0
-            }
+        tour = HelpTour.get_user_help_tour_status(user_id)
+        if not tour:
+            return {}
 
-        total_steps = len(help_tour.steps)
-        completed_steps = sum(1 for step in help_tour.steps if step.completed)
-        progress_percentage = (completed_steps / total_steps * 100) if total_steps > 0 else 0
+        # Get all steps with their completion status
+        steps = db.session.execute(
+            help_tour_steps.select()
+            .where(help_tour_steps.c.help_tour_id == tour.id)
+        ).fetchall()
+
+        total_steps = len(steps)
+        completed_steps = sum(1 for step in steps if step.completed)
+        skipped_steps = sum(1 for step in steps if step.skipped)
 
         return {
-            'completed': help_tour.completed,
+            'tour_id': tour.id,
+            'completed': tour.completed,
+            'completed_at': tour.completed_at.isoformat() if tour.completed_at else None,
+            'last_step_completed': tour.last_step_completed,
             'total_steps': total_steps,
             'completed_steps': completed_steps,
-            'progress_percentage': progress_percentage
+            'skipped_steps': skipped_steps,
+            'progress_percentage': (completed_steps / total_steps * 100) if total_steps > 0 else 0
         }

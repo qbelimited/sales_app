@@ -1,5 +1,5 @@
 from app import app, db
-from models.help_model import HelpStep
+from models.help_model import HelpStep, HelpStepCategory
 from sqlalchemy.exc import IntegrityError
 
 # Define the help steps as a list of dictionaries for easy management
@@ -7,92 +7,107 @@ help_steps_data = [
     {
         "page_name": "sales-targets",
         "target": "h1.text-center",
-        "content": "Welcome to the Sales Targets Management page. Here you can view, add, edit, and delete sales targets.",
-        "order": 1
+        "content": "Welcome to the Sales Targets Management page! This is where you'll manage all your sales targets. You can create new targets, view existing ones, and track their progress. Let's walk through the key features.",
+        "order": 1,
+        "category": HelpStepCategory.INTRODUCTION.value
     },
     {
         "page_name": "sales-targets",
         "target": 'Button[variant="primary"]',
-        "content": "Click here to add a new sales target. Fill in the details in the modal that appears.",
-        "order": 2
+        "content": "To create a new sales target, click this 'Add Target' button. You'll need to specify the sales manager, target amount, criteria type, and the period for the target. For example, you might set a target of 100 policies for Q1 2024.",
+        "order": 2,
+        "category": HelpStepCategory.FEATURE.value
     },
     {
         "page_name": "sales-targets",
         "target": 'select[name="sales_manager_id"]',
-        "content": "Use these dropdowns to filter sales targets by manager and criteria type. This helps you focus on specific targets.",
-        "order": 3
+        "content": "Use these filters to find specific targets. You can filter by sales manager, criteria type, and date range. This helps you focus on relevant targets. For instance, you can view all targets for a specific manager in Q1.",
+        "order": 3,
+        "category": HelpStepCategory.NAVIGATION.value
     },
     {
         "page_name": "sales-targets",
         "target": 'input[type="date"]',
-        "content": "Select a date range to filter the sales targets within specific periods.",
-        "order": 4
+        "content": "Select a date range to view targets within specific periods. You can view targets for the current quarter, fiscal year, or any custom period. This helps in planning and tracking progress.",
+        "order": 4,
+        "category": HelpStepCategory.NAVIGATION.value
     },
     {
         "page_name": "sales-targets",
         "target": "Table",
-        "content": "This table displays your sales targets. You can see the sales manager, target count, premium amount, criteria types, and periods.",
-        "order": 5
+        "content": "This table shows all your sales targets. Each row displays the sales manager, target count, premium amount, criteria types, and the target period. You can sort by any column by clicking the column header.",
+        "order": 5,
+        "category": HelpStepCategory.FEATURE.value
     },
     {
         "page_name": "sales-targets",
         "target": 'Button[variant="warning"]',
-        "content": "For each target, you have options to edit or delete. Use these buttons to manage your sales targets effectively.",
-        "order": 6
+        "content": "For each target, you can edit or delete it using these action buttons. Editing allows you to update target details, while deletion removes the target permanently. Be careful with deletion as it cannot be undone.",
+        "order": 6,
+        "category": HelpStepCategory.FEATURE.value
     },
     {
         "page_name": "sales-targets",
         "target": 'Button[variant="secondary"]',
-        "content": "Click this button to toggle the view of past sales targets that are no longer active.",
-        "order": 7
+        "content": "This toggle button lets you switch between active and past targets. Past targets are those that have expired or been completed. This helps you maintain a clean view of current targets.",
+        "order": 7,
+        "category": HelpStepCategory.NAVIGATION.value
     },
     {
         "page_name": "sales-targets",
         "target": "Pagination",
-        "content": "Use these pagination controls to navigate through multiple pages of sales targets.",
-        "order": 8
+        "content": "If you have many targets, they'll be split across multiple pages. Use these pagination controls to navigate between pages. You can also change the number of items shown per page.",
+        "order": 8,
+        "category": HelpStepCategory.NAVIGATION.value
     },
     {
         "page_name": "sales",
         "target": "h2.text-left",
-        "content": "Welcome to the Sales Records page. Here you can manage your sales records, filter, and sort them easily.",
-        "order": 1
+        "content": "Welcome to the Sales Records page! This is where you'll manage all your sales transactions. You can add new sales, view existing ones, and track their status. Let's explore the features.",
+        "order": 1,
+        "category": HelpStepCategory.INTRODUCTION.value
     },
     {
         "page_name": "sales",
         "target": 'Button[variant="primary"]',
-        "content": "Click here to add a new sale record. Fill in the details in the modal that appears.",
-        "order": 2
+        "content": "Click this 'Add Sale' button to record a new sale. You'll need to enter details like client name, policy type, amount, and other relevant information. Make sure all required fields are filled correctly.",
+        "order": 2,
+        "category": HelpStepCategory.FEATURE.value
     },
     {
         "page_name": "sales",
         "target": 'Button[variant="info"], Button[variant="warning"], Button[variant="danger"], Button[variant="secondary"]',
-        "content": "Use these buttons to filter sales records by their status: Submitted, Under Investigation, or Rejected. Reset filters to show all records.",
-        "order": 3
+        "content": "These status filters help you organize your sales records. Blue shows submitted records, yellow indicates under investigation, and red marks rejected records. The gray button resets all filters.",
+        "order": 3,
+        "category": HelpStepCategory.NAVIGATION.value
     },
     {
         "page_name": "sales",
         "target": 'DatePicker',
-        "content": "Select a date range to filter sales records created within specific periods.",
-        "order": 4
+        "content": "Use the date picker to filter sales records by date. You can view sales for specific days, weeks, or months. This is useful for generating reports or tracking sales trends.",
+        "order": 4,
+        "category": HelpStepCategory.NAVIGATION.value
     },
     {
         "page_name": "sales",
         "target": 'input[name="clientName"]',
-        "content": "Use this field to filter records by name. Start typing to find a match.",
-        "order": 5
+        "content": "Search for specific clients by typing their name here. The system will show matching records as you type. This is helpful when you need to find a particular client's sales quickly.",
+        "order": 5,
+        "category": HelpStepCategory.NAVIGATION.value
     },
     {
         "page_name": "sales",
         "target": "Table",
-        "content": "This table displays all sales records. You can see details such as Client Name, Amount, Policy Type, and Status.",
-        "order": 6
+        "content": "This table displays all your sales records. Each row shows the client name, amount, policy type, status, and other important details. You can sort by any column to organize the data.",
+        "order": 6,
+        "category": HelpStepCategory.FEATURE.value
     },
     {
         "page_name": "sales",
         "target": 'Button[variant="primary"]',
-        "content": "Click here to view detailed information about the sale record.",
-        "order": 7
+        "content": "Click the 'View' button to see detailed information about a sale. This includes all transaction details, client information, and any associated documents or notes.",
+        "order": 7,
+        "category": HelpStepCategory.FEATURE.value
     },
     {
         "page_name": "manage-users-sessions",
@@ -264,27 +279,17 @@ help_steps_data = [
     },
 ]
 
-with app.app_context():
-    for step_data in help_steps_data:
-        # Check if the help step already exists
-        existing_step = db.session.query(HelpStep).filter_by(
-            page_name=step_data['page_name'],
-            target=step_data['target'],
-            order=step_data['order']
-        ).first()
+def seed_help_steps():
+    """Seed the database with help steps."""
+    with app.app_context():
+        for step_data in help_steps_data:
+            try:
+                step = HelpStep(**step_data)
+                db.session.add(step)
+                db.session.commit()
+            except IntegrityError:
+                db.session.rollback()
+                print(f"Step already exists: {step_data['page_name']} - {step_data['order']}")
 
-        if not existing_step:
-            help_step = HelpStep(
-                page_name=step_data['page_name'],
-                target=step_data['target'],
-                content=step_data['content'],
-                order=step_data['order']
-            )
-            db.session.add(help_step)
-
-    try:
-        db.session.commit()
-        print("Help steps seeded successfully!")
-    except IntegrityError:
-        db.session.rollback()
-        print("Error while seeding help steps. Please check for duplicates or constraints.")
+if __name__ == "__main__":
+    seed_help_steps()

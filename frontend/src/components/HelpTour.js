@@ -1,50 +1,47 @@
 import React, { useEffect, useState } from 'react';
 import Joyride from 'react-joyride';
-import { useTour } from '../contexts/TourContext'; // Adjust the import based on your file structure
-import api from '../services/api'; // Ensure axios is installed
-import { useLocation } from 'react-router-dom'; // To get the current page name
+import { useTour } from '../hooks/useTour';
+import { useLocation } from 'react-router-dom';
+import { useToastContext } from '../contexts/ToastContext';
 
 const HelpTour = () => {
-  const { run, stopTour, userId, setTourSteps } = useTour();
+  const { tour, loading, error, updateStepStatus } = useTour();
+  const { showToast } = useToastContext();
   const [steps, setSteps] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [currentStep, setCurrentStep] = useState(0);
   const location = useLocation();
 
   useEffect(() => {
-    const fetchTourStatusAndSteps = async () => {
-      setLoading(true);
-      if (!userId) {
-        setLoading(false);
-        return;
-      }
+    if (!tour || !tour.steps) return;
 
-      const pageName = location.pathname.replace('/', '') || 'home';
+    const pageName = location.pathname.replace('/', '') || 'home';
+    const activeSteps = tour.steps
+      .filter(step => step.page_name === pageName)
+      .filter(step => !step.completed && !step.skipped);
 
-      try {
-        const { data: tour } = await api.get(`/help/tours?page_name=${pageName}`);
-
-        if (tour && !tour.completed && tour.steps?.length > 0) {
-          setSteps(tour.steps);
-          setTourSteps(tour.steps);
-          run(); // Start the tour
-        }
-      } catch (error) {
-        console.error("Error fetching help tour status:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTourStatusAndSteps();
-  }, [userId, setTourSteps, location, run]);
+    setSteps(activeSteps);
+  }, [tour, location.pathname]);
 
   const handleTourEnd = async (data) => {
     if (data.status === 'finished' || data.status === 'skipped') {
-      stopTour();
       try {
-        await api.put(`/help/tours/${data.tourId}`, { completed: true });
+        await updateStepStatus(data.stepId, 'completed');
+        showToast('success', 'Tour completed successfully!', 'Success');
       } catch (error) {
-        console.error("Error marking tour as completed:", error);
+        console.error('Error completing tour:', error);
+        showToast('danger', 'Failed to complete tour', 'Error');
+      }
+    }
+  };
+
+  const handleStepChange = async (data) => {
+    setCurrentStep(data.index);
+    if (data.action === 'next' || data.action === 'prev') {
+      try {
+        await updateStepStatus(data.stepId, 'completed');
+      } catch (error) {
+        console.error('Error updating step:', error);
+        showToast('danger', 'Failed to update step', 'Error');
       }
     }
   };
@@ -53,19 +50,30 @@ const HelpTour = () => {
     return <div>Loading tour...</div>;
   }
 
+  if (error) {
+    return null;
+  }
+
+  if (steps.length === 0) {
+    return null;
+  }
+
   return (
     <Joyride
       steps={steps}
-      run={run}
-      continuous
-      showSkipButton
-      showProgress
+      run={true}
+      continuous={true}
+      showProgress={true}
+      showSkipButton={true}
       styles={{
         options: {
-          zIndex: 10000,
-        },
+          primaryColor: '#007bff',
+          zIndex: 1000,
+        }
       }}
       callback={handleTourEnd}
+      stepIndex={currentStep}
+      onStepChange={handleStepChange}
     />
   );
 };

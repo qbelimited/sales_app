@@ -20,14 +20,20 @@ help_step_model = help_ns.model('HelpStep', {
     'page_name': fields.String(required=True, description='Name of the page'),
     'target': fields.String(required=True, description='Target element to highlight'),
     'content': fields.String(required=True, description='Content of the help step'),
-    'order': fields.Integer(required=True, description='Order of the help step')
+    'order': fields.Integer(required=True, description='Order of the help step'),
+    'category': fields.String(description='Category of the help step'),
+    'completed': fields.Boolean(description='Is the step completed'),
+    'skipped': fields.Boolean(description='Was the step skipped')
 })
 
 help_tour_model = help_ns.model('HelpTour', {
     'id': fields.Integer(description='Help Tour ID'),
     'user_id': fields.Integer(required=True, description='User ID'),
+    'name': fields.String(description='Tour name'),
+    'description': fields.String(description='Tour description'),
     'completed': fields.Boolean(description='Is Completed'),
     'completed_at': fields.String(description='Completed At'),
+    'last_step_completed': fields.Integer(description='Last completed step ID'),
     'steps': fields.List(fields.Nested(help_step_model), description='List of Help Steps')
 })
 
@@ -345,64 +351,112 @@ class HelpTourTemplateResource(Resource):
         return help_tour.serialize()
 
 
-class HelpTourProgressResource(Resource):
+@help_ns.route('/tours/<int:tour_id>/steps/<int:step_id>/status')
+class HelpStepStatusResource(Resource):
     """
-    Resource for managing help tour progress.
+    Resource for managing help step status.
     """
     @jwt_required()
-    def get(self, user_id: int) -> Dict[str, Any]:
+    def get(self, tour_id: int, step_id: int) -> Dict[str, Any]:
         """
-        Get help tour progress for a specific user.
+        Get status of a specific step in a help tour.
 
         Args:
-            user_id: ID of the user to get progress for
+            tour_id: ID of the help tour
+            step_id: ID of the help step
 
         Returns:
-            Dictionary containing help tour progress data
+            Dictionary containing step status
         """
-        progress = HelpTour.get_help_tour_progress(user_id)
-        return progress
-
-    @jwt_required()
-    def post(self, user_id: int) -> Dict[str, Any]:
-        """
-        Mark a help tour as completed for a specific user.
-
-        Args:
-            user_id: ID of the user to mark as completed
-
-        Returns:
-            Dictionary containing updated help tour data
-        """
-        help_tour = HelpTour.get_user_help_tour_status(user_id)
-        if not help_tour:
+        tour = HelpTour.query.get(tour_id)
+        if not tour:
             return {'message': 'Help tour not found'}, 404
 
-        help_tour.completed = True
-        help_tour.completed_at = datetime.utcnow()
-
-        try:
-            db.session.commit()
-            logger.info(f"Marked help tour as completed for user: {user_id}")
-            return help_tour.serialize()
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Error marking help tour as completed for user {user_id}: {e}")
-            return {'message': 'Error marking help tour as completed'}, 500
+        status = tour.get_step_status(step_id)
+        return status
 
     @jwt_required()
-    def delete(self, user_id: int) -> Dict[str, Any]:
+    def put(self, tour_id: int, step_id: int) -> Dict[str, Any]:
         """
-        Reset help tour progress for a specific user.
+        Update status of a specific step in a help tour.
 
         Args:
-            user_id: ID of the user to reset progress for
+            tour_id: ID of the help tour
+            step_id: ID of the help step
 
         Returns:
             Dictionary containing success message
         """
-        help_tour = HelpTour.reset_user_help_tour(user_id)
-        if not help_tour:
+        tour = HelpTour.query.get(tour_id)
+        if not tour:
             return {'message': 'Help tour not found'}, 404
 
-        return {'message': 'Help tour progress reset successfully'}
+        data = request.get_json()
+        if not data:
+            return {'message': 'No data provided'}, 400
+
+        try:
+            if data.get('completed'):
+                success = tour.mark_step_completed(step_id)
+            elif data.get('skipped'):
+                success = tour.mark_step_skipped(step_id)
+            else:
+                return {'message': 'Invalid status update'}, 400
+
+            if success:
+                return {'message': 'Step status updated successfully'}
+            else:
+                return {'message': 'Failed to update step status'}, 500
+        except Exception as e:
+            logger.error(f"Error updating step status: {e}")
+            return {'message': 'Error updating step status'}, 500
+
+@help_ns.route('/tours/<int:tour_id>/reset')
+class HelpTourResetResource(Resource):
+    """
+    Resource for resetting help tours.
+    """
+    @jwt_required()
+    def post(self, tour_id: int) -> Dict[str, Any]:
+        """
+        Reset a help tour to its initial state.
+
+        Args:
+            tour_id: ID of the help tour to reset
+
+        Returns:
+            Dictionary containing success message
+        """
+        tour = HelpTour.query.get(tour_id)
+        if not tour:
+            return {'message': 'Help tour not found'}, 404
+
+        try:
+            success = HelpTour.reset_user_help_tour(tour.user_id)
+            if success:
+                return {'message': 'Help tour reset successfully'}
+            else:
+                return {'message': 'Failed to reset help tour'}, 500
+        except Exception as e:
+            logger.error(f"Error resetting help tour: {e}")
+            return {'message': 'Error resetting help tour'}, 500
+
+@help_ns.route('/tours/progress')
+class HelpTourProgressResource(Resource):
+    """
+    Resource for getting help tour progress.
+    """
+    @jwt_required()
+    def get(self) -> Dict[str, Any]:
+        """
+        Get progress of the current user's help tour.
+
+        Returns:
+            Dictionary containing progress information
+        """
+        user_id = get_jwt_identity()
+        if not user_id:
+            return {'message': 'User ID not found'}, 400
+
+        progress = HelpTour.get_help_tour_progress(user_id)
+        return progress
