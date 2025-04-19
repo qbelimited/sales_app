@@ -1,12 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import TourService from '../services/tourService';
-import { useToastContext } from '../contexts/ToastContext';
+import { useNotification } from './useNotification';
 
 export const useTour = (userId) => {
   const [tour, setTour] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const { showToast } = useToastContext();
+  const {
+    showSuccess,
+    showInfo,
+    handleTourError,
+    handleStepError
+  } = useNotification();
 
   const fetchTour = useCallback(async () => {
     if (!userId) {
@@ -23,11 +28,11 @@ export const useTour = (userId) => {
     } catch (error) {
       console.error('Error fetching tour:', error);
       setError(error);
-      showToast('danger', 'Failed to fetch tour status', 'Error');
+      handleTourError(error);
     } finally {
       setLoading(false);
     }
-  }, [userId, showToast]);
+  }, [userId, handleTourError]);
 
   const updateStepStatus = useCallback(async (stepId, status) => {
     if (!tour) return;
@@ -35,15 +40,17 @@ export const useTour = (userId) => {
     try {
       if (status === 'completed') {
         await TourService.markStepCompleted(tour.id, stepId);
+        showSuccess('Step completed successfully');
       } else if (status === 'skipped') {
         await TourService.markStepSkipped(tour.id, stepId);
+        showInfo('Step skipped');
       }
       fetchTour(); // Refresh tour data
     } catch (error) {
       console.error('Error updating step status:', error);
-      showToast('danger', 'Failed to update step status', 'Error');
+      handleStepError(error);
     }
-  }, [tour, fetchTour, showToast]);
+  }, [tour, fetchTour, showSuccess, showInfo, handleStepError]);
 
   const resetTour = useCallback(async () => {
     if (!tour) return;
@@ -51,12 +58,12 @@ export const useTour = (userId) => {
     try {
       await TourService.resetTour(tour.id);
       fetchTour(); // Refresh tour data
-      showToast('success', 'Tour reset successfully', 'Success');
+      showSuccess('Tour reset successfully');
     } catch (error) {
       console.error('Error resetting tour:', error);
-      showToast('danger', 'Failed to reset tour', 'Error');
+      handleTourError(error);
     }
-  }, [tour, fetchTour, showToast]);
+  }, [tour, fetchTour, showSuccess, handleTourError]);
 
   useEffect(() => {
     fetchTour();

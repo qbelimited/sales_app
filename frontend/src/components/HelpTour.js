@@ -2,11 +2,11 @@ import React, { useEffect, useState } from 'react';
 import Joyride from 'react-joyride';
 import { useTour } from '../hooks/useTour';
 import { useLocation } from 'react-router-dom';
-import { useToastContext } from '../contexts/ToastContext';
+import { useNotification } from '../hooks/useNotification';
 
 const HelpTour = () => {
   const { tour, loading, error, updateStepStatus } = useTour();
-  const { showToast } = useToastContext();
+  const { showSuccess, handleTourError, handleStepError } = useNotification();
   const [steps, setSteps] = useState([]);
   const [currentStep, setCurrentStep] = useState(0);
   const location = useLocation();
@@ -26,10 +26,10 @@ const HelpTour = () => {
     if (data.status === 'finished' || data.status === 'skipped') {
       try {
         await updateStepStatus(data.stepId, 'completed');
-        showToast('success', 'Tour completed successfully!', 'Success');
+        showSuccess('Tour completed successfully!');
       } catch (error) {
         console.error('Error completing tour:', error);
-        showToast('danger', 'Failed to complete tour', 'Error');
+        handleTourError(error);
       }
     }
   };
@@ -41,7 +41,7 @@ const HelpTour = () => {
         await updateStepStatus(data.stepId, 'completed');
       } catch (error) {
         console.error('Error updating step:', error);
-        showToast('danger', 'Failed to update step', 'Error');
+        handleStepError(error);
       }
     }
   };

@@ -16,6 +16,8 @@ import api from './services/api';
 import throttle from 'lodash.throttle';
 import TourService from './services/tourService';
 import { ToastProvider } from './contexts/ToastContext';
+import NotificationService from './services/notificationService';
+import { useNotification } from './hooks/useNotification';
 
 // Lazy-loaded pages
 const LoginPage = React.lazy(() => import('./pages/LoginPage'));
@@ -76,7 +78,7 @@ const appRoutes = [
   { path: '/not-found', component: NotFoundPage },
 ];
 
-function useLoginRedirect(role, navigate, setShowHelpTour, setTourStarted) {
+function useLoginRedirect(role, navigate, setShowHelpTour, setTourStarted, handleTourError, handleApiError) {
   const throttledNavigate = useMemo(() => throttle((path) => navigate(path), 2000), [navigate]);
 
   useEffect(() => {
@@ -84,36 +86,38 @@ function useLoginRedirect(role, navigate, setShowHelpTour, setTourStarted) {
       try {
         const isLoggedIn = await authService.isLoggedIn();
         if (!isLoggedIn) {
-          throttledNavigate('/login'); // Redirect to login if not logged in
+          throttledNavigate('/login');
         } else if (role && role.id) {
           const redirectPath = role.id === userRoles.ADMIN ? '/manage-users' : '/sales';
           if (window.location.pathname === '/login') {
-            throttledNavigate(redirectPath); // Redirect to the appropriate path
+            throttledNavigate(redirectPath);
           }
 
-          // Fetch tour status if the user is logged in
           try {
-            const tour = await TourService.getTourStatus(role.id);
+            const user = authService.getUser();
+            if (!user || !user.id) {
+              throw new Error('User ID not found');
+            }
+            const tour = await TourService.getTourStatus(user.id);
             if (tour && !tour.completed) {
-              setTourStarted(true); // Start the Help Tour if not completed
-              setShowHelpTour(true); // Ensure Help Tour is shown
+              setTourStarted(true);
+              setShowHelpTour(true);
             } else {
-              setShowHelpTour(false); // Hide Help Tour if completed
+              setShowHelpTour(false);
             }
           } catch (error) {
             if (error.response?.status === 404) {
-              // If 404, the user has never done the tour before
-              setTourStarted(true); // Start the Help Tour for new users
-              setShowHelpTour(true); // Show the Help Tour
+              setTourStarted(true);
+              setShowHelpTour(true);
             } else {
               console.error('Error fetching tour status:', error);
-              // Optional: Show a toast or alert to the user about the error
+              handleTourError(error);
             }
           }
         }
       } catch (error) {
         console.error('Failed to check login status:', error);
-        // Optional: Show a toast or alert to the user about the error
+        handleApiError(error, 'Failed to check login status');
       }
     };
 
@@ -122,7 +126,7 @@ function useLoginRedirect(role, navigate, setShowHelpTour, setTourStarted) {
     return () => {
       // Cleanup logic (optional)
     };
-  }, [role, throttledNavigate, setTourStarted, setShowHelpTour]);
+  }, [role, throttledNavigate, setTourStarted, setShowHelpTour, handleTourError, handleApiError]);
 }
 
 // Memoized Navbar and Sidebar to prevent unnecessary re-renders
@@ -140,11 +144,12 @@ function App() {
   const { toasts, showToast, removeToast } = useToasts();
   const { updateServiceWorker } = useServiceWorker(showToast);
   const [showHelpTour, setShowHelpTour] = useLocalStorage('helpTourShown', false);
-  const [tourStarted, setTourStarted] = useState(false); // Track if the tour has started
+  const [tourStarted, setTourStarted] = useState(false);
   const navigate = useNavigate();
+  const { handleTourError, handleApiError } = useNotification();
 
   // Handle login and redirection with throttled navigation
-  useLoginRedirect(role, navigate, setShowHelpTour, setTourStarted);
+  useLoginRedirect(role, navigate, setShowHelpTour, setTourStarted, handleTourError, handleApiError);
 
   // Auto-hide Help Tour after 2 minutes if not clicked
   useEffect(() => {

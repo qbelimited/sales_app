@@ -3,8 +3,8 @@ import api from './api';
 class TourService {
   static async getTourStatus(userId) {
     try {
-      const { data } = await api.get(`/help/tours?userId=${userId}`);
-      return data;
+      const { data } = await api.get(`/help/tours/list?userId=${userId}`);
+      return data.help_tours?.[0] || null; // Return first tour or null if none exist
     } catch (error) {
       if (error.response?.status === 404) {
         return null; // No tour exists yet
