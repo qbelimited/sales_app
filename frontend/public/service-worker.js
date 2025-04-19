@@ -58,6 +58,11 @@ self.addEventListener('activate', (event) => {
 
 // Helper function to add response to cache with timestamp and limit cache size
 const addToCacheWithExpiration = async (cache, request, response) => {
+  // Don't cache if response status is invalid or indicates an error
+  if (!response || response.status === 0 || response.status >= 400) {
+    return;
+  }
+
   const responseClone = response.clone();
   const now = Date.now();
   const headers = new Headers(responseClone.headers);
